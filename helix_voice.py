@@ -137,11 +137,11 @@ def _norm(text: str) -> str:
 
 
 ROOM = {
-    "lounge": "lounge", "living": "lounge", "living room": "lounge",
     "bedroom": "bedroom", "bed room": "bedroom",
-    "office": "office", "study": "office",
-    "outside": "outside", "outdoor": "outside", "garden": "outside",
-    "workshop": "workshop", "shop": "workshop",
+    "blaine's room": "blaines-room", "blaines room": "blaines-room",
+    "blaine": "blaines-room", "blaines": "blaines-room",
+    "violet's room": "violets-room", "violets room": "violets-room",
+    "violet": "violets-room", "violets": "violets-room",
     "all": None, "everything": None, "every light": None, "downstairs": None,
 }
 

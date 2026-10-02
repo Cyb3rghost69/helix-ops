@@ -4,15 +4,15 @@ from helix_voice import parse_intent, LOW, READ, DESTRUCTIVE
 
 
 class Intent(unittest.TestCase):
-    def test_lounge_on(self):
-        i = parse_intent("Turn the lounge lights on")
+    def test_bedroom_on(self):
+        i = parse_intent("Turn the bedroom lights on")
         self.assertEqual(i["tool"], "lights.set_power")
-        self.assertEqual(i["args"]["group"], "lounge")
+        self.assertEqual(i["args"]["group"], "bedroom")
         self.assertTrue(i["args"]["power"])
         self.assertEqual(i["permission"], LOW)
 
     def test_dim(self):
-        i = parse_intent("Turn the lounge lights down to thirty percent")
+        i = parse_intent("Turn the bedroom lights down to thirty percent")
         self.assertEqual(i["tool"], "lights.set_brightness")
         self.assertEqual(i["args"]["value"], 30)
 
@@ -21,9 +21,10 @@ class Intent(unittest.TestCase):
         self.assertEqual(i["tool"], "lights.all_off")
 
     def test_scene(self):
-        i = parse_intent("Set the office to Helix green")
+        i = parse_intent("Set Blaine's Room to Helix green")
         self.assertEqual(i["tool"], "lights.activate_scene")
         self.assertEqual(i["args"]["scene"], "helix-green")
+        self.assertEqual(i["args"]["group"], "blaines-room")
 
     def test_offline_count(self):
         i = parse_intent("How many WiZ lights are offline?")

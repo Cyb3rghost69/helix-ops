@@ -37,11 +37,9 @@ DEFAULT_SCENES = [
 ]
 
 DEFAULT_GROUPS = [
-    {"id": "lounge", "name": "Lounge", "lights": []},
     {"id": "bedroom", "name": "Bedroom", "lights": []},
-    {"id": "office", "name": "Office", "lights": []},
-    {"id": "outside", "name": "Outside", "lights": []},
-    {"id": "workshop", "name": "Workshop", "lights": []},
+    {"id": "blaines-room", "name": "Blaine's Room", "lights": []},
+    {"id": "violets-room", "name": "Violet's Room", "lights": []},
     {"id": "unassigned", "name": "Unassigned", "lights": []},
 ]
 

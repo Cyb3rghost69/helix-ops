@@ -32,9 +32,9 @@ LIGHTING → MANUAL ADD, or `{"action":"add","ip":"192.168.1.40"}`.
 
 ## Rooms
 
-Device info → ROOM select, or `{"action":"assign","id":"<mac>","group":"lounge"}`.
+Device info → ROOM select, or `{"action":"assign","id":"<mac>","group":"bedroom"}`.
 
-Groups: Lounge, Bedroom, Office, Outside, Workshop, Unassigned.
+Groups: Bedroom, Blaine's Room, Violet's Room, Unassigned.
 
 ## Scenes
 
