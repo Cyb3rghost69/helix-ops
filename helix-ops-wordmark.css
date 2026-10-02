@@ -1,0 +1,78 @@
+/* HELIX/OPS identity — phosphor field, no orange-primary wordmark. */
+.howm {
+  --howm-crest: #E8FFE2;
+  --howm-hover: #B8FFB0;
+  --howm-lit: #7CFF7A;
+  --howm-mid: #4a8a48;
+  --howm-dim: #2a3d28;
+  --howm-speed: 1;
+  --howm-scale: 1;
+  --howm-glow: 0.35;
+  position: relative;
+  display: block;
+  width: min(100%, 560px);
+  max-width: 100%;
+  margin-inline: 0;
+  aspect-ratio: 520 / 150;
+  background: transparent;
+  transform: translateZ(0);
+}
+@media (max-width: 767px) {
+  .howm { width: min(100%, 280px); max-height: 88px; aspect-ratio: 280 / 110; }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .howm { width: min(92%, 420px); }
+}
+.howm-field {
+  position: absolute;
+  inset: 0;
+  background-color: var(--howm-lit);
+  background-image: linear-gradient(
+    to bottom,
+    var(--howm-crest) 0% 22%,
+    var(--howm-hover) 22% 40%,
+    var(--howm-lit) 40% 68%,
+    var(--howm-mid) 68% 100%
+  );
+  -webkit-mask-image: url("helix-ops-slash.svg");
+  mask-image: url("helix-ops-slash.svg");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 70%;
+  mask-size: 100% 70%;
+  -webkit-mask-position: center 10%;
+  mask-position: center 10%;
+  filter: drop-shadow(0 0 calc(6px * var(--howm-glow)) var(--howm-lit));
+}
+.howm canvas.howm-px {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.howm-hud {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  font: 8px/1.2 ui-monospace, Menlo, "MS Gothic", monospace;
+  letter-spacing: 0.18em;
+  color: #7CFF7A;
+  opacity: 0.7;
+  pointer-events: none;
+  text-align: left;
+}
+.howm-sub {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: -0.2em;
+  font: 9px/1.35 ui-monospace, Menlo, "MS Gothic", monospace;
+  letter-spacing: 0.12em;
+  color: #9cba90;
+  opacity: 0;
+  pointer-events: none;
+}
+.howm-online { color: #7CFF7A; }
+.howm-core-cap { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .howm-field { animation: none; }
+}

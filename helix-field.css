@@ -1,0 +1,74 @@
+/* HELIX FIELD TERMINAL — mobile operations home. Desktop unchanged. */
+@media (max-width: 767px) {
+  body.field-term {
+    padding-left: max(10px, env(safe-area-inset-left, 0px));
+    padding-right: max(10px, env(safe-area-inset-right, 0px));
+  }
+  body.field-term #noc,
+  body.field-term .pair,
+  body.field-term .btop,
+  body.field-term #hard,
+  body.field-term #dock,
+  body.field-term #root,
+  body.field-term #alerts,
+  body.field-term #git-box,
+  body.field-term #need-you,
+  body.field-term .term.compute { display: none; }
+  body.field-term.ft-core .term.compute { display: flex; }
+  body.field-term.ft-mesh #noc { display: block; }
+  body.field-term .cockpit { display: grid; margin-top: 0; }
+  body.field-term .cockpit .term { min-height: 0; }
+  body.field-term #thoughts { min-height: 88px; max-height: 22svh; }
+
+  .field { display: block; margin: 0 0 10px; }
+  header.logo { margin-bottom: 6px; }
+  .logo-art { padding: 6px 8px 4px; gap: 4px; }
+  .howm { max-height: 72px; }
+  .howm canvas.howm-px { max-height: 72px; }
+  .fetch-info .ident { font-size: 9px; }
+  .fetch-find { display: none; }
+  .welcome { display: none; }
+
+  .ft-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 8px; padding: 0 2px 6px;
+  }
+  .ft-title { font-size: 11px; letter-spacing: 0.16em; color: var(--ok); }
+  .ft-title small { display: block; color: var(--dim); letter-spacing: 0.12em; font-size: 9px; }
+  .ft-dot { color: var(--ok); }
+  #hel-01 {
+    margin: 0; font: 9px/1.05 ui-monospace, Menlo, monospace;
+    color: var(--gold); white-space: pre; opacity: 0.9;
+  }
+
+  .ft-strip {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+    margin: 0 0 8px;
+  }
+  .ft-strip button {
+    min-height: 52px; padding: 6px 4px; font-size: 9px; letter-spacing: 0.08em;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    text-transform: uppercase;
+  }
+  .ft-strip b { color: var(--ok); font-size: 12px; font-weight: 500; }
+
+  .ft-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 8px;
+  }
+  .ft-card {
+    border: 1px solid var(--line); background: rgba(6,10,6,.85); padding: 8px;
+    min-height: 72px;
+  }
+  .ft-card.wide { grid-column: 1 / -1; display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
+  .ft-k { color: var(--dim); font-size: 9px; letter-spacing: 0.14em; }
+  .ft-v { color: var(--ok); font-size: 13px; letter-spacing: 0.08em; }
+  .ft-bar { height: 4px; background: #0b120b; margin-top: 6px; }
+  .ft-bar i { display: block; height: 100%; background: var(--ok); width: 0; }
+  .ft-act { max-height: 7.2em; overflow: auto; font-size: 11px; color: #9cba90; }
+  .ft-act div { padding: 2px 0; border-bottom: 1px dotted #243024; }
+  .ft-prompt { margin: 0 0 8px; }
+  .ft-prompt .term-prompt { border: 1px solid var(--line); }
+}
+@media (min-width: 768px) {
+  .field, #hel-01, .ft-strip, .ft-grid, .ft-prompt { display: none !important; }
+}

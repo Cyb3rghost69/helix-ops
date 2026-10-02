@@ -1,0 +1,239 @@
+/* HELIX OPS — CRT / PC-98 operations skin. Loaded after inline CSS. */
+:root {
+  --bg: #060705;
+  --ink: #d6d4c8;
+  --dim: #7d8574;
+  --line: #243024;
+  --panel: rgba(8, 12, 8, 0.94);
+  --gold: #d4a017;
+  --ok: #6adf64;
+  --bad: #c44a3a;
+  --warn: #e09030;
+  --cyan: #6aa8a8;
+  --mag: #c44a3a;
+  --phos: #6adf64;
+  --amber: #d4a017;
+}
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-monospace, "IBM Plex Mono", "MS Gothic", "Hiragino Kaku Gothic ProN", Menlo, monospace;
+}
+body {
+  background-image:
+    linear-gradient(rgba(80, 255, 90, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(80, 255, 90, 0.035) 1px, transparent 1px),
+    radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.45) 100%);
+  background-size: 24px 24px, 24px 24px, 100% 100%;
+  background-attachment: fixed;
+}
+body::before {
+  z-index: 8;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(90, 255, 90, 0.035) 0 1px,
+    transparent 1px 3px
+  );
+  opacity: 0.7;
+}
+body::after {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.55);
+}
+.welcome {
+  color: var(--dim);
+  text-shadow: 0 0 6px rgba(106, 223, 100, 0.25);
+  animation: none;
+  letter-spacing: 0.12em;
+}
+header.logo {
+  color: var(--ok);
+  text-shadow: 0 0 8px rgba(106, 223, 100, 0.28);
+  border: 1px solid var(--line);
+  background: rgba(6, 10, 6, 0.72);
+}
+pre.banner {
+  color: var(--ok);
+  text-shadow: 0 0 6px rgba(106, 223, 100, 0.25);
+}
+.fetch-host { color: var(--cyan); }
+.fetch-host b { color: var(--ok); }
+.fetch-rule { color: var(--line); }
+.fetch-info .row { color: var(--ink); }
+.fetch-info .k { color: var(--amber); }
+.fetch-info .v { color: var(--ok); }
+header.logo #q {
+  color: var(--ok);
+  border-bottom: 1px solid var(--line);
+  text-shadow: none;
+}
+header.logo button {
+  color: var(--ok);
+  text-shadow: none;
+  border: 1px solid var(--line);
+  background: #0b100b;
+}
+.term, .panel, .cam, .view, .btop, #dock a, #need-you {
+  background: var(--panel);
+  border: 1px solid var(--line) !important;
+  box-shadow: none !important;
+  border-radius: 0;
+}
+.term-bar {
+  background: #0b100b !important;
+  color: var(--ok) !important;
+  border-bottom: 1px solid var(--line) !important;
+  text-shadow: 0 0 6px rgba(106, 223, 100, 0.2) !important;
+  letter-spacing: 0.16em;
+}
+#thoughts, #talk, #herdr-body, #mem-body, #sk-body {
+  background: #050805;
+}
+#thoughts .who { color: var(--amber); }
+#thoughts .k-user { color: var(--amber); }
+#thoughts .k-assistant { color: var(--ok); }
+#thoughts .k-thought { color: #9cba90; }
+#thoughts .k-tool { color: var(--cyan); }
+#thoughts .empty, .empty { color: var(--dim); }
+.term-prompt { border-top: 1px solid var(--line); background: #070a07; }
+.ps1 { color: var(--ok); text-shadow: 0 0 6px rgba(106, 223, 100, 0.3); }
+#prompt-in { color: var(--ok); }
+button {
+  background: #101410;
+  color: var(--ok);
+  border: 1px solid var(--line);
+  text-shadow: none;
+  letter-spacing: 0.14em;
+  border-radius: 0;
+}
+button:hover { filter: none; background: #161c16; }
+.tabs button.on, .mtabs button.on, .sk-list button.on {
+  box-shadow: none;
+  outline: 1px solid var(--ok);
+  color: var(--ok);
+}
+h2 {
+  color: var(--amber);
+  text-shadow: none;
+  letter-spacing: 0.18em;
+}
+h2::before { content: ""; }
+.host-name { color: var(--ok); }
+.k { color: var(--dim); }
+.mono { color: var(--cyan); }
+a { color: var(--cyan); }
+#dock .dn { color: var(--ok); }
+#alerts .chip { border: 1px solid var(--line); }
+.agent, #hard .f { border-color: var(--line); }
+#bot-svg { background: #050805; border: 1px solid var(--line); }
+#cpu-svg { background: #050805; }
+#cpu-hosts .hbar { background: #0b120b; border: 1px solid var(--line); }
+#cpu-hosts .hbar > i { background: var(--ok); box-shadow: 0 0 6px rgba(106, 223, 100, 0.35); }
+.bar > i { background: var(--ok); box-shadow: none; }
+.clock { color: var(--ok); text-shadow: 0 0 6px rgba(106, 223, 100, 0.25); }
+
+.sysbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 6px 10px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+  border: 1px solid var(--line);
+  background: #070a07;
+  color: var(--dim);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+.sysbar b { color: var(--ok); font-weight: 500; }
+.sysbar .sep { color: var(--line); }
+.sysbar button {
+  padding: 4px 8px;
+  min-height: 32px;
+  font-size: 10px;
+}
+
+#orbit-bg {
+  position: fixed;
+  inset: auto 4% 18% auto;
+  width: min(280px, 28vw);
+  height: min(280px, 28vw);
+  z-index: 0;
+  opacity: 0.22;
+  pointer-events: none;
+}
+#orbit-bg .spin { transform-origin: 100px 100px; animation: orbit-spin 80s linear infinite; }
+@keyframes orbit-spin { to { transform: rotate(360deg); } }
+
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: #050605;
+  color: var(--ok);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  font: 13px/1.55 ui-monospace, Menlo, monospace;
+}
+.boot[hidden] { display: none; }
+.boot-inner { width: min(560px, 100%); }
+.boot pre {
+  margin: 0 0 16px;
+  white-space: pre-wrap;
+  text-shadow: 0 0 8px rgba(106, 223, 100, 0.25);
+}
+.boot button {
+  min-height: 40px;
+  padding: 8px 16px;
+}
+.modflash {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgba(5, 6, 5, 0.86);
+  color: var(--ok);
+  letter-spacing: 0.18em;
+  font: 13px/1.5 ui-monospace, Menlo, monospace;
+  text-align: center;
+}
+.modflash[hidden] { display: none; }
+
+.ident {
+  color: var(--dim);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  margin: 0 0 4px;
+}
+.ident strong { color: var(--ok); font-weight: 500; }
+
+@media (max-width: 767px) {
+  header.logo {
+    border: 1px solid var(--line);
+    box-shadow: none;
+    background: rgba(6, 10, 6, 0.85);
+  }
+  #orbit-bg { display: none; }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  header.logo { border: 1px solid var(--line); box-shadow: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #orbit-bg .spin, .boot pre { animation: none; }
+}
+@media (hover: none) {
+  button:hover { background: #101410; }
+}
+@media (pointer: fine) and (hover: hover) {
+  .tabs button:hover::after { content: "_"; }
+}

@@ -1,0 +1,10 @@
+{
+  "192.168.1.172": {"owner": "Mat Flaherty", "note": "Mac Mini / Helix"},
+  "192.168.1.81": {"owner": "Mat Flaherty", "note": "Mac Mini alias"},
+  "192.168.1.84": {"owner": "homelab", "note": "Unraid bigboi"},
+  "192.168.1.236": {"owner": "homelab", "note": "Umbrel"},
+  "192.168.1.207": {"owner": "cursed", "note": "Omarchy laptop"},
+  "192.168.1.151": {"owner": "homelab", "note": "ThinkPad"},
+  "192.168.1.82": {"owner": "homelab", "note": "HPE iLO"},
+  "192.168.1.1": {"owner": "network", "note": "UDM"}
+}

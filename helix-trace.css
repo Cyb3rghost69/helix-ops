@@ -1,0 +1,109 @@
+/* HELIX FIELD — AGENT COGNITIVE TRACE / 思考追跡システム */
+.trace {
+  border: 1px solid var(--line);
+  background: rgba(6, 10, 6, 0.88);
+  padding: 8px;
+  position: relative;
+  z-index: 1;
+}
+.trace-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  letter-spacing: 0.14em; font-size: 11px; color: var(--ok);
+  border-bottom: 1px solid var(--line); padding: 4px 2px 8px; margin-bottom: 8px;
+}
+.trace-head small { color: var(--dim); letter-spacing: 0.12em; }
+.trace-live { color: var(--ok); }
+.trace-live.off { color: var(--dim); }
+.trace-stack {
+  border: 1px solid var(--line); background: #050805; padding: 8px 10px; margin: 0 0 8px;
+  font-size: 12px; line-height: 1.45;
+}
+.trace-stack .ts-row { margin: 0 0 8px; }
+.trace-stack .ts-h { letter-spacing: 0.14em; font-size: 10px; color: var(--dim); }
+.trace-stack .ts-h.on { color: var(--ok); }
+.trace-stack .ts-h.cur { color: var(--amber); }
+.trace-stack .ts-b { color: var(--ink); white-space: pre-wrap; padding: 2px 0 0 1.2em; }
+.trace-stack .ts-b.empty { color: var(--dim); }
+.trace-grid {
+  display: grid;
+  grid-template-columns: 220px 1fr 280px;
+  grid-template-rows: auto 1fr auto;
+  gap: 8px;
+}
+.trace-box {
+  border: 1px solid var(--line); background: #050805; padding: 8px; min-width: 0;
+}
+.trace-box .ident { color: var(--amber); font-size: 10px; letter-spacing: 0.14em; margin-bottom: 6px; }
+.trace-matrix button {
+  display: flex; width: 100%; justify-content: space-between; align-items: center;
+  min-height: 36px; margin: 0 0 4px; padding: 6px 8px; text-align: left;
+  letter-spacing: 0.1em; font-size: 11px;
+}
+.trace-matrix button.on { outline: 1px solid var(--ok); }
+.trace-matrix .st { color: var(--dim); }
+.trace-matrix .st.THINKING, .trace-matrix .st.WORKING { color: var(--amber); }
+.trace-matrix .st.TOOL { color: var(--cyan); }
+.trace-matrix .st.IDLE, .trace-matrix .st.READY { color: var(--ok); }
+.trace-stages { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.trace-stages i {
+  font-style: normal; font-size: 10px; letter-spacing: 0.12em; color: var(--dim);
+  border: 1px solid var(--line); padding: 3px 6px;
+}
+.trace-stages i.on { color: var(--ok); border-color: var(--ok); text-shadow: 0 0 6px rgba(106,223,100,.35); }
+.trace-stages i.cur { color: var(--amber); border-color: var(--amber); }
+.trace-kv { font-size: 11px; line-height: 1.45; color: var(--ink); }
+.trace-kv b { color: var(--dim); font-weight: 500; letter-spacing: 0.08em; display: inline-block; min-width: 9em; }
+#trace-cv { width: 100%; height: 280px; display: block; background: #030503; }
+.trace-tl, .trace-stream, .trace-arch {
+  max-height: 240px; overflow: auto; font-size: 11px; line-height: 1.4;
+}
+.trace-tl button, .trace-arch button {
+  display: block; width: 100%; text-align: left; min-height: 32px;
+  padding: 4px 6px; margin: 0; border: 0; border-bottom: 1px dotted var(--line);
+  background: transparent; color: var(--ink); letter-spacing: 0.04em;
+}
+.trace-tl button:focus, .trace-arch button:focus { outline: 1px solid var(--line); }
+.trace-tl .k { color: var(--amber); margin-right: 6px; }
+.trace-tl .exp {
+  white-space: pre-wrap; color: #9cba90; font-size: 10px; padding: 4px 8px 8px;
+  border-bottom: 1px dotted var(--line);
+}
+.trace-stream div { padding: 2px 0; font-family: ui-monospace, Menlo, monospace; }
+.trace-stream .PLAN { color: var(--amber); }
+.trace-stream .TOOL { color: var(--cyan); }
+.trace-stream .RESULT { color: var(--ok); }
+.trace-stream .TRACE { color: #9cba90; }
+.trace-stream .SUMMARY { color: #9cba90; }
+.trace-stream .NEXT { color: var(--amber); }
+.trace-stream .RESPONSE { color: var(--ink); }
+.trace-fs-close { display: none; }
+@media (max-width: 1023px) {
+  .trace-grid { grid-template-columns: 1fr 1fr; }
+  #trace-cv { height: 180px; }
+}
+@media (max-width: 767px) {
+  body.field-term #pane-trace { display: none; }
+  body.field-term.trace-open #pane-trace {
+    display: block; position: fixed; inset: 0; z-index: 40;
+    background: #060705; overflow: auto;
+    padding: max(10px, env(safe-area-inset-top)) 10px max(16px, env(safe-area-inset-bottom));
+  }
+  body.trace-open .trace-fs-close {
+    display: inline-block; min-height: 44px; margin: 0 0 8px;
+  }
+  body.trace-open .trace-grid { display: flex; flex-direction: column; }
+  body.trace-open .trace-tl { max-height: none; }
+  body.trace-open #trace-cv { height: 160px; }
+  .trace-grid { grid-template-columns: 1fr; }
+  #trace-cv { height: 160px; }
+  .ft-trace { cursor: pointer; }
+  .ft-trace .ft-v { font-size: 12px; }
+  #hel-01-line {
+    display: block; color: var(--dim); font-size: 9px; letter-spacing: 0.06em;
+    margin: 2px 0 6px; min-height: 1.2em;
+  }
+}
+@media (min-width: 768px) {
+  #hel-01-line { display: none; }
+  .ft-trace { display: none !important; }
+}

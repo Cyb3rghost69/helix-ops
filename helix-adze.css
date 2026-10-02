@@ -1,0 +1,22 @@
+/* DUAL COGNITIVE CORE — Hermes amber, ADZE cream. Cooperating, not battling. */
+.dual-core {
+  border: 1px solid var(--line); background: rgba(6,10,6,.88); padding: 8px; margin: 0 0 8px;
+}
+.dual-core .ident { color: var(--amber); font-size: 10px; letter-spacing: 0.14em; margin-bottom: 6px; }
+.dual-pair {
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center;
+}
+.dual-node {
+  border: 1px solid var(--line); padding: 8px; min-height: 64px;
+}
+.dual-node.hermes { border-color: #d4a017; }
+.dual-node.adze { border-color: #cfc6a8; }
+.dual-node .nm { letter-spacing: 0.14em; font-size: 11px; color: var(--ok); }
+.dual-node.adze .nm { color: #efe6c9; }
+.dual-node .st { color: var(--dim); font-size: 11px; }
+.dual-mid { text-align: center; color: var(--dim); font-size: 10px; letter-spacing: 0.12em; }
+.dual-x { max-height: 140px; overflow: auto; font-size: 11px; margin-top: 8px; color: #9cba90; }
+.dual-x div { padding: 2px 0; border-bottom: 1px dotted var(--line); }
+@media (max-width: 767px) {
+  .dual-pair { grid-template-columns: 1fr; }
+}

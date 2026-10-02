@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>HELIX/OPS · __TITLE__</title>
+<style>
+  :root {
+    --bg: #060705; --ink: #d6d4c8; --gold: #d4a017; --cyan: #6aa8a8; --ok: #6adf64; --bad: #c44a3a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: #060705; color: var(--ink);
+    font: 16px/1.45 ui-monospace, "MS Gothic", "Hiragino Kaku Gothic ProN", Menlo, monospace; }
+  body {
+    min-height: 100svh; display: grid; place-items: center;
+    padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+    background-image:
+      linear-gradient(rgba(80,255,90,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(80,255,90,.04) 1px, transparent 1px),
+      radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.5) 100%);
+    background-size: 24px 24px, 24px 24px, 100% 100%;
+  }
+  body::before {
+    content: ""; pointer-events: none; position: fixed; inset: 0;
+    background: repeating-linear-gradient(180deg, rgba(90,255,90,.03) 0 1px, transparent 1px 3px);
+  }
+  .win {
+    position: relative; z-index: 1; width: min(420px, calc(100vw - 24px)); max-width: 100%;
+    border: 1px solid #243024; background: rgba(8,12,8,.94);
+  }
+  .bar {
+    background: #0b100b;
+    color: var(--ok); padding: 6px 10px; letter-spacing: .16em;
+    text-transform: uppercase; border-bottom: 1px solid #243024;
+  }
+  .body { padding: 18px 16px 20px; }
+  .welcome { color: var(--ok); letter-spacing: .06em; margin: 0 0 12px; overflow-wrap: anywhere; word-break: break-word; }
+  .hint { color: #7d8574; font-size: 11px; margin-top: 14px; overflow-wrap: anywhere; }
+  label { display: block; color: var(--cyan); margin: 10px 0 4px; font-size: 11px; letter-spacing: .12em; }
+  input {
+    width: 100%; background: #050805; color: var(--ok); border: 1px solid #243024;
+    padding: 10px; font: 16px ui-monospace, Menlo, monospace;
+  }
+  button {
+    margin-top: 16px; width: 100%; padding: 12px; min-height: 44px;
+    background: #101410; color: var(--ok); border: 1px solid #243024;
+    font: 700 16px ui-monospace, monospace; letter-spacing: .12em; cursor: pointer;
+    -webkit-appearance: none; appearance: none;
+  }
+  button:active { background: #161c16; }
+  .err { color: var(--bad); min-height: 1.2em; margin: 8px 0 0; font-size: 12px; }
+  .setup-only { display: __SETUP_DISP__; }
+  .login-only { display: __LOGIN_DISP__; }
+</style>
+</head>
+<body>
+  <form class="win setup-only" method="post" action="__PREFIX__/login" autocomplete="on">
+    <div class="bar">HELIX/OPS · アクセス</div>
+    <div class="body">
+      <p class="welcome">__WELCOME__</p>
+      <label for="user_setup">LOGIN</label>
+      <input id="user_setup" name="user" type="text" value="helix" required autofocus autocomplete="username" />
+      <label for="password_setup">SET PASSWORD</label>
+      <input id="password_setup" name="password" type="password" minlength="8" required autocomplete="new-password" />
+      <label for="password2">CONFIRM</label>
+      <input id="password2" name="password2" type="password" minlength="8" required autocomplete="new-password" />
+      <input type="hidden" name="setup" value="1" />
+      <button type="submit">SAVE AND ENTER</button>
+      <p class="err">__ERR__</p>
+      <p class="hint">__HINT__</p>
+    </div>
+  </form>
+  <form class="win login-only" method="post" action="__PREFIX__/login" autocomplete="on">
+    <div class="bar">HELIX/OPS · アクセス</div>
+    <div class="body">
+      <p class="welcome">__WELCOME__</p>
+      <label for="user_login">LOGIN</label>
+      <input id="user_login" name="user" type="text" value="helix" required autocomplete="username" />
+      <label for="password_login">PASSWORD</label>
+      <input id="password_login" name="password" type="password" required autocomplete="current-password" />
+      <button type="submit">ENTER</button>
+      <p class="err">__ERR__</p>
+      <p class="hint">__HINT__</p>
+    </div>
+  </form>
+</body>
+</html>
