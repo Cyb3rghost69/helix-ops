@@ -5,8 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>HELIX/OPS · TOKYO-06</title>
 <link rel="icon" href="/helix-core-mark.svg" type="image/svg+xml">
-<meta name="application-name" content="HELIX OPS">
-<meta name="apple-mobile-web-app-title" content="HELIX/OPS">
+<meta name="application-name" content="Helix OS">
+<meta name="apple-mobile-web-app-title" content="Helix">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#060705">
 <style>
   :root {
     --bg: #060705;
@@ -827,6 +831,12 @@
     <div class="vx-err" id="vx-err"></div>
     <div class="ident">SESSION LOG</div>
     <div id="vx-hist" class="vx-hist"></div>
+    <details class="vx-install">
+      <summary>TABLET INSTALL</summary>
+      <p>Use HTTPS (Tailscale). Microphone will not work on plain LAN HTTP.</p>
+      <p>iPad Safari: Share → Add to Home Screen</p>
+      <p>Android Chrome: Install app / Add to Home Screen</p>
+    </details>
   </section>
 </div>
 <div id="pane-dock" hidden>
@@ -1851,10 +1861,21 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0494";
+    const ASSET_V = "hos0495";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;
+    const man = document.createElement("link");
+    man.rel = "manifest";
+    man.href = p + "/manifest.webmanifest";
+    document.head.appendChild(man);
+    const touch = document.createElement("link");
+    touch.rel = "apple-touch-icon";
+    touch.href = p + "/apple-touch-icon.png?v=" + ASSET_V;
+    document.head.appendChild(touch);
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register(p + "/helix-sw.js", { scope: p ? p + "/" : "/" }).catch(() => {});
+    }
     ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-lights.css", "helix-voice.css", "helix-tablet.css"].forEach((href) => {
       const css = document.createElement("link");
       css.rel = "stylesheet";

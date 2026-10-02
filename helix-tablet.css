@@ -146,3 +146,16 @@
     min-height: 44px;
   }
 }
+
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  body {
+    padding-top: max(8px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+  }
+  header.logo { margin-bottom: 8px; }
+}
+.vx-install { margin: 12px 0 0; border-top: 1px dotted #243024; padding-top: 8px; color: var(--dim); font-size: 11px; }
+.vx-install summary { cursor: pointer; letter-spacing: 0.14em; color: var(--ok); }
+.vx-install p { margin: 6px 0 0; }

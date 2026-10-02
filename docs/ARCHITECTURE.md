@@ -32,6 +32,7 @@ No bundler, no WebSocket. Polling:
 | GET `/api/git` | local git status |
 | GET `/api/lights` | WiZ lighting snapshot |
 | GET `/api/voice` | voice config + history |
+| GET `/manifest.webmanifest` | PWA manifest (Helix OS) |
 
 `/ops` prefix is applied when `location.pathname` starts with `/ops`.
 

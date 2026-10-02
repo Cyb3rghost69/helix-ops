@@ -2633,6 +2633,14 @@ class Handler(BaseHTTPRequestHandler):
             return False
         if path in ("/login", "/logout", "/health"):
             return False
+        if path in (
+            "/manifest.webmanifest",
+            "/helix-sw.js",
+            "/apple-touch-icon.png",
+            "/helix-icon-192.png",
+            "/helix-icon-512.png",
+        ):
+            return False
         if method == "POST" and path == "/api/protect/hook":
             return False
         return True
@@ -2678,6 +2686,31 @@ class Handler(BaseHTTPRequestHandler):
             html = (ROOT / "index.html").read_bytes()
             self._send(200, html, "text/html; charset=utf-8")
             return
+        if path == "/manifest.webmanifest":
+            start = (pfx + "/") if pfx else "/"
+            body = json.dumps(
+                {
+                    "name": "Helix OS",
+                    "short_name": "Helix",
+                    "description": "HELIX/OPS command surface",
+                    "start_url": start,
+                    "scope": start,
+                    "id": start,
+                    "display": "standalone",
+                    "display_override": ["standalone", "minimal-ui", "browser"],
+                    "orientation": "any",
+                    "background_color": "#060705",
+                    "theme_color": "#060705",
+                    "icons": [
+                        {"src": f"{pfx}/helix-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+                        {"src": f"{pfx}/helix-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+                        {"src": f"{pfx}/helix-core-mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+                    ],
+                },
+                ensure_ascii=False,
+            ).encode()
+            self._send(200, body, "application/manifest+json; charset=utf-8")
+            return
         if path == "/mindscape.js":
             js = (ROOT / "mindscape.js").read_bytes()
             self._send(200, js, "application/javascript; charset=utf-8")
@@ -2705,6 +2738,10 @@ class Handler(BaseHTTPRequestHandler):
             "/helix-voice.css": ("helix-voice.css", "text/css; charset=utf-8"),
             "/helix-voice.js": ("helix-voice.js", "application/javascript; charset=utf-8"),
             "/helix-tablet.css": ("helix-tablet.css", "text/css; charset=utf-8"),
+            "/helix-sw.js": ("helix-sw.js", "application/javascript; charset=utf-8"),
+            "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png"),
+            "/helix-icon-192.png": ("helix-icon-192.png", "image/png"),
+            "/helix-icon-512.png": ("helix-icon-512.png", "image/png"),
         }
         if path in static:
             name, ctype = static[path]

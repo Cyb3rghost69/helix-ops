@@ -43,6 +43,23 @@
       ctx.fillRect(i * bw + 1, (h - amp) / 2, bw - 2, amp);
     }
   }
+  function unlockAudio() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) {
+        audioCtx = audioCtx || new Ctx();
+        if (audioCtx.state === "suspended") audioCtx.resume();
+      }
+    } catch (e) {}
+    try {
+      if (!unlockAudio._done) {
+        const u = new SpeechSynthesisUtterance(" ");
+        u.volume = 0;
+        speechSynthesis.speak(u);
+        unlockAudio._done = true;
+      }
+    } catch (e) {}
+  }
   function speak(text) {
     if (!cfg.auto_play || !cfg.tts_enabled || !text) return;
     try { speechSynthesis.cancel(); } catch (e) {}
@@ -198,6 +215,9 @@
   function bind() {
     const root = document.getElementById("pane-voice");
     if (!root) return;
+    document.getElementById("vx-ptt")?.addEventListener("pointerdown", unlockAudio);
+    document.getElementById("vx-conv")?.addEventListener("pointerdown", unlockAudio);
+    document.getElementById("vx-wake")?.addEventListener("pointerdown", unlockAudio);
     document.getElementById("vx-ptt")?.addEventListener("click", () => {
       if (muted) return;
       conv = false;
