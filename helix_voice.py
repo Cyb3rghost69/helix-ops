@@ -13,7 +13,7 @@ HIST = ROOT / "helix-voice.jsonl"
 CFG_DEFAULT = {
     "voice_enabled": True,
     "voice_mode": "push_to_talk",  # push_to_talk | conversation | wake_word
-    "stt_provider": "browser",
+    "stt_provider": "mac",
     "stt_model": "small",
     "stt_device": "auto",
     "stt_language": "en-AU",
@@ -376,6 +376,59 @@ def execute(intent: dict, confirm: bool = False) -> dict:
     return {"ok": bool(result.get("ok", True)), "tool": tool, "permission": perm, "result": slim, "speak": speak}
 
 
+def transcribe_audio(data: bytes, mime: str = "") -> str:
+    if not data or len(data) < 80:
+        return ""
+    bin_path = ROOT / "helix-stt"
+    if not bin_path.is_file():
+        return ""
+    ext = ".m4a"
+    m = (mime or "").lower()
+    if "wav" in m:
+        ext = ".wav"
+    elif "webm" in m:
+        ext = ".webm"
+    elif "ogg" in m:
+        ext = ".ogg"
+    elif "mpeg" in m or "mp3" in m:
+        ext = ".mp3"
+    import tempfile
+    fd, path = tempfile.mkstemp(prefix="helix-stt-", suffix=ext)
+    os.close(fd)
+    try:
+        Path(path).write_bytes(data)
+        src = path
+        if ext in (".webm", ".ogg"):
+            conv = path + ".caf"
+            import subprocess as sp
+            c = sp.run(["/usr/bin/afconvert", "-f", "caff", "-d", "LEI16", path, conv], capture_output=True, timeout=12)
+            if c.returncode == 0 and Path(conv).is_file():
+                src = conv
+        import subprocess as sp
+        r = sp.run([str(bin_path), src], capture_output=True, text=True, timeout=26)
+        text = (r.stdout or "").strip()
+        return text
+    except Exception:
+        return ""
+    finally:
+        for p in (path, path + ".caf"):
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
+
+
+def _b64_audio(s: str) -> bytes:
+    import base64
+    raw = (s or "").strip()
+    if "," in raw and raw.lower().startswith("data:"):
+        raw = raw.split(",", 1)[1]
+    try:
+        return base64.b64decode(raw)
+    except Exception:
+        return b""
+
+
 def utter(text: str, confirm: bool = False, stt_ms: int | None = None, provider: str = "auto") -> dict:
     t0 = time.time()
     cfg = config()
@@ -430,5 +483,19 @@ def act(body: dict) -> dict:
         _CFG = {}
         return snapshot()
     if action in ("utter", "confirm"):
-        return utter(str(body.get("text") or ""), confirm=action == "confirm" or bool(body.get("confirm")), stt_ms=body.get("stt_ms"), provider=str(body.get("provider") or "auto"))
+        audio = body.get("audio_b64") or body.get("audio")
+        text = str(body.get("text") or "")
+        stt_ms = body.get("stt_ms")
+        if audio and not text.strip():
+            t1 = time.time()
+            text = transcribe_audio(_b64_audio(str(audio)), str(body.get("mime") or ""))
+            stt_ms = int((time.time() - t1) * 1000)
+            if not text:
+                return {"ok": False, "error": "stt", "speak": "I could not transcribe that. Type the command below."}
+        return utter(
+            text,
+            confirm=action == "confirm" or bool(body.get("confirm")),
+            stt_ms=stt_ms,
+            provider=str(body.get("provider") or "auto"),
+        )
     return {"ok": False, "error": "bad action"}

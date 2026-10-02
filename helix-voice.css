@@ -34,6 +34,11 @@
 .vx-hist { max-height: 180px; overflow: auto; font-size: 11px; color: #9cba90; }
 .vx-hist div { border-bottom: 1px dotted #243024; padding: 4px 0; }
 .vx-err { color: var(--bad); min-height: 1.2em; font-size: 11px; }
+.vx-type {
+  width: 100%; min-height: 44px; margin: 8px 0 0; padding: 8px 10px;
+  background: #050805; color: var(--ok); border: 1px solid var(--line);
+  font: 16px ui-monospace, Menlo, monospace;
+}
 @media (max-width: 767px) {
   .vx-tele { grid-template-columns: repeat(2, 1fr); }
   .vx-mic { width: 100%; min-height: 64px; }

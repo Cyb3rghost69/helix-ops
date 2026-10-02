@@ -3016,7 +3016,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/voice":
             n = int(self.headers.get("Content-Length") or 0)
-            raw = self.rfile.read(max(0, min(n, 8000)))
+            raw = self.rfile.read(max(0, min(n, 2000000)))
             try:
                 data = json.loads(raw.decode() or "{}")
             except json.JSONDecodeError:
