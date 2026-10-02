@@ -17,6 +17,8 @@
   body.field-term .term.compute { display: none; }
   body.field-term.ft-core .term.compute { display: flex; }
   body.field-term.ft-mesh #noc { display: block; }
+  body.field-term.matrix-open #pane-matrix { display: block; }
+  body.field-term.matrix-open #field { display: none; }
   body.field-term .cockpit { display: grid; margin-top: 0; }
   body.field-term .cockpit .term { min-height: 0; }
   body.field-term #thoughts { min-height: 88px; max-height: 22svh; }

@@ -1,13 +1,13 @@
-/* HELIX/OPS identity — phosphor field, no orange-primary wordmark. */
+/* HELIX/OPS identity — amber particle field; CRT chrome stays phosphor. */
 .howm {
-  --howm-crest: #E8FFE2;
-  --howm-hover: #B8FFB0;
-  --howm-lit: #7CFF7A;
-  --howm-mid: #4a8a48;
-  --howm-dim: #2a3d28;
+  --howm-crest: #F6F1E4;
+  --howm-hover: #EED9A6;
+  --howm-lit: #E08A2A;
+  --howm-mid: #C45E12;
+  --howm-dim: #4A3218;
   --howm-speed: 1;
   --howm-scale: 1;
-  --howm-glow: 0.35;
+  --howm-glow: 0.12;
   position: relative;
   display: block;
   width: min(100%, 560px);

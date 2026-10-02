@@ -64,6 +64,7 @@ SECRETISH = re.compile(r"(password|passwd|token|api[_-]?key|secret|r3dbull)", re
 _FLEET_CPU: dict = {"hosts": [], "t": 0.0}
 _AGENTS_CACHE: dict = {"t": 0.0, "data": None}
 _REMOTE_CACHE: dict = {"t": 0.0, "data": None}
+_MATRIX_CACHE: dict = {"t": 0.0, "data": None}
 
 _DEMO_NODES = [
     ("Hermes Agent Architecture", "Core agent, CLI, tools, gateway adapters.", ["architecture", "core"], "reasoning"),
@@ -946,6 +947,30 @@ def git_now() -> dict:
         "sync": sync,
         "clean": len(dirty) == 0,
     }
+
+
+def matrix_now(force: bool = False) -> dict:
+    from helix_memory import snapshot, strip_contents
+
+    now = time.time()
+    if not force and _MATRIX_CACHE["data"] and now - _MATRIX_CACHE["t"] < 4:
+        return _MATRIX_CACHE["data"]
+    data = strip_contents(snapshot(git_now, force=force))
+    _MATRIX_CACHE["t"] = now
+    _MATRIX_CACHE["data"] = data
+    return data
+
+
+def matrix_act(body: dict) -> dict:
+    from helix_memory import rescan, strip_contents
+
+    act = str((body or {}).get("act") or "")
+    if act != "rescan":
+        return {"ok": False, "error": "unknown act"}
+    data = strip_contents(rescan(git_now))
+    _MATRIX_CACHE["t"] = time.time()
+    _MATRIX_CACHE["data"] = data
+    return data
 
 
 def docker_act(name: str, action: str) -> dict:
@@ -2673,6 +2698,8 @@ class Handler(BaseHTTPRequestHandler):
             "/helix-adze.js": ("helix-adze.js", "application/javascript; charset=utf-8"),
             "/helix-remote.css": ("helix-remote.css", "text/css; charset=utf-8"),
             "/helix-remote.js": ("helix-remote.js", "application/javascript; charset=utf-8"),
+            "/helix-matrix.css": ("helix-matrix.css", "text/css; charset=utf-8"),
+            "/helix-matrix.js": ("helix-matrix.js", "application/javascript; charset=utf-8"),
         }
         if path in static:
             name, ctype = static[path]
@@ -2797,6 +2824,13 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json; charset=utf-8",
             )
             return
+        if path == "/api/matrix":
+            self._send(
+                200,
+                json.dumps(matrix_now(), ensure_ascii=False).encode(),
+                "application/json; charset=utf-8",
+            )
+            return
         if path == "/api/git":
             self._send(
                 200,
@@ -2899,6 +2933,16 @@ class Handler(BaseHTTPRequestHandler):
                 data = {}
             ip = self.client_address[0] if self.client_address else ""
             body = json.dumps(remote_act(data if isinstance(data, dict) else {}, ip), ensure_ascii=False).encode()
+            self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path == "/api/matrix":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 2000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            body = json.dumps(matrix_act(data if isinstance(data, dict) else {}), ensure_ascii=False).encode()
             self._send(200, body, "application/json; charset=utf-8")
             return
         if path == "/api/protect/hook":

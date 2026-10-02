@@ -1,24 +1,25 @@
-/* HELIX/OPS — phosphor particle identity. State machine, not a loop of setTimeouts. */
+/* HELIX/OPS — amber/orange square-particle identity. State machine, not setTimeouts. */
 (function (global) {
   const C = {
+    amber: "#E08A2A",
+    orange: "#C45E12",
+    cream: "#EED9A6",
+    flare: "#F6F1E4",
+    dim: "#4A3218",
     phosphor: "#7CFF7A",
-    bright: "#B8FFB0",
-    hot: "#E8FFE2",
-    dim: "#3d5a3a",
-    amber: "#d4a017",
     warn: "#c44a3a",
     bg: "#050805",
   };
 
   const FULL = {
-    ACQUIRE: 420, MAP: 380, CORE_FORM: 520, CORE_SYNC: 380,
-    EXPAND: 280, WORDMARK_BUILD: 900, CALIBRATE: 320, LOCK: 220,
+    DORMANT: 280, ACQUIRE: 420, MAP: 380, CORE_FORM: 520, CORE_SYNC: 380,
+    EXPAND: 280, WORDMARK_BUILD: 1100, CALIBRATE: 360, LOCK: 240,
   };
   const FAST = {
-    ACQUIRE: 80, MAP: 60, CORE_FORM: 90, CORE_SYNC: 70,
-    EXPAND: 50, WORDMARK_BUILD: 280, CALIBRATE: 80, LOCK: 70,
+    DORMANT: 40, ACQUIRE: 80, MAP: 60, CORE_FORM: 90, CORE_SYNC: 70,
+    EXPAND: 50, WORDMARK_BUILD: 320, CALIBRATE: 90, LOCK: 70,
   };
-  const ORDER = ["ACQUIRE", "MAP", "CORE_FORM", "CORE_SYNC", "EXPAND", "WORDMARK_BUILD", "CALIBRATE", "LOCK"];
+  const ORDER = ["DORMANT", "ACQUIRE", "MAP", "CORE_FORM", "CORE_SYNC", "EXPAND", "WORDMARK_BUILD", "CALIBRATE", "LOCK"];
 
   function ease(t) {
     t = Math.max(0, Math.min(1, t));
@@ -29,6 +30,11 @@
     const p = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
     const A = p(a), B = p(b);
     return `rgb(${Math.round(lerp(A[0], B[0], t))},${Math.round(lerp(A[1], B[1], t))},${Math.round(lerp(A[2], B[2], t))})`;
+  }
+  function pcol(p) {
+    if (p.seed < 0.035) return C.flare;
+    if (p.seed < 0.22) return mix(C.orange, C.cream, p.seed * 3);
+    return mix(C.orange, C.amber, 0.25 + p.seed * 0.75);
   }
 
   function sampleWordmark(mobile) {
@@ -131,23 +137,23 @@
       ? sampled.cells.filter((_, i) => i % Math.ceil(sampled.cells.length / maxN) === 0)
       : sampled.cells;
 
-    const nDna = mobile ? 40 : 56;
+    const nDna = mobile ? 36 : 64;
     const particles = cells.map((c, i) => ({
-      x: 0.5 + (c.seed - 0.5) * 0.04,
-      y: 0.82 + c.seed * 0.08,
+      x: 0.12 + c.seed * 0.76,
+      y: 0.72 + ((c.seed * 13) % 1) * 0.2,
       tx: c.tx,
       ty: c.ty,
       slash: c.slash,
       seed: c.seed,
-      dnaK: i % nDna,
-      role: i < nDna * 0.42 ? "a" : i < nDna * 0.84 ? "b" : "p",
+      dnaK: i < nDna ? i : -1,
+      role: i < nDna * 0.42 ? "a" : i < nDna * 0.84 ? "b" : i < nDna ? "p" : "glyph",
     }));
 
     const ctx = canvas.getContext("2d", { alpha: true });
     const st = {
       mode: "FULL",
       table: FULL,
-      name: "ACQUIRE",
+      name: "DORMANT",
       t0: performance.now(),
       global: "normal",
       pulse: 0,
@@ -159,7 +165,8 @@
       dim: { w: 0, h: 0 },
     };
     try {
-      if (sessionStorage.getItem("helix_ops_logo_booted") === "1") {
+      const forceFull = /(?:\?|&)boot=full\b/.test(location.search);
+      if (!forceFull && sessionStorage.getItem("helix_ops_logo_booted") === "1") {
         st.mode = "FAST";
         st.table = FAST;
       }
@@ -182,21 +189,23 @@
     ro.observe(el);
 
     function helixPos(p, ang, dnaR, dnaH) {
+      if (p.dnaK < 0) return { x: 0.5, y: 0.42, z: 0, pair: false, dna: false };
       const strandN = Math.floor(nDna * 0.42);
       if (p.role === "a" || p.role === "b") {
         const pt = dna(p.dnaK % strandN, strandN, ang, dnaR, dnaH, p.role === "b" ? Math.PI : 0);
-        return { x: 0.5 + pt.x, y: 0.42 + pt.y, z: pt.z, pair: false };
+        return { x: 0.5 + pt.x, y: 0.42 + pt.y, z: pt.z, pair: false, dna: true };
       }
       const n = Math.max(2, nDna - strandN * 2);
       const u = (p.dnaK % n) / (n - 1);
       const k = Math.floor(u * (strandN - 1));
       const a = dna(k, strandN, ang, dnaR, dnaH, 0);
       const b = dna(k, strandN, ang, dnaR, dnaH, Math.PI);
-      return { x: 0.5 + lerp(a.x, b.x, 0.5), y: 0.42 + lerp(a.y, b.y, 0.5), z: lerp(a.z, b.z, 0.5), pair: true };
+      return { x: 0.5 + lerp(a.x, b.x, 0.5), y: 0.42 + lerp(a.y, b.y, 0.5), z: lerp(a.z, b.z, 0.5), pair: true, dna: true };
     }
 
     function tick(now) {
       if (st.hidden) { st.raf = requestAnimationFrame(tick); return; }
+      if (st.name === "PROCESSING" && st.procUntil && now > st.procUntil) st.name = "IDLE";
       const elapsed = (now - st.t0);
       const ph = st.name === "IDLE" || st.name === "PROCESSING" || st.name === "WARNING"
         ? { name: st.name, local: 1 }
@@ -220,13 +229,13 @@
       // scanline
       if (st.name === "ACQUIRE" || st.name === "CALIBRATE") {
         const sy = (ph.local || 0) * h;
-        ctx.fillStyle = "rgba(124,255,122,0.18)";
+        ctx.fillStyle = "rgba(224,138,42,0.22)";
         ctx.fillRect(0, sy, w, 2);
       }
 
       // calibration marks
       if (st.name === "MAP" || st.name === "CALIBRATE" || st.name === "LOCK") {
-        ctx.strokeStyle = "rgba(124,255,122,0.35)";
+        ctx.strokeStyle = "rgba(224,138,42,0.4)";
         ctx.lineWidth = 1;
         const m = 6;
         ctx.beginPath();
@@ -243,22 +252,16 @@
       if (showCore) {
         const cx = w * 0.5, cy = h * 0.42;
         const rr = Math.min(w, h) * (st.name === "IDLE" || st.name === "PROCESSING" ? (mobile ? 0.16 : 0.11) : 0.18);
-        ctx.strokeStyle = st.global === "warning" ? C.warn : C.phosphor;
-        ctx.globalAlpha = 0.55;
-        ctx.beginPath();
-        ctx.arc(cx, cy, rr, 0.15, Math.PI * 1.7);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(cx, cy, rr + 3, Math.PI * 0.9, Math.PI * 1.45);
-        ctx.stroke();
+        ctx.strokeStyle = st.global === "warning" ? C.warn : C.amber;
+        ctx.globalAlpha = 0.45;
+        ctx.strokeRect(Math.round(cx - rr), Math.round(cy - rr), Math.round(rr * 2), Math.round(rr * 2));
         ctx.globalAlpha = 1;
-        // ticks
         for (let i = 0; i < 8; i++) {
           const a = i * (Math.PI / 4) + coreSpin * 0.2;
           const x1 = cx + Math.cos(a) * (rr - 3);
           const y1 = cy + Math.sin(a) * (rr - 3);
           ctx.fillStyle = C.dim;
-          ctx.fillRect(x1 - 1, y1 - 1, 2, 2);
+          ctx.fillRect(Math.round(x1) - 1, Math.round(y1) - 1, 2, 2);
         }
       }
 
@@ -273,64 +276,89 @@
         st.pulseKind = "idle";
       }
 
-      const gcol = st.global === "offline" ? C.dim : st.global === "warning" ? mix(C.phosphor, C.warn, 0.25) : C.phosphor;
+      const gcol = st.global === "offline" ? C.dim : st.global === "warning" ? mix(C.amber, C.warn, 0.25) : C.amber;
 
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
-        let ax = p.tx, ay = p.ty, follow = 0.2, size = px, alpha = 1, col = gcol, z = 0;
+        let ax = p.tx, ay = p.ty, follow = 0.2, size = Math.max(1, px + (p.seed > 0.78 ? 1 : 0) - (p.seed < 0.12 ? 1 : 0)), alpha = 1, col = pcol(p), z = 0;
         const hp = helixPos(p, coreSpin, dnaR, dnaHgt);
 
-        if (st.name === "ACQUIRE") {
+        if (st.name === "DORMANT") {
+          ax = 0.12 + p.seed * 0.76;
+          ay = 0.38 + ((p.seed * 17) % 1) * 0.28;
+          follow = 0.03;
+          alpha = 0.06 + 0.2 * (ph.local || 0);
+          col = C.dim;
+          size = 1;
+        } else if (st.name === "ACQUIRE") {
           ax = 0.5 + (p.seed - 0.5) * 0.9;
           ay = (ph.local || 0) * 0.9;
           follow = 0.08;
-          alpha = 0.15 + 0.5 * (ph.local || 0);
-          col = C.dim;
+          alpha = 0.18 + 0.5 * (ph.local || 0);
+          col = mix(C.dim, C.orange, ph.local || 0);
         } else if (st.name === "MAP") {
           ax = lerp(p.x, p.tx, 0.15);
           ay = lerp(0.5, p.ty, ease(ph.local || 0) * 0.3);
           follow = 0.1;
-          alpha = 0.35;
+          alpha = 0.4;
         } else if (st.name === "CORE_FORM" || st.name === "CORE_SYNC") {
-          ax = hp.x; ay = hp.y; z = hp.z;
-          follow = 0.12 + 0.2 * ease(ph.local || 0);
-          const depth = (z + 1) * 0.5;
-          size = Math.max(1, Math.round(px * (0.7 + depth * 0.5)));
-          alpha = (hp.pair ? 0.45 : 1) * (0.4 + depth * 0.6);
-          col = depth > 0.7 ? C.hot : mix(C.dim, C.phosphor, 0.4 + depth * 0.6);
-          if (st.name === "CORE_SYNC") {
-            const pu = (ph.local || 0);
-            if (Math.abs(hp.y - (0.42 - dnaHgt / 2) - pu * dnaHgt) < 0.04) { col = C.hot; alpha = 1; }
+          if (p.dnaK >= 0) {
+            ax = hp.x; ay = hp.y; z = hp.z;
+            follow = 0.12 + 0.2 * ease(ph.local || 0);
+            const depth = (z + 1) * 0.5;
+            size = Math.max(1, Math.round(px * (0.7 + depth * 0.5)));
+            alpha = (hp.pair ? 0.45 : 1) * (0.4 + depth * 0.6);
+            col = depth > 0.72 ? C.flare : mix(C.orange, C.cream, depth);
+            if (st.name === "CORE_SYNC") {
+              const pu = (ph.local || 0);
+              if (Math.abs(hp.y - (0.42 - dnaHgt / 2) - pu * dnaHgt) < 0.04) { col = C.flare; alpha = 1; }
+            }
+          } else {
+            ax = 0.5 + (p.seed - 0.5) * 0.08;
+            ay = 0.42 + ((p.seed * 9) % 1 - 0.5) * 0.06;
+            follow = 0.08;
+            alpha = 0.12;
+            col = C.dim;
+            size = 1;
           }
         } else if (st.name === "EXPAND") {
           const e = ease(ph.local || 0);
-          ax = lerp(hp.x, p.tx, e * 0.15);
-          ay = lerp(hp.y, p.ty, e * 0.15);
+          ax = lerp(hp.dna === false ? 0.5 : hp.x, p.tx, e * 0.15);
+          ay = lerp(hp.dna === false ? 0.42 : hp.y, p.ty, e * 0.15);
           follow = 0.08;
           alpha = 0.55;
         } else if (st.name === "WORDMARK_BUILD") {
-          const along = p.tx;
-          const unlock = ease(Math.max(0, Math.min(1, ((ph.local || 0) - along * 0.72) / 0.35)));
-          ax = lerp(hp.x, p.tx, unlock);
-          ay = lerp(hp.y, p.ty, unlock);
-          follow = 0.08 + 0.4 * unlock;
-          alpha = 0.25 + 0.75 * unlock;
-          col = p.slash ? C.hot : mix(C.bright, C.phosphor, unlock);
-          if (unlock < 1 && unlock > 0.05) ay -= (1 - unlock) * 0.02;
+          const t = ph.local || 0;
+          let gate = 0;
+          if (p.slash) gate = t >= 0.58 ? Math.min(1, (t - 0.58) / 0.12) : 0;
+          else if (p.tx < 0.14) gate = Math.min(1, t / 0.16);
+          else if (p.tx < 0.32) gate = t >= 0.16 ? Math.min(1, (t - 0.16) / 0.16) : 0;
+          else if (p.tx < 0.52) gate = t >= 0.32 ? Math.min(1, (t - 0.32) / 0.18) : 0;
+          else gate = t >= 0.70 ? Math.min(1, (t - 0.70) / 0.22) : 0;
+          const unlock = ease(gate);
+          ax = lerp(p.dnaK >= 0 ? hp.x : 0.5, p.tx, unlock);
+          ay = lerp(p.dnaK >= 0 ? hp.y : 0.42, p.ty, unlock);
+          if (unlock > 0 && unlock < 1) {
+            ax += (p.seed - 0.5) * 0.04 * (1 - unlock);
+            ay -= (1 - unlock) * 0.03;
+          }
+          follow = 0.1 + 0.45 * unlock;
+          alpha = 0.12 + 0.88 * unlock;
+          col = p.slash ? C.flare : mix(C.cream, C.amber, unlock);
         } else if (st.name === "CALIBRATE" || st.name === "LOCK") {
           ax = p.tx; ay = p.ty; follow = 0.55;
-          if (Math.abs(p.ty - (ph.local || 0)) < 0.06) col = C.hot;
+          if (Math.abs(p.ty - (ph.local || 0)) < 0.06) col = C.flare;
         } else {
           ax = p.tx; ay = p.ty;
           follow = 0.35;
           const breathe = 0.92 + 0.08 * Math.sin(now / 900 + p.seed * 6);
           alpha = breathe;
           if (p.slash && pulseX >= 0 && Math.abs(p.ty - (0.2 + (1 - pulseX) * 0.5)) < 0.08) {
-            col = st.pulseKind === "warn" ? C.warn : C.amber;
+            col = st.pulseKind === "warn" ? C.warn : C.cream;
             alpha = 1;
             size += 1;
           } else if (p.seed < 0.012 && Math.sin(now / 400 + p.seed * 40) > 0.92) {
-            col = C.hot;
+            col = C.flare;
           }
         }
 
@@ -344,14 +372,15 @@
 
       // labels
       const labels = {
-        ACQUIRE: "SYS://BOOT  SIGNAL ACQUISITION",
+        DORMANT: "NO SIGNAL",
+        ACQUIRE: "SYS://BOOT  CORE ADDRESS 0x0487  SIGNAL ACQUISITION",
         MAP: "COORDINATE LOCK  X:0487  Y:0216",
         CORE_FORM: "HELIX CORE FORMATION",
         CORE_SYNC: "CORE SYNCHRONIZED  演算核同期完了",
         EXPAND: "SYNC WAVE",
-        WORDMARK_BUILD: "GLYPH MATRIX",
-        CALIBRATE: "ALIGN 100%  CRC OK  CORE 04.87",
-        LOCK: "HELIX/OPS ONLINE",
+        WORDMARK_BUILD: "GLYPH MATRIX  HELIX → / → OPS",
+        CALIBRATE: "ALIGN 100%  CRC OK  GLYPH MATRIX LOCK  CORE 04.87",
+        LOCK: "CRC OK  ● ONLINE",
         IDLE: st.idleEvt || "● ONLINE",
         PROCESSING: "● PROCESSING",
         WARNING: "△ WARNING",
@@ -392,7 +421,14 @@
         st.table = st.mode === "FAST" ? FAST : FULL;
       },
       setGlobal(g) { st.global = g || "normal"; if (g === "warning") st.name = "WARNING"; if (g === "normal" && st.name === "WARNING") st.name = "IDLE"; },
-      pulse(kind) { st.pulse = 1; st.pulseKind = kind || "hermes"; if (kind === "hermes" || kind === "adze") st.name = "PROCESSING"; setTimeout(() => { if (st.name === "PROCESSING") st.name = "IDLE"; }, 900); },
+      pulse(kind) {
+        st.pulse = 1;
+        st.pulseKind = kind || "hermes";
+        if (kind === "hermes" || kind === "adze") {
+          st.name = "PROCESSING";
+          st.procUntil = performance.now() + 900;
+        }
+      },
       stop() { cancelAnimationFrame(st.raf); ro.disconnect(); document.removeEventListener("visibilitychange", onVis); },
     };
     el._howm = api;
@@ -425,7 +461,7 @@
     document.querySelectorAll(selector).forEach((el) => apply(el, opt));
   }
 
-  global.HELIX_PARTICLE_CONFIG = { palette: C, FULL, FAST };
+  global.HELIX_PARTICLE_CONFIG = { palette: C, FULL, FAST, DNA: { mobile: 36, desk: 64 } };
   global.HelixOpsWordmark = {
     mount,
     apply,

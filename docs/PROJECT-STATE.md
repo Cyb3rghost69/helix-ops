@@ -2,12 +2,12 @@
 
 CURRENT VERSION: 0.1.0-dev  
 CURRENT BRANCH: main (baseline)  
-LAST MAJOR CHANGE: HELIX/OPS particle identity + REMOTE MATRIX + GitHub project store
+LAST MAJOR CHANGE: amber HELIX/OPS particle identity + MEMORY MATRIX + GitHub project store
 
 ## IMPLEMENTED
 
-- CRT ops deck `:8790` (Field Terminal, NOC/Botmesh, TRACE, ADZE strip, Remote Matrix)
-- Particle HELIX/OPS wordmark (phosphor, state machine)
+- CRT ops deck `:8790` (Field Terminal, NOC/Botmesh, TRACE, ADZE strip, Remote Matrix, MEMORY MATRIX)
+- Particle HELIX/OPS wordmark (amber/orange squares, DORMANT boot)
 - RustDesk OSS collector (hbbs/hbbr TCP, sqlite ids, Mac LAN peers)
 - Docker start/stop of named Unraid containers
 - UniFi clients + Protect stills (key local)
@@ -17,7 +17,6 @@ LAST MAJOR CHANGE: HELIX/OPS particle identity + REMOTE MATRIX + GitHub project 
 ## IN-PROGRESS
 
 - Login currently bypassed for testing (`HELIX_OPS_AUTH`)
-- ADZE live reviews (key absent)
 - Cache Btrfs RAID1 degraded (Unraid, outside this repo)
 
 ## PLANNED

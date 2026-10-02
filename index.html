@@ -37,7 +37,7 @@
   }
   body::after { content: none; }
   .welcome {
-    color: var(--gold); text-shadow: 0 0 6px rgba(106,223,100,.25);
+    color: var(--ok); text-shadow: 0 0 6px rgba(124,255,122,.25);
     font-size: 10px; letter-spacing: 0.08em; margin: 6px 0 0;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     font-family: ui-monospace, Menlo, "MS Gothic", monospace;
@@ -49,8 +49,8 @@
     display: flex; flex-direction: column; gap: 0; margin-bottom: 12px;
     border: 0; padding: 0; background: transparent;
     position: relative; z-index: 1;
-    color: var(--gold); font: 10px/1.15 ui-monospace, Menlo, "MS Gothic", monospace;
-    text-shadow: 0 0 6px rgba(106,223,100,.25);
+    color: var(--ok); font: 10px/1.15 ui-monospace, Menlo, "MS Gothic", monospace;
+    text-shadow: 0 0 6px rgba(124,255,122,.25);
   }
   .plaque-edge { margin: 0; overflow: hidden; white-space: nowrap; width: 100%; max-width: 100%; }
   .plaque-row { display: flex; align-items: stretch; min-width: 0; }
@@ -62,24 +62,26 @@
   }
   .howm { width: min(52vw, 420px); min-width: 180px; flex: 0 1 420px; overflow: visible; }
   .howm-field { overflow: visible; }
-  pre.banner { margin: 0; color: var(--gold); font-size: 10px; line-height: 1.05;
-    text-shadow: 0 0 6px rgba(106,223,100,.25); flex: 0 0 auto;
+  pre.banner { margin: 0; color: var(--ok); font-size: 10px; line-height: 1.05;
+    text-shadow: 0 0 6px rgba(124,255,122,.25); flex: 0 0 auto;
     font-family: ui-monospace, Menlo, "MS Gothic", monospace; }
   .fetch-info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1px; }
-  .fetch-host { color: #66ffff; font-size: 11px; }
-  .fetch-host b { color: var(--gold); font-weight: 700; }
+  .fetch-host { color: var(--ok); font-size: 11px; }
+  .fetch-host b { color: var(--ok); font-weight: 700; }
   .fetch-rule { color: var(--line); letter-spacing: 0.08em; margin: 0 0 3px; }
-  .fetch-info .row { color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fetch-info .row { color: var(--ok); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fetch-info .k { color: var(--ok); }
   .fetch-info .v { color: #39ff14; }
   header.logo #q {
     min-width: 100px; width: 140px; background: transparent; color: #39ff14;
-    border: 0; border-bottom: 1px solid #ffff66; padding: 0 2px; font: 10px ui-monospace, Menlo, monospace;
+    border: 0; border-bottom: 1px solid var(--ok); padding: 0 2px; font: 10px ui-monospace, Menlo, monospace;
     outline: none; text-shadow: 0 0 6px #39ff14;
   }
+  .hel-desk { margin: 4px 0 0; font: 10px/1.15 ui-monospace, Menlo, "MS Gothic", monospace; color: var(--ok); white-space: pre; }
+  @media (max-width: 767px) { .hel-desk { display: none; } }
   header.logo button {
-    margin-left: 0; background: transparent; color: var(--gold);
-    border: 0; padding: 0 2px; text-shadow: 0 0 6px rgba(106,223,100,.25);
+    margin-left: 0; background: transparent; color: var(--ok);
+    border: 0; padding: 0 2px; text-shadow: 0 0 6px rgba(124,255,122,.25);
     letter-spacing: 0.08em; font: 10px ui-monospace, Menlo, "MS Gothic", monospace;
   }
   @media (max-width: 800px) {
@@ -461,6 +463,8 @@
         <div class="row"><span class="k">SCAN</span>: <span class="v" id="stamp">SCANNING<span class="blink">_</span></span></div>
         <div class="row fetch-find"><span class="k">FIND</span>: <input id="q" type="search" placeholder="/" autocomplete="off" enterkeyhint="search"> <button type="button" id="reload">[RESCAN]</button></div>
         <p class="welcome">HELIX OPERATIONS SYSTEM · CORE 04.87</p>
+        <pre id="hel-01-desk" class="hel-desk" title="H.E.L.I.X. SYSTEM OPERATOR"> (·ω·)  HΞL-01 // MONITORING
+ /| |\\</pre>
       </div>
     </div>
     <span class="bar">║</span>
@@ -503,6 +507,13 @@
         <div class="ft-k">HBBS ○ · HBBR ○</div>
       </div>
     </button>
+    <button type="button" class="ft-card wide" id="ft-matrix">
+      <div class="ft-k">MEMORY MATRIX · 記憶演算</div>
+      <div id="ft-matrix-body">
+        <div class="ft-v">MEMORY</div>
+        <div class="ft-k">SCANNING_</div>
+      </div>
+    </button>
     <button type="button" class="ft-card wide ft-trace" id="ft-trace">
       <div class="ft-k">HERMES TRACE · 思考追跡</div>
       <div id="ft-trace-body">
@@ -541,6 +552,7 @@
   <button type="button" data-tab="dock">[04] ARCHIVE</button>
   <button type="button" data-tab="trace">[05] TRACE</button>
   <button type="button" data-tab="remote">[06] REMOTE</button>
+  <button type="button" data-tab="matrix">[07] MEMORY</button>
 </nav>
 <div id="pane-ops">
 <section id="noc" class="noc">
@@ -594,11 +606,11 @@
 </section>
 <div id="need-you"></div>
 <section class="btop">
-  <div class="term-bar">btop · fleet AI resources <span class="ok">LIVE</span></div>
+  <div class="term-bar">SYSTEM CORE · AI RESOURCES · 演算資源 <span class="ok">LIVE</span></div>
   <pre id="btop-pix">scanning_</pre>
 </section>
 <section class="view" id="hard">
-  <div class="term-bar">hardening · score <span class="ok" id="sec-score">—</span></div>
+  <div class="term-bar">SERVICE MATRIX · HARDENING · score <span class="ok" id="sec-score">—</span></div>
   <div id="sec-findings" class="empty">scanning_</div>
 </section>
 <div class="pair">
@@ -613,11 +625,11 @@
 </div>
 <div class="pair">
 <section class="view">
-  <div class="term-bar">bot talk · helix ↔ silent profiles <span class="ok" id="talk-n">—</span></div>
+  <div class="term-bar">BOTMESH · TALK · helix ↔ silent profiles <span class="ok" id="talk-n">—</span></div>
   <div id="talk"><p class="empty">scanning talk_</p></div>
 </section>
 <section class="view">
-  <div class="term-bar">herdr · <span id="herdr-st">—</span> <span class="ok" id="herdr-n">LIVE</span></div>
+  <div class="term-bar">AGENT MATRIX · HERDR · <span id="herdr-st">—</span> <span class="ok" id="herdr-n">LIVE</span></div>
   <div id="herdr-body"><p class="empty">scanning herdr_</p></div>
 </section>
 </div>
@@ -632,7 +644,7 @@
     <pre id="mem-body">loading_</pre>
   </section>
   <section class="view">
-    <div class="term-bar">skills <span class="ok" id="sk-count">—</span></div>
+    <div class="term-bar">SKILL MATRIX <span class="ok" id="sk-count">—</span></div>
     <div class="sk-list" id="sk-list"></div>
     <pre id="sk-body">pick a skill_</pre>
   </section>
@@ -741,6 +753,26 @@
     <div class="ident">REMOTE MATRIX</div>
     <div class="rd-list" id="rd-list"></div>
     <pre id="rd-cli"></pre>
+  </section>
+</div>
+<div id="pane-matrix" hidden>
+  <button type="button" class="trace-fs-close" id="mm-close">CLOSE MEMORY</button>
+  <section class="mm">
+    <div class="mm-head">
+      <div>MEMORY MATRIX<br><small>HERMES MEMORY CORE · 記憶演算システム · MEM://HERMES-01</small></div>
+      <span id="mm-cap">BANKS —</span>
+    </div>
+    <div class="mm-ctx" id="mm-ctx">CTX N/A</div>
+    <div id="mm-rev" class="ident"></div>
+    <canvas class="mm-bus" id="mm-cv" aria-label="memory bus"></canvas>
+    <div class="mm-map">
+      <div class="mm-box"><div class="ident">MEMORY TOPOLOGY · 記憶構成</div><pre class="mm-topo" id="mm-topo">scanning_</pre></div>
+      <div class="mm-box"><div class="ident">HELIX EVENT BUS · MEM</div><div class="mm-ev" id="mm-ev"></div></div>
+    </div>
+    <div class="ident">MEMORY BANKS</div>
+    <div class="mm-grid" id="mm-grid"></div>
+    <div class="mm-detail" id="mm-detail"></div>
+    <div class="mm-act"><button type="button" id="mm-rescan">[ RESCAN MEMORY ]</button></div>
   </section>
 </div>
 <div id="pane-dock" hidden>
@@ -970,6 +1002,7 @@ function render(d) {
         <span class="k">Gateway</span><span>${dot(!!hermes.gateway_running)}${hermes.gateway_running ? "running" : "down"} ${hermes.gateway_pid ? "PID " + hermes.gateway_pid : ""}</span>
         <span class="k">Cron</span><span>${hermes.cron_jobs ?? 0} jobs</span>
       </div>
+      <div id="hermes-mem-ind" class="ident" style="margin-top:8px;cursor:pointer">MEM —</div>
     </section>
     <h2>MODEL MATRIX · PROFILES</h2>
     <section class="panel">
@@ -1427,7 +1460,7 @@ loadSkills();
 setInterval(loadSkills, 5000);
 
 const pf = document.getElementById("prompt-form");
-const CLI_CMDS = ["help","about","status","clear","whoami","uptime","node","orbit","tokyo","helix","matrix","network","operations","system","archive","docker","security","clients","ops","net","sec","dock","trace","cognitive","remote"];
+const CLI_CMDS = ["help","about","status","clear","whoami","uptime","node","orbit","tokyo","helix","matrix","memory","network","operations","system","archive","docker","security","clients","ops","net","sec","dock","trace","cognitive","remote"];
 function cliOut(text) {
   const box = document.getElementById("thoughts");
   if (!box) return;
@@ -1456,7 +1489,8 @@ function runCli(raw) {
     orbit: "ORBITAL UPLINK · VECTOR GRID\nLAT 35.6762 N  LON 139.6503 E\nCHANNEL 08 · NODE/TKY",
     tokyo: "東京管制ノード\nOPERATIONS NETWORK · SYS.04.87",
     helix: "HELIX/OPS\nHELIX OPERATIONS SYSTEM · 東京統合管制",
-    matrix: "Refused. This node does not run decorative rain.",
+    matrix: "__tab:matrix",
+    memory: "__tab:matrix",
     network: "__tab:net",
     clients: "__tab:net",
     net: "__tab:net",
@@ -1472,6 +1506,7 @@ function runCli(raw) {
     cognitive: "__tab:trace",
     adze: "__tab:trace",
     remote: "__tab:remote",
+    memory: "__tab:matrix",
   };
   if (cmd === "clear") {
     const box = document.getElementById("thoughts");
@@ -1602,7 +1637,7 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-tab]");
   if (!b) return;
   const tab = b.dataset.tab;
-  const names = { ops: "01 OPERATIONS", net: "02 NETWORK", sec: "03 SYSTEM", dock: "04 ARCHIVE", trace: "05 TRACE", remote: "06 REMOTE" };
+  const names = { ops: "01 OPERATIONS", net: "02 NETWORK", sec: "03 SYSTEM", dock: "04 ARCHIVE", trace: "05 TRACE", remote: "06 REMOTE", matrix: "07 MEMORY" };
   const flash = document.getElementById("modflash");
   const go = () => {
     document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
@@ -1614,12 +1649,16 @@ document.getElementById("tabs").addEventListener("click", (e) => {
     if (pt) pt.hidden = tab !== "trace";
     const pr = document.getElementById("pane-remote");
     if (pr) pr.hidden = tab !== "remote";
+    const pm = document.getElementById("pane-matrix");
+    if (pm) pm.hidden = tab !== "matrix";
     document.body.classList.toggle("trace-open", tab === "trace" && matchMedia("(max-width: 767px)").matches);
     document.body.classList.toggle("remote-open", tab === "remote" && matchMedia("(max-width: 767px)").matches);
+    document.body.classList.toggle("matrix-open", tab === "matrix" && matchMedia("(max-width: 767px)").matches);
     if (tab === "net") loadClients();
     if (tab === "sec") loadProtect();
     if (tab === "dock") loadDocker();
     if (tab === "remote" && globalThis.HelixRemote) HelixRemote.load();
+    if (tab === "matrix" && globalThis.HelixMatrix) HelixMatrix.load();
     document.body.classList.remove("nav-open");
     document.getElementById("nav-toggle")?.setAttribute("aria-expanded", "false");
   };
@@ -1751,11 +1790,11 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0488";
+    const ASSET_V = "hos0491";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;
-    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css"].forEach((href) => {
+    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css"].forEach((href) => {
       const css = document.createElement("link");
       css.rel = "stylesheet";
       css.href = p + "/" + href + "?v=" + ASSET_V;
@@ -1784,9 +1823,13 @@ async function loadClients() {
     const rjs = document.createElement("script");
     rjs.src = p + "/helix-remote.js?v=" + ASSET_V;
     rjs.onload = function () { HelixRemote.mount(); };
+    const mjs = document.createElement("script");
+    mjs.src = p + "/helix-matrix.js?v=" + ASSET_V;
+    mjs.onload = function () { HelixMatrix.mount(); };
     document.body.appendChild(ajs);
     document.body.appendChild(tjs);
     document.body.appendChild(rjs);
+    document.body.appendChild(mjs);
 
     (function fieldTerm() {
       const mq = matchMedia("(max-width: 767px)");
@@ -1838,8 +1881,13 @@ async function loadClients() {
           if (hline) hline.textContent = "HΞL-01: " + rem.hel01;
         } else {
           hel.textContent = ((Date.now() / 1200) | 0) % 5 === 0 ? blink : idle;
-          if (hline) hline.textContent = "HΞL-01 // ALL SYSTEMS NOMINAL";
+          const mx = globalThis.HelixMatrix && HelixMatrix.state && HelixMatrix.state.data;
+          if (mx && mx.hel01 && mx.hel01 !== "MEMORY MATRIX NOMINAL") {
+            if (hline) hline.textContent = "HΞL-01: " + mx.hel01;
+          } else if (hline) hline.textContent = "HΞL-01 // ALL SYSTEMS NOMINAL";
         }
+        const desk = document.getElementById("hel-01-desk");
+        if (desk && hline) desk.textContent = hel.textContent.replace(/\n/g, " ") + "  " + (hline.textContent || "");
       }, 1200);
     })();
     document.body.appendChild(njs);
@@ -1856,6 +1904,7 @@ async function loadClients() {
       "SYSTEM BUS ACTIVATES",
       "PANELS DRAW",
       "HERMES ONLINE",
+      "MEMORY BUS ONLINE",
       "NETWORK ONLINE",
       "HΞL-01 ONLINE",
       "SYSTEM NOMINAL"

@@ -17,7 +17,7 @@ class AdzeTests(unittest.TestCase):
 
     def test_offline_without_key(self):
         env = {k: v for k, v in os.environ.items() if k != "OPENAI_API_KEY"}
-        with patch.dict(os.environ, env, clear=True):
+        with patch.object(orch, "load_env", lambda: None), patch.dict(os.environ, env, clear=True):
             os.environ["ADZE_MODE"] = "always"
             r = orch.review({"user_request": "debug the server"}, force=True)
         self.assertFalse(r["ok"])
