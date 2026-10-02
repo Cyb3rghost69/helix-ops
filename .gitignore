@@ -30,6 +30,7 @@ protect-events.db
 helix-remote.json
 helix-lights.json
 helix-lights.json.tmp
+helix-voice.jsonl
 
 .DS_Store
 .cache/

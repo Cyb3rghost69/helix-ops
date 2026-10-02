@@ -554,6 +554,7 @@
   <button type="button" data-tab="remote">[06] REMOTE</button>
   <button type="button" data-tab="matrix">[07] MEMORY</button>
   <button type="button" data-tab="lights">[08] LIGHTING</button>
+  <button type="button" data-tab="voice">[09] VOICE</button>
 </nav>
 <div id="pane-ops">
 <section id="noc" class="noc">
@@ -799,6 +800,33 @@
       </div>
       <div class="lt-err" id="lt-err"></div>
     </div>
+  </section>
+</div>
+<div id="pane-voice" hidden>
+  <section class="vx">
+    <div class="vx-head">
+      <div>HELIX // VOICE INTERFACE<br><small>音声管制 · LOCAL STT/TTS · TOOL ROUTER</small></div>
+      <span id="vx-cap">ONLINE</span>
+    </div>
+    <div id="vx-state" class="vx-state">◉ MIC OFF</div>
+    <canvas id="vx-wave" class="vx-wave" aria-label="mic level"></canvas>
+    <div class="vx-chat">
+      <div class="who">USER</div>
+      <div class="ln" id="vx-user">—</div>
+      <div class="who">HELIX</div>
+      <div class="ln" id="vx-helix">—</div>
+    </div>
+    <div id="vx-tele" class="vx-tele"></div>
+    <div class="vx-bar">
+      <button type="button" id="vx-mute">MUTE</button>
+      <button type="button" id="vx-ptt" class="vx-mic">PUSH TO TALK</button>
+      <button type="button" id="vx-conv">CONVERSATION</button>
+      <button type="button" id="vx-wake">WAKE WORD</button>
+      <button type="button" id="vx-confirm">CONFIRM</button>
+    </div>
+    <div class="vx-err" id="vx-err"></div>
+    <div class="ident">SESSION LOG</div>
+    <div id="vx-hist" class="vx-hist"></div>
   </section>
 </div>
 <div id="pane-dock" hidden>
@@ -1534,6 +1562,7 @@ function runCli(raw) {
     remote: "__tab:remote",
     lights: "__tab:lights",
     lighting: "__tab:lights",
+    voice: "__tab:voice",
     memory: "__tab:matrix",
   };
   if (cmd === "clear") {
@@ -1665,7 +1694,7 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-tab]");
   if (!b) return;
   const tab = b.dataset.tab;
-  const names = { ops: "01 OPERATIONS", net: "02 NETWORK", sec: "03 SYSTEM", dock: "04 ARCHIVE", trace: "05 TRACE", remote: "06 REMOTE", matrix: "07 MEMORY", lights: "08 LIGHTING" };
+  const names = { ops: "01 OPERATIONS", net: "02 NETWORK", sec: "03 SYSTEM", dock: "04 ARCHIVE", trace: "05 TRACE", remote: "06 REMOTE", matrix: "07 MEMORY", lights: "08 LIGHTING", voice: "09 VOICE" };
   const flash = document.getElementById("modflash");
   const go = () => {
     document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
@@ -1681,6 +1710,8 @@ document.getElementById("tabs").addEventListener("click", (e) => {
     if (pm) pm.hidden = tab !== "matrix";
     const pl = document.getElementById("pane-lights");
     if (pl) pl.hidden = tab !== "lights";
+    const pv = document.getElementById("pane-voice");
+    if (pv) pv.hidden = tab !== "voice";
     document.body.classList.toggle("trace-open", tab === "trace" && matchMedia("(max-width: 767px)").matches);
     document.body.classList.toggle("remote-open", tab === "remote" && matchMedia("(max-width: 767px)").matches);
     document.body.classList.toggle("matrix-open", tab === "matrix" && matchMedia("(max-width: 767px)").matches);
@@ -1820,11 +1851,11 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0492";
+    const ASSET_V = "hos0493";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;
-    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-lights.css"].forEach((href) => {
+    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-lights.css", "helix-voice.css"].forEach((href) => {
       const css = document.createElement("link");
       css.rel = "stylesheet";
       css.href = p + "/" + href + "?v=" + ASSET_V;
@@ -1859,11 +1890,15 @@ async function loadClients() {
     const ljs = document.createElement("script");
     ljs.src = p + "/helix-lights.js?v=" + ASSET_V;
     ljs.onload = function () { HelixLights.mount(); };
+    const vjs = document.createElement("script");
+    vjs.src = p + "/helix-voice.js?v=" + ASSET_V;
+    vjs.onload = function () { HelixVoice.mount(); };
     document.body.appendChild(ajs);
     document.body.appendChild(tjs);
     document.body.appendChild(rjs);
     document.body.appendChild(mjs);
     document.body.appendChild(ljs);
+    document.body.appendChild(vjs);
 
     (function fieldTerm() {
       const mq = matchMedia("(max-width: 767px)");

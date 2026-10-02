@@ -2702,6 +2702,8 @@ class Handler(BaseHTTPRequestHandler):
             "/helix-matrix.js": ("helix-matrix.js", "application/javascript; charset=utf-8"),
             "/helix-lights.css": ("helix-lights.css", "text/css; charset=utf-8"),
             "/helix-lights.js": ("helix-lights.js", "application/javascript; charset=utf-8"),
+            "/helix-voice.css": ("helix-voice.css", "text/css; charset=utf-8"),
+            "/helix-voice.js": ("helix-voice.js", "application/javascript; charset=utf-8"),
         }
         if path in static:
             name, ctype = static[path]
@@ -2848,6 +2850,14 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json; charset=utf-8",
             )
             return
+        if path == "/api/voice":
+            from helix_voice import snapshot as voice_snapshot
+            self._send(
+                200,
+                json.dumps(voice_snapshot(), ensure_ascii=False).encode(),
+                "application/json; charset=utf-8",
+            )
+            return
         if path == "/api/protect":
             self._send(
                 200,
@@ -2964,6 +2974,17 @@ class Handler(BaseHTTPRequestHandler):
                 data = {}
             from helix_lights import act as lights_act
             body = json.dumps(lights_act(data if isinstance(data, dict) else {}), ensure_ascii=False).encode()
+            self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path == "/api/voice":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 8000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            from helix_voice import act as voice_act
+            body = json.dumps(voice_act(data if isinstance(data, dict) else {}), ensure_ascii=False).encode()
             self._send(200, body, "application/json; charset=utf-8")
             return
         if path == "/api/protect/hook":

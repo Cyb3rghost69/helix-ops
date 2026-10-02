@@ -10,6 +10,7 @@
 - AGENT COGNITIVE TRACE module.
 - HELIX FIELD TERMINAL mobile home.
 - LIGHTING CONTROL (`[08] LIGHTING`) — local WiZ UDP provider, rooms, Helix scenes, no cloud.
+- VOICE INTERFACE (`[09] VOICE`) — push-to-talk, browser STT/TTS, tool router into lights/status.
 - Compact SOURCE CONTROL instrument.
 - Desktop INSTRUMENT BUS (SYSTEM CORE / MODEL MATRIX / SERVICE MATRIX / DATA VAULT) from live APIs.
 

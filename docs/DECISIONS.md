@@ -1,5 +1,11 @@
 # Decisions
 
+## 2026-10-02 — Voice PTT
+**DECISION:** Browser Web Speech STT/TTS; backend intent router into existing tools; wake-word off by default; no faster-whisper on the 8 GB Mini yet.  
+**REASON:** Spec said ship reliable PTT first.  
+**ALTERNATIVES:** faster-whisper + Kokoro services.  
+**CONSEQUENCES:** Firefox has no STT; destructive voice commands never execute.
+
 ## 2026-10-02 — WiZ local lighting
 **DECISION:** Helix backend owns WiZ UDP 38899; UI polls `/api/lights`. Stdlib protocol, optional pywizlight. Provider ABC for future Home Assistant.  
 **REASON:** No cloud, no browser-to-bulb UDP, no extra ports.  

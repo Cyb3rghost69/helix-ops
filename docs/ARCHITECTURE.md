@@ -31,6 +31,7 @@ No bundler, no WebSocket. Polling:
 | GET `/api/remote` | RustDesk OSS snapshot |
 | GET `/api/git` | local git status |
 | GET `/api/lights` | WiZ lighting snapshot |
+| GET `/api/voice` | voice config + history |
 
 `/ops` prefix is applied when `location.pathname` starts with `/ops`.
 

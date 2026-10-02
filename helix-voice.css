@@ -1,0 +1,40 @@
+/* HELIX // VOICE INTERFACE — CRT phosphor, not a consumer assistant. */
+.vx { color: var(--ok); }
+.vx-head {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  gap: 12px; padding: 8px 2px 10px; border-bottom: 1px solid var(--line);
+}
+.vx-head small { display: block; color: var(--dim); letter-spacing: 0.16em; font-size: 10px; }
+.vx-state {
+  text-align: center; letter-spacing: 0.28em; font-size: 18px; margin: 16px 0 10px;
+  color: var(--ok); text-shadow: 0 0 8px rgba(124,255,122,.25);
+}
+.vx-state.listen { color: #39ff14; }
+.vx-state.err { color: var(--bad); }
+.vx-wave { height: 36px; width: 100%; background: #050805; border: 1px solid var(--line); display: block; }
+.vx-chat { min-height: 120px; border: 1px solid var(--line); background: #070b07; padding: 8px 10px; margin: 10px 0; }
+.vx-chat .who { color: var(--gold); letter-spacing: 0.14em; font-size: 10px; }
+.vx-chat .ln { margin: 0 0 8px; white-space: pre-wrap; }
+.vx-tele {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0;
+}
+.vx-tele div { border: 1px solid #243024; padding: 6px; text-align: center; }
+.vx-tele b { display: block; color: var(--ok); font-size: 12px; }
+.vx-tele span { color: var(--dim); font-size: 9px; letter-spacing: 0.12em; }
+.vx-bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.vx-bar button {
+  min-height: 44px; padding: 6px 12px; letter-spacing: 0.12em; font-size: 11px;
+  background: #070b07; color: var(--ok); border: 1px solid var(--line);
+}
+.vx-bar button.on { border-color: var(--ok); color: #39ff14; }
+.vx-bar button.warn { border-color: var(--bad); color: var(--bad); }
+.vx-mic {
+  min-width: 160px; min-height: 56px; font-size: 13px; letter-spacing: 0.16em;
+}
+.vx-hist { max-height: 180px; overflow: auto; font-size: 11px; color: #9cba90; }
+.vx-hist div { border-bottom: 1px dotted #243024; padding: 4px 0; }
+.vx-err { color: var(--bad); min-height: 1.2em; font-size: 11px; }
+@media (max-width: 767px) {
+  .vx-tele { grid-template-columns: repeat(2, 1fr); }
+  .vx-mic { width: 100%; min-height: 64px; }
+}
