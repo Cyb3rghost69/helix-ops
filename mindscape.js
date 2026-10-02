@@ -8,7 +8,7 @@
     error: { label: "Error", color: "#ff3864" },
     manual: { label: "Manual", color: "#94a3b8" },
   };
-  const BOT_COL = { orchestra: "#7dffc3", bot: "#6ef0ff", peer: "#ff4ad8", channel: "#ffb347", memory: "#39ff14", human: "#94a3b8" };
+  const BOT_COL = { orchestra: "#6adf64", bot: "#6aa8a8", peer: "#d4a017", channel: "#9cba90", memory: "#7CFF7A", human: "#d6d4c8" };
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]));
   const typeOf = (n) => {
     if (n.layer === "bot") return n.kind || "bot";

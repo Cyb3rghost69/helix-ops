@@ -5,6 +5,7 @@ Future agents must not restyle this into a generic dashboard.
 ## Identity
 
 - Product: **HELIX OPS**
+- Look: retro-futuristic Japanese technical OS (PC-98, CRT, aerospace/lab terminals). Phosphor green on near-black. Not Geocities pink, not SaaS.
 - Wordmark: **HELIX/OPS** (slash is the system bus)
 - Node: **HOS://TKY-06** / **TOKYO-06**
 - Mobile: **HELIX FIELD TERMINAL**

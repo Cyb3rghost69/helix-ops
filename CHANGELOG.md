@@ -13,6 +13,7 @@
 - VOICE INTERFACE (`[09] VOICE`) — push-to-talk, browser STT/TTS, tool router into lights/status.
 - PAD LAYOUT (`helix-tablet.css`) — 768–1366 tablet: sticky tabs, lighting 2-col, thumb PTT.
 - PWA (`manifest.webmanifest` + `helix-sw.js`) — installable Helix OS on Tailscale HTTPS `/ops`.
+- CRT audit — removed Geocities magenta/purple leftovers from ops chrome (CPU bars, mesh, chips, header).
 - Compact SOURCE CONTROL instrument.
 - Desktop INSTRUMENT BUS (SYSTEM CORE / MODEL MATRIX / SERVICE MATRIX / DATA VAULT) from live APIs.
 

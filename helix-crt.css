@@ -131,8 +131,31 @@ a { color: var(--cyan); }
 .agent, #hard .f { border-color: var(--line); }
 #bot-svg { background: #050805; border: 1px solid var(--line); }
 #cpu-svg { background: #050805; }
-#cpu-hosts .hbar { background: #0b120b; border: 1px solid var(--line); }
-#cpu-hosts .hbar > i { background: var(--ok); box-shadow: 0 0 6px rgba(106, 223, 100, 0.35); }
+#cpu-meta { color: var(--dim); }
+#cpu-meta b { color: var(--ok); }
+#cpu-hosts .hrow { color: var(--ink); }
+#cpu-svg { background: #050805; }
+.term-prompt { background: #070a07; }
+#q { background: #050805; color: var(--ok); }
+#alerts .chip.bad { background: #1a0c0c; color: var(--bad); }
+#alerts .chip.ok { background: #0b120b; color: var(--ok); }
+#alerts .chip.warn { background: #1a1408; color: var(--amber); }
+.cam .cap { color: var(--amber); }
+.cam .cap .st { color: var(--ok); }
+.agent .chip.idle { color: var(--amber); }
+.agent .chip.busy { color: var(--ok); }
+.agent .chip.dark { color: var(--dim); }
+#hard .f { border-bottom: 1px dotted var(--line); }
+#hard .lv.ok { color: var(--ok); }
+#need-you { background: #100c06; }
+#need-you h2, #need-you .w .t { color: var(--amber); }
+#need-you .w .s { color: var(--ink); }
+.dot, .ms-row i, .rd-led, .lt-led { border-radius: 0; }
+.lt-scenes button.on, .vx-bar button.on, .vx-state.listen { color: var(--ok); }
+
+@media (max-width: 1023px) {
+  header.logo { background: rgba(6, 10, 6, 0.88) !important; }
+}
 .bar > i { background: var(--ok); box-shadow: none; }
 .clock { color: var(--ok); text-shadow: 0 0 6px rgba(106, 223, 100, 0.25); }
 
