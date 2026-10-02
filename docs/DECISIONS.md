@@ -1,5 +1,11 @@
 # Decisions
 
+## 2026-10-02 — WiZ local lighting
+**DECISION:** Helix backend owns WiZ UDP 38899; UI polls `/api/lights`. Stdlib protocol, optional pywizlight. Provider ABC for future Home Assistant.  
+**REASON:** No cloud, no browser-to-bulb UDP, no extra ports.  
+**ALTERNATIVES:** pywizlight-only; Home Assistant first.  
+**CONSEQUENCES:** `helix-lights.json` gitignored; Funnel still off.
+
 ## 2026-10-02 — HELIX/OPS branding
 **DECISION:** Canonical identity is HELIX/OPS (slash as system bus), not OMARCHY and not HELIX INDUSTRIES on the mark.  
 **REASON:** Operator identity for the Tokyo-06 deck.  

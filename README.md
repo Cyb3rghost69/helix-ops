@@ -55,8 +55,8 @@ Health: `http://127.0.0.1:8790/health`
 Edit files in this directory. HTML/CSS/JS are reread on each GET. After `server.py` changes, restart the `:8790` listener.
 
 ```bash
-python3 -m py_compile server.py rustdesk_remote.py
-python3 -m unittest test_remote.py test_adze.py
+python3 -m py_compile server.py rustdesk_remote.py helix_lights.py
+python3 -m unittest test_remote.py test_adze.py test_lights.py
 ```
 
 ## BUILD
@@ -89,6 +89,7 @@ See `.env.example`. Real values live in `ops.env`, `unifi.env`, and `~/.hermes/.
 | DATA VAULT | IN DEVELOPMENT (memory/SOUL viewer exists; not a vault product) |
 | MODEL MATRIX | PLANNED (model/provider shown on Hermes card only) |
 | SOURCE CONTROL // GITHUB | IMPLEMENTED (compact git status) |
+| LIGHTING CONTROL / WiZ LAN | IMPLEMENTED (`[08] LIGHTING`, UDP 38899) |
 
 ## AGENT SYSTEM
 

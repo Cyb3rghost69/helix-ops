@@ -1,0 +1,58 @@
+/* LIGHTING CONTROL — CRT phosphor, square terminals, no SaaS cards. */
+.lt { color: var(--ok); }
+.lt-head {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  gap: 12px; padding: 8px 2px 10px; border-bottom: 1px solid var(--line);
+}
+.lt-head small { display: block; color: var(--dim); letter-spacing: 0.16em; font-size: 10px; }
+.lt-tele {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 10px 0;
+}
+.lt-tele div { border: 1px solid #243024; padding: 6px; text-align: center; background: rgba(6,10,6,.88); }
+.lt-tele b { display: block; font-size: 16px; color: var(--ok); }
+.lt-tele span { color: var(--dim); font-size: 9px; letter-spacing: 0.12em; }
+.lt-bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; align-items: center; }
+.lt-bar button, .lt-card button, .lt-room button {
+  min-height: 36px; padding: 4px 8px; font-size: 10px; letter-spacing: 0.1em;
+  background: #070b07; color: var(--ok); border: 1px solid var(--line);
+}
+.lt-bar input[type="text"] {
+  min-height: 36px; background: #050805; color: var(--ok); border: 1px solid var(--line);
+  padding: 4px 8px; font: 12px ui-monospace, Menlo, monospace; width: 140px;
+}
+.lt-scenes { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 12px; }
+.lt-scenes button.on { border-color: var(--ok); color: #39ff14; }
+.lt-rooms { display: flex; flex-direction: column; gap: 8px; }
+.lt-room {
+  border: 1px solid var(--line); background: #070b07; padding: 8px 10px;
+}
+.lt-room > summary {
+  cursor: pointer; list-style: none; letter-spacing: 0.12em; color: var(--ok);
+}
+.lt-room > summary::-webkit-details-marker { display: none; }
+.lt-room .meta { color: var(--dim); font-size: 10px; letter-spacing: 0.08em; }
+.lt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin-top: 8px; }
+.lt-card {
+  border: 1px solid var(--line); background: rgba(6,10,6,.92); padding: 8px 10px;
+  position: relative;
+}
+.lt-card.offline { opacity: 0.55; }
+.lt-card .nm { letter-spacing: 0.12em; color: var(--ok); }
+.lt-led { width: 8px; height: 8px; display: inline-block; background: #3a4030; vertical-align: middle; margin-right: 6px; }
+.lt-led.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.lt-led.off { background: #5a3028; }
+.lt-swatch {
+  width: 14px; height: 14px; border: 1px solid var(--line); display: inline-block;
+  vertical-align: middle; margin-left: 6px;
+}
+.lt-card input[type="range"] { width: 100%; accent-color: #7CFF7A; }
+.lt-card input[type="color"] {
+  width: 36px; height: 28px; border: 1px solid var(--line); background: #050805; padding: 0;
+}
+.lt-kv { display: grid; grid-template-columns: 110px 1fr; gap: 2px 8px; font-size: 11px; margin-top: 6px; }
+.lt-kv b { color: var(--dim); font-weight: 400; letter-spacing: 0.12em; }
+.lt-err { color: var(--bad); font-size: 11px; min-height: 1.2em; }
+.lt-add { margin-top: 10px; border-top: 1px dotted #243024; padding-top: 8px; }
+@media (max-width: 767px) {
+  .lt-tele { grid-template-columns: repeat(3, 1fr); }
+}

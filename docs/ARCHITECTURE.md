@@ -30,6 +30,7 @@ No bundler, no WebSocket. Polling:
 | GET `/api/docker` `/api/clients` `/api/protect` | Unraid / LAN / cameras |
 | GET `/api/remote` | RustDesk OSS snapshot |
 | GET `/api/git` | local git status |
+| GET `/api/lights` | WiZ lighting snapshot |
 
 `/ops` prefix is applied when `location.pathname` starts with `/ops`.
 

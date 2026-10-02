@@ -28,6 +28,8 @@ remote-audit.jsonl
 *.sqlite3
 protect-events.db
 helix-remote.json
+helix-lights.json
+helix-lights.json.tmp
 
 .DS_Store
 .cache/

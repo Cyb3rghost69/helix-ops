@@ -11,6 +11,7 @@ LAST MAJOR CHANGE: amber HELIX/OPS particle identity + MEMORY MATRIX + GitHub pr
 - RustDesk OSS collector (hbbs/hbbr TCP, sqlite ids, Mac LAN peers)
 - Docker start/stop of named Unraid containers
 - UniFi clients + Protect stills (key local)
+- LIGHTING CONTROL (`[08] LIGHTING`, WiZ LAN UDP, rooms/scenes)
 - Compact SOURCE CONTROL instrument
 - Desktop INSTRUMENT BUS (SYSTEM CORE / MODEL / SERVICE / DATA VAULT)
 
