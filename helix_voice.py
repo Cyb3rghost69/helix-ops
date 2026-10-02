@@ -198,7 +198,9 @@ def parse_intent(text: str) -> dict:
     if re.search(r"\b(how many|how much|status|offline|online)\b", t) and "light" in t:
         return {"ok": True, "tool": "lights.list", "args": {}, "permission": READ, "confidence": 0.86}
 
-    if re.search(r"\b(bigboi|unraid|the server)\b", t) and re.search(r"\b(status|hot|temp|cpu|ram|memory|running)\b", t):
+    if re.search(r"\b(bigboi|unraid|the server)\b", t) and re.search(
+        r"\b(status|hot|temp|cpu|ram|memory|running|online|offline|up|down|reachable)\b", t
+    ):
         return {"ok": True, "tool": "server.status", "args": {}, "permission": READ, "confidence": 0.84}
 
     if "container" in t and re.search(r"\b(restart|stop|start)\b", t):

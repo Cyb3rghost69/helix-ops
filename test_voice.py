@@ -36,6 +36,11 @@ class Intent(unittest.TestCase):
         self.assertEqual(i["permission"], DESTRUCTIVE)
         self.assertEqual(i["tool"], "server.shutdown")
 
+    def test_bigboi_online(self):
+        i = parse_intent("Is BigBoi online?")
+        self.assertEqual(i["tool"], "server.status")
+        self.assertEqual(i["permission"], READ)
+
     def test_empty(self):
         i = parse_intent("  ")
         self.assertFalse(i["ok"])
