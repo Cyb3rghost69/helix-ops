@@ -1,0 +1,148 @@
+/* HELIX/OPS PAD LAYOUT — 768–1366. Phone Field Terminal and ≥1367 desktop unchanged. */
+@media (min-width: 768px) and (max-width: 1366px) {
+  html { -webkit-text-size-adjust: 100%; }
+  body.pad-term {
+    font-size: 14px;
+    padding-top: max(10px, env(safe-area-inset-top, 0px));
+    padding-right: max(14px, env(safe-area-inset-right, 0px));
+    padding-bottom: max(18px, env(safe-area-inset-bottom, 0px));
+    padding-left: max(14px, env(safe-area-inset-left, 0px));
+  }
+
+  header.logo {
+    border: 1px solid var(--line);
+    box-shadow: none;
+    background: rgba(6, 10, 6, 0.92);
+  }
+  .plaque-edge, .plaque-row > .bar { display: none; }
+  .logo-art { flex-direction: column; align-items: stretch; gap: 8px; }
+  .howm {
+    width: min(92%, 520px) !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex: none !important;
+    margin-inline: auto;
+    transform: none !important;
+    max-height: 96px;
+  }
+  .howm canvas.howm-px { max-height: 96px; }
+  .welcome { font-size: 11px; overflow: hidden; max-height: 2.4em; }
+  .hel-desk { display: none; }
+
+  .tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: var(--bg, #060705);
+    padding: 6px 0 8px;
+    margin: 0 0 10px;
+    border-bottom: 1px solid var(--line);
+    scrollbar-width: thin;
+  }
+  .tabs button {
+    flex: 0 0 auto;
+    min-height: 48px;
+    padding: 8px 12px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+  }
+
+  .cockpit, .pair { grid-template-columns: 1fr !important; }
+  .split { grid-template-columns: 1fr 1fr; }
+  .hosts { grid-template-columns: 1fr 1fr; }
+  #dock { grid-template-columns: repeat(3, 1fr); }
+  #cam-grid { grid-template-columns: 1fr 1fr; }
+  .cam img { height: 160px; }
+  #thoughts { min-height: 220px; max-height: 36svh; }
+  .term { min-height: 320px; }
+  #bot-svg, .pair #bot-svg { height: 240px; }
+  #cpu-svg { height: 160px; }
+  #prompt-in, header.logo #q, #rd-q, #ms-q {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .term-prompt { flex-wrap: wrap; gap: 6px; }
+  .table-scroll, #pane-dock { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #pane-dock table { min-width: 640px; }
+  #inst-ridge, #git-box, #need-you { font-size: 12px; }
+  .btop { max-height: 220px; overflow: auto; }
+
+  .noc-grid { grid-template-columns: 1fr; min-height: 0; }
+  .noc-tele, .noc-side { border: 0; border-top: 1px solid var(--line); }
+  #noc-cv { height: 260px; }
+
+  .trace-grid { grid-template-columns: 1fr 1fr; }
+  #trace-cv { height: 200px; }
+  .trace-matrix button { min-height: 44px; }
+
+  .remote-core { grid-template-columns: 1fr; }
+  .rd-counts { grid-template-columns: repeat(4, 1fr); }
+  .rd-row { min-height: 52px; }
+  .rd-acts button, .rd-row .go { min-height: 44px; }
+
+  .mm-map { grid-template-columns: 1fr 1fr; }
+  .mm-bank { min-height: 96px; }
+  .mm-act button { min-height: 44px; }
+
+  .lt-tele { grid-template-columns: repeat(4, 1fr); }
+  .lt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lt-bar button, .lt-card button, .lt-room button, .lt-scenes button {
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+  .lt-bar input[type="text"] { min-height: 44px; font-size: 16px; width: min(220px, 100%); }
+  .lt-card input[type="range"] { min-height: 28px; }
+  .lt-card input[type="color"] { width: 44px; height: 44px; }
+  #lt-alloff { min-width: 160px; }
+
+  .vx-tele { grid-template-columns: repeat(4, 1fr); }
+  .vx-state { font-size: 22px; letter-spacing: 0.2em; }
+  .vx-wave { height: 48px; }
+  .vx-chat { min-height: 160px; max-height: 28svh; overflow: auto; }
+  .vx-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: rgba(6, 7, 5, 0.96);
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line);
+  }
+  .vx-bar button { min-height: 48px; font-size: 12px; }
+  #vx-ptt, .vx-mic {
+    flex: 1 1 100%;
+    min-height: 72px;
+    font-size: 16px;
+    letter-spacing: 0.18em;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1366px) and (orientation: landscape) {
+  .logo-art { flex-direction: row; align-items: center; }
+  .howm {
+    width: min(40vw, 380px) !important;
+    margin-inline: 0;
+    max-height: 72px;
+  }
+  .cockpit { grid-template-columns: 1.1fr 0.9fr !important; }
+  .pair { grid-template-columns: 1fr 1fr !important; }
+  #thoughts { max-height: 28svh; min-height: 160px; }
+  .lt-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .noc-grid { grid-template-columns: minmax(160px, 0.6fr) minmax(280px, 1.4fr); }
+  .remote-core { grid-template-columns: 1fr 1fr; }
+  #vx-ptt, .vx-mic { flex: 1 1 46%; min-height: 56px; }
+}
+
+@media (min-width: 768px) and (max-width: 1366px) and (pointer: coarse) {
+  button, #dock a, .tabs button, .mtabs button, .sk-list button {
+    min-height: 44px;
+  }
+}

@@ -2704,6 +2704,7 @@ class Handler(BaseHTTPRequestHandler):
             "/helix-lights.js": ("helix-lights.js", "application/javascript; charset=utf-8"),
             "/helix-voice.css": ("helix-voice.css", "text/css; charset=utf-8"),
             "/helix-voice.js": ("helix-voice.js", "application/javascript; charset=utf-8"),
+            "/helix-tablet.css": ("helix-tablet.css", "text/css; charset=utf-8"),
         }
         if path in static:
             name, ctype = static[path]

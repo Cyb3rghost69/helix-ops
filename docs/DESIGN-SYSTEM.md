@@ -37,6 +37,10 @@ Particle state machine in `helix-ops-wordmark.js`: ACQUIRE → MAP → CORE_FORM
 
 ≤767px is Field Terminal (own IA), not a scaled desktop. First viewport: status, Hermes, CPU/MEM, net, Botmesh, Remote, alerts.
 
+## Tablet
+
+768–1366px is **PAD LAYOUT** (`helix-tablet.css`, `body.pad-term`). Same numbered tabs and CRT theme — sticky tab rail, 44–72px hit targets, two-column lights, thumb PTT. Not Field Terminal. ≥1367 stays desktop.
+
 ## Avoid
 
 generic SaaS cards · glassmorphism · purple neon cyberpunk · huge gradients · Material rounded UI · Matrix rain · excessive glow · OMARCHY branding on the mark · fake telemetry

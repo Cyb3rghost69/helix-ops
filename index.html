@@ -1851,11 +1851,11 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0493";
+    const ASSET_V = "hos0494";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;
-    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-lights.css", "helix-voice.css"].forEach((href) => {
+    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-lights.css", "helix-voice.css", "helix-tablet.css"].forEach((href) => {
       const css = document.createElement("link");
       css.rel = "stylesheet";
       css.href = p + "/" + href + "?v=" + ASSET_V;
@@ -1902,13 +1902,16 @@ async function loadClients() {
 
     (function fieldTerm() {
       const mq = matchMedia("(max-width: 767px)");
+      const pad = matchMedia("(min-width: 768px) and (max-width: 1366px)");
       const field = document.getElementById("field");
       const apply = () => {
         document.body.classList.toggle("field-term", mq.matches);
+        document.body.classList.toggle("pad-term", pad.matches && !mq.matches);
         if (field) field.hidden = !mq.matches;
       };
       apply();
       mq.addEventListener("change", apply);
+      pad.addEventListener("change", apply);
       document.getElementById("ft-strip")?.addEventListener("click", (e) => {
         const b = e.target.closest("[data-ft]");
         if (!b) return;
