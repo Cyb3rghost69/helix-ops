@@ -12,6 +12,7 @@
   body.field-term #root,
   body.field-term #alerts,
   body.field-term #git-box,
+  body.field-term #inst-ridge,
   body.field-term #need-you,
   body.field-term .term.compute { display: none; }
   body.field-term.ft-core .term.compute { display: flex; }

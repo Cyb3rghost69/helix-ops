@@ -8,7 +8,8 @@
 - ADZE analysis-core profile, orchestrator, dual-core TRACE strip (offline without OpenAI key).
 - AGENT COGNITIVE TRACE module.
 - HELIX FIELD TERMINAL mobile home.
-- GitHub project store (docs, .gitignore, .env.example) and compact SOURCE CONTROL instrument.
+- Compact SOURCE CONTROL instrument.
+- Desktop INSTRUMENT BUS (SYSTEM CORE / MODEL MATRIX / SERVICE MATRIX / DATA VAULT) from live APIs.
 
 ### Changed
 

@@ -586,7 +586,7 @@
     </form>
   </div>
   <div class="term compute">
-    <div class="term-bar">compute · fleet load <span class="ok">LIVE</span></div>
+    <div class="term-bar">SYSTEM CORE · 中央演算装置 · fleet load <span class="ok">LIVE</span></div>
     <svg id="cpu-svg" viewBox="0 0 320 140" preserveAspectRatio="none" aria-label="total compute"></svg>
     <div id="cpu-meta">SCANNING_</div>
     <div id="cpu-hosts"></div>
@@ -603,11 +603,11 @@
 </section>
 <div class="pair">
   <div>
-    <h2>// Agents</h2>
+    <h2>AGENT MATRIX</h2>
     <div id="agents" class="agents"><p class="empty">scanning agents_</p></div>
   </div>
   <div>
-    <h2>// Bot mesh</h2>
+    <h2>BOTMESH // NETWORK CONTROL</h2>
     <div id="bot-wrap"></div>
   </div>
 </div>
@@ -623,7 +623,7 @@
 </div>
 <div class="pair">
   <section class="view">
-    <div class="term-bar">memory · soul <span class="ok" id="mem-stamp">LIVE</span></div>
+    <div class="term-bar">DATA VAULT · soul / memory <span class="ok" id="mem-stamp">LIVE</span></div>
     <div class="mtabs" id="mem-tabs">
       <button type="button" data-mem="SOUL" class="on">SOUL</button>
       <button type="button" data-mem="USER">USER</button>
@@ -654,7 +654,7 @@
   <p id="sec-note" class="empty">scanning Protect_</p>
   <div id="cam-grid"></div>
   <section class="panel" style="margin-top:12px">
-    <h2>// Detections (24h)</h2>
+    <h2>SERVICE MATRIX · DETECTIONS (24h)</h2>
     <table>
       <thead><tr><th>Type</th><th>Count</th></tr></thead>
       <tbody id="det-body"></tbody>
@@ -752,6 +752,10 @@
     </table>
   </section>
 </div>
+<section class="rd-box" id="inst-ridge" style="margin:8px 0 10px">
+  <div class="ident">INSTRUMENT BUS · 計器バス</div>
+  <div id="inst-body" class="empty">scanning_</div>
+</section>
 <section class="rd-box" id="git-box" style="margin:8px 0 10px">
   <div class="ident">SOURCE CONTROL // GITHUB · ソース管理</div>
   <div id="git-body" class="empty">scanning git_</div>
@@ -945,18 +949,18 @@ function render(d) {
   const nAct = (d.actions || []).length;
 
   $("#root").innerHTML = `
-    <h2>// Action queue  [${nAct}]</h2>
+    <h2>HELIX EVENT BUS · ACTION QUEUE  [${nAct}]</h2>
     <section class="panel">
       <table>
         <thead><tr><th>PRI</th><th>Kind</th><th>Directive</th><th>Payload</th></tr></thead>
         <tbody>${actionRows(d.actions)}</tbody>
       </table>
     </section>
-    <h2>// Network</h2>
+    <h2>NETWORK PULSE</h2>
     ${netPanel(d.network, ts)}
-    <h2>// Machines</h2>
+    <h2>SYSTEM CORE · MACHINES</h2>
     <div class="hosts">${hosts}</div>
-    <h2>// Hermes</h2>
+    <h2>HERMES // COGNITIVE CORE</h2>
     <section class="panel">
       <div class="kv" style="grid-template-columns:120px 1fr 120px 1fr">
         <span class="k">Version</span><span class="mono">${esc(hermes.version || "—")}</span>
@@ -967,14 +971,14 @@ function render(d) {
         <span class="k">Cron</span><span>${hermes.cron_jobs ?? 0} jobs</span>
       </div>
     </section>
-    <h2>// Bots / profiles</h2>
+    <h2>MODEL MATRIX · PROFILES</h2>
     <section class="panel">
       <table>
         <thead><tr><th>Bot</th><th>Profile</th><th>Model</th><th>Gateway</th></tr></thead>
         <tbody>${prof}</tbody>
       </table>
     </section>
-    <h2>// Peers</h2>
+    <h2>BOTMESH · PEERS</h2>
     <section class="panel">
       <table>
         <thead><tr><th>Peer</th><th>URL</th><th>Note</th></tr></thead>
@@ -983,7 +987,7 @@ function render(d) {
     </section>
     <div class="split">
       <div>
-        <h2>// Sessions</h2>
+        <h2>DATA VAULT · SESSIONS</h2>
         <section class="panel">
           <div class="kv">
             <span class="k">Total</span><span>${sess.total ?? "—"}</span>
@@ -994,7 +998,7 @@ function render(d) {
         </section>
       </div>
       <div>
-        <h2>// Recent</h2>
+        <h2>HELIX EVENT BUS · RECENT</h2>
         <section class="panel">
           <table>
             <thead><tr><th>Title</th><th>When</th><th>ID</th></tr></thead>
@@ -1021,7 +1025,7 @@ function renderNeedYou(d) {
   const acts = d.actions || [];
   if (!acts.length) { el.hidden = true; el.innerHTML = ""; return; }
   el.hidden = false;
-  el.innerHTML = `<h2>// NEED YOU  [${acts.length}]</h2>` + acts.map(a =>
+  el.innerHTML = `<h2>HELIX EVENT BUS · NEED YOU  [${acts.length}]</h2>` + acts.map(a =>
     `<div class="w"><div class="t">${esc(a.priority || "")} · ${esc(a.title || a.kind || "")}</div><div class="s">${esc(a.detail || "")}</div></div>`
   ).join("");
 }
@@ -1108,6 +1112,27 @@ function tickClock() {
   const j = document.getElementById("sys-jst");
   if (j) j.textContent = n.toLocaleTimeString("en-GB", { hour12: false, timeZone: "Asia/Tokyo" }) + " JST";
 }
+function fillRidge(d) {
+  const box = document.getElementById("inst-body");
+  if (!box) return;
+  const h = (d && d.hermes) || {};
+  const ls = (d && d.local_services) || {};
+  const rd = (globalThis.HelixRemote && HelixRemote.state && HelixRemote.state.data) || {};
+  const ad = (globalThis.HelixAdze && HelixAdze.state) || {};
+  const svc = [
+    ["HERMES GW", !!h.gateway_running],
+    ["HONCHO", svcOk(ls.honcho)],
+    ["WEBUI", svcOk(ls.webui)],
+    ["HBBS", rd.hbbs === true],
+    ["HBBR", rd.hbbr === true],
+  ];
+  const on = svc.filter(s => s[1]).length;
+  const mem = h.memory || "NO TELEMETRY";
+  box.innerHTML = `<div class="ident">SYSTEM CORE<br><b>${esc(h.version || "HERMES")}</b> · GW ${h.gateway_running ? "●" : "○"}</div>
+    <div class="ident">MODEL MATRIX<br><b>${esc(h.model || "—")}</b> · ${esc(h.provider || "—")}<br>ADZE ${esc((ad.model || ad.status || "OFFLINE") + "")}</div>
+    <div class="ident">SERVICE MATRIX<br>${svc.map(s => (s[1] ? "● " : "○ ") + s[0]).join(" · ")}<br>${on}/${svc.length} LIVE</div>
+    <div class="ident">DATA VAULT<br>${esc(String(mem))}</div>`;
+}
 function fillField(extra) {
   extra = extra || {};
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
@@ -1170,6 +1195,7 @@ async function load() {
     if (bw) bw.innerHTML = botMesh(data.bot_mesh);
     if (globalThis.HelixNoc) HelixNoc.ingestStats(data);
     fillField({ hermes: data.hermes, mesh: data.bot_mesh, ts: data.tailscale, netLabel: (data.network && data.network.egress_iface) || "" });
+    fillRidge(data);
   } catch (e) {
     $("#root").innerHTML = `<p class="err">SCAN FAIL: ${esc(e.message)}</p>`;
   }
@@ -1725,7 +1751,7 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0487";
+    const ASSET_V = "hos0488";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;

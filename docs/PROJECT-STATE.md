@@ -12,6 +12,7 @@ LAST MAJOR CHANGE: HELIX/OPS particle identity + REMOTE MATRIX + GitHub project 
 - Docker start/stop of named Unraid containers
 - UniFi clients + Protect stills (key local)
 - Compact SOURCE CONTROL instrument
+- Desktop INSTRUMENT BUS (SYSTEM CORE / MODEL / SERVICE / DATA VAULT)
 
 ## IN-PROGRESS
 
