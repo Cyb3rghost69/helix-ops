@@ -34,4 +34,5 @@
 ### Security
 
 - HELIX Medic 1.2 — isolated tests, GET `/api/medic` does not tick fail counts, auto-restart writes `docker_diagnosis` then COMPLETE, prune ghost desired names. Live guard stays allowlisted bash; capabilities-only stub not deployed.
+- Ops audit `hos0512`: theme `--ok` (no hardcoded `#39ff14` in index), Field Terminal grid no longer reordered, Sentinel INFO uses event text, footer SYS follows HelixOrch.
 - Runtime secrets (`ops.env`, `unifi.env`) excluded from version control.

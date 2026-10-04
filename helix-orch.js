@@ -187,6 +187,8 @@
       el.textContent = glyph(d.system) + " SYSTEM " + d.system;
       el.setAttribute("data-sev", d.system);
     }
+    const foot = document.getElementById("sys-foot");
+    if (foot) foot.textContent = d.system;
     const chips = document.getElementById("hx-sys-chips");
     if (chips) {
       const c = d.chips;

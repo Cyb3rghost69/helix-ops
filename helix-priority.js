@@ -135,7 +135,7 @@
     const evs = sen.active || [];
     const warn = evs.filter((e) => /WARN|CRIT/i.test(String(e.sev || "")));
     if (warn.length) bump("sentinel", 40, warn[0].event || "SECURITY", 80);
-    else if (evs.length) bump("sentinel", 8, "SECURITY EVENT", 20);
+    else if (evs.length) bump("sentinel", 8, evs[0].event || "SENTINEL", 20);
     const cx = sample.ctx || {};
     if (cx.utilization != null && cx.utilization >= 85) bump("cog", 30, "CTX " + cx.utilization + "%", 70);
     else if (cx.utilization != null && cx.utilization >= 70) bump("hermes", 12, "CTX ELEVATED", 40);
@@ -269,15 +269,7 @@
     const lab = document.getElementById("hx-primary-lab");
     if (lab) {
       const row = list.find((x) => x.id === primary[0]);
-      lab.textContent = row ? ("PRIMARY  " + row.label + "  ·  " + row.why) : "PRIMARY OPERATIONS";
-    }
-    const ft = document.querySelector(".ft-grid");
-    if (ft && document.body.classList.contains("field-term")) {
-      ft.querySelectorAll("[data-hx-ft]").forEach((c) => {
-        const id = c.getAttribute("data-hx-ft");
-        const i = ranked.indexOf(id);
-        if (i >= 0) c.style.order = String(i);
-      });
+      lab.textContent = row ? ("PRIMARY OPERATIONS · " + row.label + " · " + row.why) : "PRIMARY OPERATIONS · 主運用表示";
     }
   }
   function esc(s) {

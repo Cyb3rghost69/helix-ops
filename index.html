@@ -122,7 +122,7 @@
     text-transform: uppercase; border-bottom: 1px solid var(--line);
     text-shadow: 0 0 6px rgba(106,223,100,.2);
   }
-  .term-bar .ok { color: #39ff14; }
+  .term-bar .ok { color: var(--ok); }
   #thoughts {
     flex: 1; min-height: 360px; max-height: 560px; overflow: auto;
     padding: 8px 10px; background:
@@ -132,18 +132,18 @@
   #thoughts .row { margin: 0 0 3px; white-space: pre-wrap; word-break: break-word; }
   #thoughts .who { color: var(--ok); margin-right: 6px; }
   #thoughts .k-user { color: #ffff66; }
-  #thoughts .k-assistant { color: #39ff14; }
+  #thoughts .k-assistant { color: var(--ok); }
   #thoughts .k-thought { color: #9dff9a; opacity: 0.92; }
   #thoughts .k-tool { color: #66ffff; }
-  #thoughts .k-prompt { color: #39ff14; }
+  #thoughts .k-prompt { color: var(--ok); }
   #thoughts .empty { color: var(--dim); }
   .term-prompt {
     display: flex; align-items: center; gap: 8px;
     border-top: 1px solid var(--line); padding: 6px 8px; background: #070a07;
   }
-  .ps1 { color: #39ff14; text-shadow: 0 0 6px #39ff14; white-space: nowrap; }
+  .ps1 { color: var(--ok); text-shadow: 0 0 6px var(--ok); white-space: nowrap; }
   #prompt-in {
-    flex: 1; min-height: 28px; background: transparent; color: #39ff14;
+    flex: 1; min-height: 28px; background: transparent; color: var(--ok);
     border: 0; padding: 4px 0; font: inherit; outline: none; resize: none;
   }
   .term.compute { min-height: 360px; }
@@ -173,7 +173,7 @@
   #ms-svg { display: block; }
   #ms-pane { display: none; overflow: auto; padding: 10px; }
   .ms-edge { stroke: #1f6b4a; stroke-width: 1; }
-  .ms-edge.bot-live { stroke: #39ff14; stroke-width: 1.6; }
+  .ms-edge.bot-live { stroke: var(--ok); stroke-width: 1.6; }
   .ms-edge.bot-dim { stroke: #163326; }
   .ms-edge.bridge { stroke: var(--cyan); stroke-dasharray: 3 5; }
   .ms-elabel { fill: var(--dim); font-size: 9px; text-anchor: middle; }
@@ -227,7 +227,7 @@
   .cam { background: #030008; border: 1px solid var(--line); box-shadow: none; }
   .cam img { width: 100%; height: 180px; object-fit: cover; background: #000; display: block; image-rendering: auto; }
   .cam .cap { padding: 6px 8px; font-size: 12px; color: #ffff66; }
-  .cam .cap .st { color: #39ff14; }
+  .cam .cap .st { color: var(--ok); }
   .cam .cap .st.off { color: #ff3864; }
   #net-note { margin: 0 0 8px; }
   .clock { color: #ffff66; font-variant-numeric: tabular-nums; letter-spacing: 0.08em; text-shadow: 0 0 6px rgba(106,223,100,.25); }
@@ -248,14 +248,14 @@
   #need-you .w .t { color: #ffff66; }
   #need-you .w .s { color: #ffe8ff; font-size: 12px; }
   .btop { position: relative; z-index: 1; margin: 0 0 12px; background: #030008; border: 1px solid var(--line); box-shadow: none; }
-  #btop-pix { margin: 0; padding: 8px 10px; color: #39ff14; font: 12px/1.25 ui-monospace, Menlo, "MS Gothic", monospace; white-space: pre; overflow: auto; }
+  #btop-pix { margin: 0; padding: 8px 10px; color: var(--ok); font: 12px/1.25 ui-monospace, Menlo, "MS Gothic", monospace; white-space: pre; overflow: auto; }
   #hard { position: relative; z-index: 1; margin: 0 0 12px; }
   #hard .f { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px dotted var(--line); }
   #hard .lv { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; min-width: 44px; }
   #hard .lv.high { color: #ff3864; }
   #hard .lv.med { color: #ffcc00; }
   #hard .lv.warn { color: #ff9f43; }
-  #hard .lv.ok { color: #39ff14; }
+  #hard .lv.ok { color: var(--ok); }
   .pair { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.2fr); gap: 10px; margin: 0 0 12px; position: relative; z-index: 1; }
   @media (max-width: 900px) { .pair { grid-template-columns: 1fr; } }
   .pair h2 { margin: 0 0 6px; }
@@ -283,7 +283,7 @@
   .agent .an { color: var(--gold); font-weight: 700; }
   .agent .ahost { color: var(--dim); font-size: 11px; }
   .agent .chip { margin-left: auto; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
-  .agent .chip.busy { color: #39ff14; }
+  .agent .chip.busy { color: var(--ok); }
   .agent .chip.idle { color: #ffff66; }
   .agent .chip.dark { color: #8866aa; }
   .agent .ado { color: var(--cyan); font-size: 11px; margin: 4px 0; }
@@ -301,7 +301,7 @@
   @keyframes flow { to { stroke-dashoffset: -28; } }
   .bot-nlabel { fill: var(--ink); font-size: 11px; text-anchor: middle; }
   .bot-elabel { fill: var(--dim); font-size: 9px; text-anchor: middle; }
-  .bot-pkt { filter: drop-shadow(0 0 4px #39ff14); }
+  .bot-pkt { filter: drop-shadow(0 0 4px var(--ok)); }
 
   html { overflow-x: hidden; }
   body {
@@ -1044,7 +1044,7 @@
   <span class="sep">|</span>
   <span>UPLINK: <b>ACTIVE</b></span>
   <span class="sep">|</span>
-  <span>SYS: <b>NOMINAL</b></span>
+  <span>SYS: <b id="sys-foot">NOMINAL</b></span>
   <span class="sep">|</span>
   <span>通信正常 · CRC OK</span>
   <span class="sep">|</span>
@@ -1962,7 +1962,7 @@ document.getElementById("prompt-in")?.addEventListener("keydown", (e) => {
     svg.innerHTML = `
       ${grid}
       <path d="${area}" fill="rgba(57,255,20,0.12)"></path>
-      <path d="${fleet}" fill="none" stroke="#39ff14" stroke-width="1.8"></path>
+      <path d="${fleet}" fill="none" stroke="var(--ok)" stroke-width="1.8"></path>
       <path d="${mac}" fill="none" stroke="#6aa8a8" stroke-width="1.2" stroke-dasharray="3 3"></path>
       <text x="${PAD}" y="12" fill="#d4a017" font-size="9">100%</text>
       <text x="${PAD}" y="${H - 2}" fill="#7d8574" font-size="9">0</text>
@@ -2167,7 +2167,7 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0511";
+    const ASSET_V = "hos0512";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;
