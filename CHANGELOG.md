@@ -7,7 +7,11 @@
 - HELIX/89 visual system (`helix-theme.*`) — `--hx-*` tokens, five identities + custom, motion OFF/REDUCED/STANDARD/ENHANCED.
 - Graph engine, Cognitive Load, Priority Engine, Attention Bus (real telemetry only).
 - MEMORY MATRIX (`/api/matrix`) — Hermes/HELIX memory banks, no file contents. Discovery inventory, MemoryStore `§` parser, bounded util graphs, priority/cognitive/event-bus hooks.
-- HELIX SYSTEM ORCHESTRATOR (`helix-orch.js`) — derived SYSTEM STATE, bottleneck (evidence only), flight recorder (no secrets), theme/layout config, command-palette nav, F-keys, FPS governor.
+- HELIX SYSTEM ORCHESTRATOR (`helix-orch.js`) — derived SYSTEM STATE, bottleneck (evidence only), flight recorder 1H–7D + time scrub, F-keys, FPS governor, optional DISPLAY PERFORMANCE overlay.
+- CONTEXT BUFFER (`/api/ctx`) — model capacity + session token totals; window occupancy stays NO TELEMETRY unless measured.
+- DATA VAULT SMART (`/api/vault`) — Mac NVMe SMART overall from diskutil.
+- SENTINEL (`/api/sentinel`) — defensive events only; empty is NO ACTIVE SECURITY EVENTS.
+- HΞL-01 operator (`helix-hel01.js`) — event-driven ASCII states.
 - REMOTE MATRIX for self-hosted RustDesk OSS (hbbs/hbbr health, known peers, COPY ID / rustdesk:// launch).
 - ADZE analysis-core profile, orchestrator, dual-core TRACE strip.
 - AGENT COGNITIVE TRACE module.

@@ -1,6 +1,6 @@
 /* Cognitive load — observable Hermes/ADZE/compute only. Never fake intelligence %. */
 (function (global) {
-  const traces = { inference: [], context: [], tools: [], agents: [], gpu: [], memory: [] };
+  const traces = { inference: [], context: [], tools: [], agents: [], gpu: [], memory: [], latency: [] };
   const CAP = 90;
   let inspect = null;
   let lastThought = 0;
@@ -99,23 +99,37 @@
       + row("CONTEXT", s.ctx)
       + row("TOOLS", s.tools)
       + row("AGENTS", s.agents)
-      + row("GPU", s.gpu)
       + row("MEMORY", s.mem)
+      + row("GPU", s.gpu)
+      + row("LATENCY", s.lat)
+      + row("QUEUE", null)
+      + row("RETRIEVAL", null)
       + `<div class="hx-state-lbl">STATE: ${s.label}</div>`;
   }
-  function paintTokens(h) {
+  function paintTokens(h, ctx) {
     const el = document.getElementById("hx-tokens");
     if (!el) return;
-    const inT = h.prompt_tokens != null ? h.prompt_tokens : h.input_tokens;
+    const c = ctx || {};
+    const inT = c.requestTokens != null ? c.requestTokens : (h.prompt_tokens != null ? h.prompt_tokens : h.input_tokens);
     const outT = h.completion_tokens != null ? h.completion_tokens : h.output_tokens;
     const tps = h.tokens_per_sec != null ? h.tokens_per_sec : h.tps;
-    const ctx = h.context_used != null ? h.context_used : null;
+    const cap = c.contextCapacity;
+    const win = c.windowUsed;
     const parts = [];
-    parts.push("IN " + (inT == null ? "NO TELEMETRY" : inT));
-    parts.push("OUT " + (outT == null ? "NO TELEMETRY" : outT));
+    parts.push("REQUEST " + (inT == null ? "NO TELEMETRY" : Number(inT).toLocaleString("en-US")));
+    parts.push("OUTPUT " + (outT == null ? "NO TELEMETRY" : Number(outT).toLocaleString("en-US")));
+    parts.push("CAPACITY " + (cap == null ? "NO TELEMETRY" : Number(cap).toLocaleString("en-US")));
+    parts.push("WINDOW " + (win == null ? "NO TELEMETRY" : Number(win).toLocaleString("en-US") + (cap ? " / " + Number(cap).toLocaleString("en-US") : "")));
     parts.push("T/S " + (tps == null ? "NO TELEMETRY" : tps));
-    parts.push("CTX " + (ctx == null ? "NO TELEMETRY" : ctx));
     el.textContent = parts.join(" · ");
+    const box = document.getElementById("hx-ctx");
+    if (box) {
+      const q = c.windowQuality || "UNAVAILABLE";
+      box.innerHTML = `<div class="ident">CONTEXT BUFFER · 文脈演算領域</div>
+        <div>CTX WINDOW  ${win == null ? "NO TELEMETRY" : Number(win).toLocaleString("en-US") + " / " + (cap == null ? "—" : Number(cap).toLocaleString("en-US"))}</div>
+        <div>SESSION IN  ${c.sessionInput == null ? "NO TELEMETRY" : Number(c.sessionInput).toLocaleString("en-US")}  ·  OUT ${c.sessionOutput == null ? "NO TELEMETRY" : Number(c.sessionOutput).toLocaleString("en-US")}</div>
+        <div class="dim">QUALITY ${q} · session totals are not window occupancy</div>`;
+    }
   }
   function paintPipe(sample) {
     const el = document.getElementById("hx-pipe");
@@ -181,8 +195,10 @@
     const tools = rows.filter((x) => /tool/i.test(String(x.kind || x.k || ""))).length;
     push("tools", Math.min(100, tools * 12));
   }
+  let lastCtx = {};
   async function tick() {
     if (document.hidden) return;
+    if (global.HelixOrch && HelixOrch.state && HelixOrch.state.histMode) return;
     const noc = global.HelixNoc && HelixNoc.state || {};
     const h = noc.hermes || {};
     const c = noc.compute || {};
@@ -197,6 +213,18 @@
     if (gpu != null) push("gpu", gpu);
     const ctx = h.context_pct != null ? h.context_pct : null;
     if (ctx != null) push("context", ctx);
+    if (!tick.ctxN) tick.ctxN = 0;
+    tick.ctxN++;
+    if (tick.ctxN % 5 === 1) {
+      try {
+        const OPS = (typeof global.OPS === "string") ? global.OPS : "";
+        const r = await fetch(OPS + "/api/ctx", { cache: "no-store" });
+        if (r.ok) lastCtx = await r.json();
+      } catch (e) {}
+    }
+    if (lastCtx && lastCtx.windowUsed != null && lastCtx.contextCapacity) {
+      push("context", Math.min(100, 100 * lastCtx.windowUsed / lastCtx.contextCapacity));
+    }
     const mx = (global.HelixMatrix && HelixMatrix.state && HelixMatrix.state.data) || {};
     const coreB = (mx.banks || []).find((b) => b.type === "CORE") || {};
     if (coreB.utilization != null) push("memory", coreB.utilization);
@@ -207,11 +235,12 @@
     }
     const sample = {
       inf: traces.inference.length ? traces.inference[traces.inference.length - 1] : null,
-      ctx: ctx,
+      ctx: traces.context.length ? traces.context[traces.context.length - 1] : null,
       tools: traces.tools.length ? traces.tools[traces.tools.length - 1] : null,
       agents: traces.agents.length ? traces.agents[traces.agents.length - 1] : null,
       gpu: gpu,
       mem: coreB.utilization != null ? coreB.utilization : null,
+      lat: null,
       memWrite: !!mx.wrote,
       busy: busy,
       cpu: cpu,
@@ -221,7 +250,7 @@
       stage: mx.wrote ? "memory" : (busy ? "hermes" : "idle")
     };
     paintVector(sample);
-    paintTokens(h);
+    paintTokens(h, lastCtx);
     paintPipe(sample);
     paintOrbit(agents);
     paintPressure(c);
@@ -235,7 +264,10 @@
         thoughts: noc.thoughts,
         remote: (global.HelixRemote && HelixRemote.state && HelixRemote.state.data) || {},
         matrix: (global.HelixMatrix && HelixMatrix.state && HelixMatrix.state.data) || {},
-        adze: (global.HelixAdze && HelixAdze.state) || {}
+        adze: (global.HelixAdze && HelixAdze.state) || {},
+        vault: global._hxVault || {},
+        sentinel: global._hxSentinel || {},
+        ctx: lastCtx
       });
     }
   }

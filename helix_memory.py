@@ -37,6 +37,28 @@ _EVENTS: list[dict] = []
 _HISTORY: list[dict] = []
 _LAST_HIST: dict = {}
 ENTRY_DELIMITER = "\n§\n"
+
+
+def _ctx_extra(sess: dict) -> dict:
+    extra = {"session": sess.get("current"), "note": "no live window occupancy"}
+    try:
+        import helix_ctx
+        snap = helix_ctx.snapshot()
+    except Exception:
+        return extra
+    extra.update(
+        {
+            "model": snap.get("model"),
+            "capacity": snap.get("contextCapacity"),
+            "sessionInput": snap.get("sessionInput"),
+            "sessionOutput": snap.get("sessionOutput"),
+            "requestTokens": snap.get("requestTokens"),
+            "windowQuality": snap.get("windowQuality"),
+            "quality": snap.get("quality"),
+        }
+    )
+    return extra
+
 _INSPECTED = [
     str(CONFIG),
     str(MEM_DIR / "MEMORY.md"),
@@ -586,7 +608,7 @@ def snapshot(git_now=None, force: bool = False) -> dict:
             capacityType="TOKENS",
             used=None,
             limit=None,
-            extra={"session": sess["current"], "note": "no live window occupancy"},
+            extra=_ctx_extra(sess),
             capabilities={"capacity": False, "utilization": False, "records": True},
         )
     )

@@ -14,7 +14,9 @@
     remote: { base: 22, label: "REMOTE MATRIX", tab: "remote" },
     events: { base: 18, label: "EVENT BUS", tab: "ops" },
     adze: { base: 20, label: "DUAL COGNITIVE CORE", tab: "trace" },
-    medic: { base: 16, label: "MEDIC", tab: "medic" }
+    medic: { base: 16, label: "MEDIC", tab: "medic" },
+    vault: { base: 14, label: "DATA VAULT", tab: "sec" },
+    sentinel: { base: 12, label: "SENTINEL", tab: "sec" }
   };
   const scores = {};
   const why = {};
@@ -123,6 +125,20 @@
     if (ad && ad.online === false) bump("adze", 6, "ADZE OFFLINE", 10);
     if (ad && /DIVERGENCE|NOT REACHED/i.test(String((ad.last && ad.last.state) || ad.state || ""))) bump("adze", 35, "COGNITIVE DIVERGENCE", 70);
     if (medic && medic.need) bump("medic", 30, "MEDIC ATTENTION", 60);
+    const vault = sample.vault || {};
+    if ((vault.attention || []).length) {
+      const d0 = vault.attention[0];
+      const sev = d0.smart === "FAIL" ? 97 : 70;
+      bump("vault", sev >= 90 ? 50 : 28, (d0.id || "DRIVE") + " SMART " + (d0.smart || "ATTENTION"), sev);
+    }
+    const sen = sample.sentinel || {};
+    const evs = sen.active || [];
+    const warn = evs.filter((e) => /WARN|CRIT/i.test(String(e.sev || "")));
+    if (warn.length) bump("sentinel", 40, warn[0].event || "SECURITY", 80);
+    else if (evs.length) bump("sentinel", 8, "SECURITY EVENT", 20);
+    const cx = sample.ctx || {};
+    if (cx.utilization != null && cx.utilization >= 85) bump("cog", 30, "CTX " + cx.utilization + "%", 70);
+    else if (cx.utilization != null && cx.utilization >= 70) bump("hermes", 12, "CTX ELEVATED", 40);
     tickLayout();
   }
   function tickLayout() {
@@ -178,6 +194,10 @@
   function speak(line) {
     if (line === lastHel) return;
     lastHel = line;
+    if (global.HelixHel01 && HelixHel01.note) {
+      HelixHel01.note("OBSERVING", line);
+      return;
+    }
     const h = document.getElementById("hel-01-line");
     if (h) h.textContent = "HΞL-01: " + line;
   }

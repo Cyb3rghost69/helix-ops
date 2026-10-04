@@ -2,7 +2,7 @@
 
 CURRENT VERSION: 0.1.0-dev  
 CURRENT BRANCH: helix-medic (local; main is baseline)  
-LAST MAJOR CHANGE: Adaptive command centre + MEMORY MATRIX discovery on Mac :8790
+LAST MAJOR CHANGE: Gap close — CTX honesty, 7D flight recorder, HΞL-01, Mac SMART, Sentinel empty-honest
 
 ## IMPLEMENTED
 

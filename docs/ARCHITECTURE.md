@@ -29,6 +29,11 @@ No bundler, no WebSocket. Polling:
 | GET `/api/agents` `/api/talk` `/api/trace` `/api/adze` | agents / TRACE / ADZE status |
 | GET `/api/docker` `/api/clients` `/api/protect` | Unraid / LAN / cameras |
 | GET `/api/matrix` | MEMORY MATRIX telemetry (no file bodies) |
+| GET `/api/ctx` | live context capacity + session token totals (no fake window %) |
+| GET `/api/flight` | flight recorder samples/events (1H–7D, downsampled) |
+| POST `/api/flight` | ingest sanitized metrics/events |
+| GET `/api/vault` | Mac SMART overall |
+| GET `/api/sentinel` | defensive events |
 | GET `/api/remote` | RustDesk OSS snapshot |
 | GET `/api/git` | local git status |
 | GET `/api/lights` | WiZ lighting snapshot |

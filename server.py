@@ -2649,6 +2649,19 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def _gate(self, path: str, method: str) -> bool:
+        sensitive = method == "POST" and path == "/api/medic"
+        if sensitive:
+            if not session_user(self):
+                self._send(401, b'{"error":"authenticated session required"}', "application/json")
+                return False
+            origin = self.headers.get("Origin")
+            if origin:
+                from urllib.parse import urlsplit
+                parsed = urlsplit(origin)
+                if parsed.scheme not in ("http", "https") or parsed.netloc != self.headers.get("Host") or parsed.path not in ("", "/"):
+                    self._send(403, b'{"error":"cross-origin request denied"}', "application/json")
+                    return False
+            return True
         if not self._need_auth(path, method):
             return True
         if session_user(self):
@@ -2730,6 +2743,7 @@ class Handler(BaseHTTPRequestHandler):
             "/helix-priority.js": ("helix-priority.js", "application/javascript; charset=utf-8"),
             "/helix-cog.js": ("helix-cog.js", "application/javascript; charset=utf-8"),
             "/helix-orch.js": ("helix-orch.js", "application/javascript; charset=utf-8"),
+            "/helix-hel01.js": ("helix-hel01.js", "application/javascript; charset=utf-8"),
             "/helix-crt.css": ("helix-crt.css", "text/css; charset=utf-8"),
             "/helix-noc.css": ("helix-noc.css", "text/css; charset=utf-8"),
             "/helix-noc.js": ("helix-noc.js", "application/javascript; charset=utf-8"),
@@ -3009,6 +3023,31 @@ class Handler(BaseHTTPRequestHandler):
             code, body, ctype = protect_snapshot(cid)
             self._send(code, body, ctype)
             return
+        if path == "/api/ctx":
+            import helix_ctx
+            self._send(200, json.dumps(helix_ctx.snapshot(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/flight":
+            import helix_flight
+            qs = parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
+            rng = (qs.get("range") or ["24H"])[0].upper()
+            span = {"1H": 3600, "6H": 21600, "24H": 86400, "3D": 259200, "7D": 604800}.get(rng, 86400)
+            at = None
+            if qs.get("at"):
+                try:
+                    at = int(float(qs["at"][0]))
+                except ValueError:
+                    at = None
+            self._send(200, json.dumps(helix_flight.query(span, at=at), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/vault":
+            import helix_vault
+            self._send(200, json.dumps(helix_vault.snapshot(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/sentinel":
+            import helix_sentinel
+            self._send(200, json.dumps(helix_sentinel.snapshot(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
         if path == "/health":
             self._send(200, b'{"ok":true}', "application/json")
             return
@@ -3068,6 +3107,16 @@ class Handler(BaseHTTPRequestHandler):
             if out.get("error") == "invalid":
                 code = 400
             self._send(code, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/flight":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 8000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            import helix_flight
+            self._send(200, json.dumps(helix_flight.ingest(data if isinstance(data, dict) else {}), ensure_ascii=False).encode(), "application/json; charset=utf-8")
             return
         if path == "/api/mindscape/seed":
             body = json.dumps(seed_ms_graph(force=True), ensure_ascii=False).encode()
@@ -3297,8 +3346,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             jid, verb = parts[0], parts[1]
             if verb == "approve":
-                allow = True if not isinstance(data, dict) else data.get("allow", True)
-                out = helix_jobs.approve_job(jid, allow=bool(allow))
+                if not isinstance(data, dict) or type(data.get("allow")) is not bool:
+                    self._send(400, b'{"error":"allow must be an explicit boolean"}', "application/json")
+                    return
+                out = helix_jobs.approve_job(jid, allow=data["allow"])
             elif verb == "steer":
                 out = helix_jobs.steer_job(jid, str((data or {}).get("message") or ""))
             elif verb == "stop":

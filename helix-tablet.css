@@ -159,3 +159,18 @@
 .vx-install { margin: 12px 0 0; border-top: 1px dotted #243024; padding-top: 8px; color: var(--dim); font-size: 11px; }
 .vx-install summary { cursor: pointer; letter-spacing: 0.14em; color: var(--ok); }
 .vx-install p { margin: 6px 0 0; }
+
+@media (min-width: 1024px) and (max-width: 1366px) and (orientation: landscape) {
+  body.pad-term #hx-command {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 8px;
+  }
+  body.pad-term .hx-mod.hx-hero { grid-column: 1 / span 1; min-height: 200px; }
+  body.pad-term .noc-grid { grid-template-columns: 220px 1fr 220px; }
+  body.pad-term #hx-fkey { position: sticky; bottom: env(safe-area-inset-bottom, 0); }
+}
+@media (min-width: 768px) and (max-width: 1023px) and (orientation: portrait) {
+  body.pad-term #hx-command { grid-template-columns: 1fr; }
+  body.pad-term canvas { max-height: 160px; }
+}

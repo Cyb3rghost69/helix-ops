@@ -58,6 +58,14 @@
     ctx.strokeStyle = th.border;
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+    ctx.strokeStyle = cssColor(th.border, 0.35);
+    ctx.beginPath();
+    for (let i = 1; i < 4; i++) {
+      const y = (h / 4) * i;
+      ctx.moveTo(1, y);
+      ctx.lineTo(w - 1, y);
+    }
+    ctx.stroke();
   }
   function drawTrace(canvas, series, opts) {
     opts = opts || {};
@@ -88,6 +96,7 @@
     }
     const pad = 6;
     const span = ymax - ymin || 1;
+    const hist = !!(opts.recorded || (document.body && document.body.classList.contains("hx-hist")));
     rows.forEach((s) => {
       const col = s.color || th.primary;
       ctx.beginPath();
@@ -100,6 +109,13 @@
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       });
       ctx.stroke();
+      const last = s.y[n - 1];
+      const lx = pad + (w - pad * 2);
+      const ly = h - pad - ((last - ymin) / span) * (h - pad * 2);
+      ctx.fillStyle = cssColor(col, 0.5);
+      ctx.beginPath();
+      ctx.arc(lx, ly, 2.2, 0, Math.PI * 2);
+      ctx.fill();
       if (opts.area) {
         ctx.lineTo(w - pad, h - pad);
         ctx.lineTo(pad, h - pad);
@@ -113,7 +129,7 @@
       ctx.globalAlpha = 0.5;
       ctx.font = "9px ui-monospace, Menlo, monospace";
       ctx.fillText(String(opts.label), pad, 11);
-      ctx.fillText("LIVE", Math.max(pad, w - 28), 11);
+      ctx.fillText(hist ? "RECORDED" : "LIVE", Math.max(pad, w - 52), 11);
       ctx.globalAlpha = 1;
     }
     if (opts.inspect != null && rows[0]) {

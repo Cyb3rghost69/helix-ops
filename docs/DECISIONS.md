@@ -1,5 +1,11 @@
 # Decisions
 
+## 2026-10-04 — Gap close (CTX / recorder / SMART / Sentinel)
+**DECISION:** Live CTX reports model capacity and session lifetime tokens; current window occupancy stays NO TELEMETRY. Flight recorder persists sanitized metrics with 7D downsample. Mac SMART overall only. Sentinel has no decorative hostile contacts.
+**REASON:** Scorecard PARTIAL items must not be greened with invented telemetry.
+**ALTERNATIVES:** Estimate window from sessionInput/capacity; Unraid smartctl over SSH.
+**CONSEQUENCES:** CTX % never appears until Hermes exposes a live window. Unraid SMART remains MISSING.
+
 ## 2026-10-04 — Adaptive command centre
 **DECISION:** HelixOrch derives SYSTEM STATE from real subsystem snapshots; Priority Engine uses hysteresis (margin/min-show/cooldown); MEMORY.md utilization is CORE MEMORY, host RAM is SYSTEM. No fake health %. Flight recorder stores metrics/events only.  
 **REASON:** Operator asked for one coherent machine, not independent polling cards.  

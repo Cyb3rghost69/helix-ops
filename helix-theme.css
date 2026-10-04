@@ -258,11 +258,19 @@ body[data-hx-gov="low"] { --hx-persist: 0.08; }
 .hx-tile i { width: 18px; height: 18px; border: 1px solid var(--tile-fg, var(--hx-primary)); background: var(--tile-bg, var(--hx-bg)); flex: 0 0 18px; }
 #hx-flight .hx-fl { display: block; width: 100%; text-align: left; background: transparent; color: inherit; border: 0; font: inherit; padding: 3px 0; cursor: pointer; min-height: 28px; }
 body.hx-hist::after {
-  content: "HISTORICAL MODE";
-  position: sticky; top: 36px; z-index: 13; display: block;
-  letter-spacing: 0.2em; color: var(--hx-warning); font-size: 10px; padding: 4px 8px;
-  border: 1px solid var(--hx-warning); background: var(--hx-surface);
+  content: "HISTORICAL MODE · RECORDED";
+  position: sticky; top: 0; z-index: 40; display: block;
+  background: var(--hx-warning); color: var(--hx-bg);
+  font: 11px var(--hx-font-data); letter-spacing: 0.16em; padding: 4px 8px;
 }
+.hx-perf {
+  position: fixed; right: 8px; bottom: 8px; z-index: 50;
+  font: 10px var(--hx-font-data); letter-spacing: 0.08em;
+  color: var(--hx-text); border: 1px solid var(--hx-border); padding: 4px 8px;
+  background: color-mix(in srgb, var(--hx-bg) 80%, transparent);
+}
+.hx-fkey button { min-height: 44px; }
+body.hx-hist .hx-mod [data-live] { opacity: 0.55; }
 .hx-mod[data-hx-id]::after {
   content: attr(data-hx-id);
   position: absolute; left: 10px; bottom: 4px;

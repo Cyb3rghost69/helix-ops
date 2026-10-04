@@ -9,7 +9,8 @@
   const IDS = {
     hermes: "COG://HERMES-01", cog: "COG://LOAD-01", adze: "COG://ADZE-01",
     memory: "MEM://HERMES-01", net: "NET://PULSE-01", botmesh: "NET://BOTMESH",
-    remote: "REM://RUSTDESK", system: "SYS://CORE-01", events: "SYS://BUS-01"
+    remote: "REM://RUSTDESK", system: "SYS://CORE-01", events: "SYS://BUS-01",
+    vault: "STOR://VAULT-01", sentinel: "SEC://SENTINEL"
   };
   const state = {
     system: "NOMINAL",
@@ -25,7 +26,8 @@
     age: {},
     cfg: {
       adaptive: true, autoPromote: true, criticalOverride: true,
-      sensitivity: "NORMAL", recoveryHold: "NORMAL", density: "standard", recorder: "1H"
+      sensitivity: "NORMAL", recoveryHold: "NORMAL", density: "standard", recorder: "24H",
+      hel01: true, perf: false
     }
   };
 
@@ -43,8 +45,11 @@
   }
   function applyCfg() {
     document.body.setAttribute("data-hx-density", state.cfg.density || "standard");
+    document.body.classList.toggle("hx-perf", !!state.cfg.perf);
     const p = global.HelixPriority;
     if (p && p.setCfg) p.setCfg(state.cfg);
+    const ov = document.getElementById("hx-perf");
+    if (ov) ov.hidden = !state.cfg.perf;
   }
 
   function markAge(src) { state.age[src] = Date.now(); }
@@ -125,9 +130,13 @@
     return "●";
   }
 
-  function speak(line) {
+  function speak(line, mode) {
     if (!line || line === state.lastHel) return;
     state.lastHel = line;
+    if (global.HelixHel01 && HelixHel01.note) {
+      HelixHel01.note(mode || "OBSERVING", line);
+      return;
+    }
     const h = document.getElementById("hel-01-line");
     if (h) h.textContent = "HΞL-01: " + line;
     const desk = document.getElementById("hel-01-desk");
@@ -138,23 +147,38 @@
   }
 
   function record(d) {
-    const cap = state.cfg.recorder === "7D" ? 400 : state.cfg.recorder === "24H" ? 360 : state.cfg.recorder === "6H" ? 240 : 180;
     const row = {
       t: Date.now(),
       system: d.system,
       cpu: d.cpu == null ? null : Math.round(d.cpu),
       ram: d.ram == null ? null : Math.round(d.ram),
       mem: d.memU == null ? null : d.memU,
+      ctx: d.ctx == null ? null : d.ctx,
+      gpu: d.gpu == null ? null : d.gpu,
       bottleneck: d.bottleneck.name,
       top: d.top && d.top.id,
-      score: d.top && d.top.score
+      score: d.top && d.top.score,
+      hermes: d.chips && d.chips.hermes,
+      net: d.chips && d.chips.net,
+      remote: d.chips && d.chips.remote,
+      busy: !!d.busy
     };
     const last = state.flight[0];
     if (last && last.system === row.system && last.top === row.top && last.mem === row.mem && Math.abs((last.cpu || 0) - (row.cpu || 0)) < 3) {
       return;
     }
     state.flight.unshift(row);
-    while (state.flight.length > cap) state.flight.pop();
+    while (state.flight.length > 240) state.flight.pop();
+    const OPS = (typeof global.OPS === "string") ? global.OPS : "";
+    const ev = [];
+    if (d.system && last && d.system !== last.system) {
+      ev.push({ t: row.t, sev: d.system === "CRITICAL" ? "CRITICAL" : (d.system === "ATTENTION" || d.system === "DEGRADED" ? "WARNING" : "INFO"), subsystem: "SYS", event: d.system });
+    }
+    fetch(OPS + "/api/flight", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sample: row, events: ev })
+    }).catch(() => {});
   }
 
   function paintHeader(d) {
@@ -190,14 +214,22 @@
     const fl = document.getElementById("hx-flight");
     if (fl) {
       if (state.histMode) {
-        fl.innerHTML = "<div class=\"ident\">HISTORICAL MODE · " + new Date(state.histT).toLocaleTimeString("en-GB", { hour12: false })
-          + "</div><button type=\"button\" id=\"hx-live\">[ RETURN LIVE ]</button>";
+        const age = state.histT ? Math.round((Date.now() - state.histT) / 1000) : 0;
+        const when = state.histT ? new Date(state.histT).toLocaleTimeString("en-GB", { hour12: false }) : "—";
+        fl.innerHTML = "<div class=\"ident\">FLIGHT RECORDER // HISTORICAL MODE</div>"
+          + "<div>TIME " + when + "</div><div>AGE " + age + "s</div>"
+          + "<div class=\"dim\">RECORDED · not live telemetry</div>"
+          + "<button type=\"button\" id=\"hx-live\">[ RETURN LIVE ]</button>";
       } else {
-        fl.innerHTML = state.flight.slice(0, 8).map((r) => {
+        const evs = (state.flightEvents || []).slice(-8).reverse();
+        fl.innerHTML = (state.flight.slice(0, 6).map((r) => {
           const t = new Date(r.t).toLocaleTimeString("en-GB", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
           return "<button type=\"button\" class=\"hx-fl\" data-hx-t=\"" + r.t + "\">" + t + "  " + r.system
             + (r.mem != null ? "  MEM " + r.mem + "%" : "") + "</button>";
-        }).join("") || "<div class=\"empty\">no recorder_</div>";
+        }).join("") || "<div class=\"empty\">no recorder_</div>")
+          + (evs.length ? "<div class=\"ident\">EVENTS</div>" + evs.map((e) =>
+            "<button type=\"button\" class=\"hx-fl\" data-hx-t=\"" + e.t + "\">" + (e.event || e.sev) + "</button>"
+          ).join("") : "");
       }
     }
     Object.keys(IDS).forEach((id) => {
@@ -221,8 +253,29 @@
       + "<div class=\"ident\">PROMOTION SENSITIVITY</div><div class=\"hx-bar\">" + bar("sensitivity", ["LOW", "NORMAL", "HIGH"], c.sensitivity) + "</div>"
       + "<div class=\"ident\">RECOVERY HOLD</div><div class=\"hx-bar\">" + bar("recoveryHold", ["SHORT", "NORMAL", "LONG"], c.recoveryHold) + "</div>"
       + "<div class=\"ident\">DISPLAY DENSITY</div><div class=\"hx-bar\">" + bar("density", ["compact", "standard", "dense"], c.density) + "</div>"
-      + "<div class=\"ident\">FLIGHT RECORDER</div><div class=\"hx-bar\">" + bar("recorder", ["1H", "6H", "24H"], c.recorder) + "</div>"
-      + "<p class=\"dim\">Defaults: adaptive ON · auto promotion ON · sensitivity NORMAL · theme HELIX/89 · motion ENHANCED. Contrast floor enforced.</p>";
+      + "<div class=\"ident\">FLIGHT RECORDER</div><div class=\"hx-bar\">" + bar("recorder", ["1H", "6H", "24H", "3D", "7D"], c.recorder) + "</div>"
+      + "<div class=\"ident\">HΞL-01</div><div class=\"hx-bar\">" + bar("hel01", ["ON", "OFF"], c.hel01 ? "ON" : "OFF") + "</div>"
+      + "<div class=\"ident\">DISPLAY PERFORMANCE</div><div class=\"hx-bar\">" + bar("perf", ["OFF", "ON"], c.perf ? "ON" : "OFF") + "</div>"
+      + "<p class=\"dim\">Defaults: adaptive ON · auto promotion ON · sensitivity NORMAL · theme HELIX/89 · recorder 24H. Contrast floor enforced.</p>";
+  }
+
+  function opsPrefix() {
+    return (typeof global.OPS === "string") ? global.OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
+  }
+  async function enterHist(t) {
+    state.histMode = true;
+    state.histT = t;
+    document.body.classList.add("hx-hist");
+    try {
+      const rng = state.cfg.recorder || "24H";
+      const r = await fetch(opsPrefix() + "/api/flight?range=" + encodeURIComponent(rng) + "&at=" + t, { cache: "no-store" });
+      const d = await r.json();
+      state.histSample = d.closest || null;
+      document.dispatchEvent(new CustomEvent("helix-hist", { detail: { t: t, sample: d.closest, events: d.events, quality: "RECORDED" } }));
+    } catch (e) {
+      state.histSample = null;
+    }
+    paintHeader({ system: state.system, chips: state.chips, bottleneck: state.bottleneck, idle: state.idle, top: {} });
   }
 
   function tick() {
@@ -243,6 +296,8 @@
       prev: state.system
     };
     const d = derive(sample);
+    d.ctx = (global.HelixCog && HelixCog.traces && HelixCog.traces.context && HelixCog.traces.context.length)
+      ? HelixCog.traces.context[HelixCog.traces.context.length - 1] : null;
     const prev = state.system;
     state.system = d.system;
     state.chips = d.chips;
@@ -281,7 +336,7 @@
         if (!b) return;
         const k = b.getAttribute("data-orch");
         let v = b.getAttribute("data-v");
-        if (k === "adaptive" || k === "autoPromote" || k === "criticalOverride") v = v === "ON";
+        if (k === "adaptive" || k === "autoPromote" || k === "criticalOverride" || k === "hel01" || k === "perf") v = v === "ON";
         saveCfg({ [k]: v });
       });
     }
@@ -291,15 +346,13 @@
         state.histMode = false;
         state.histT = null;
         document.body.classList.remove("hx-hist");
+        document.dispatchEvent(new CustomEvent("helix-live"));
         tick();
         return;
       }
       const b = e.target.closest("[data-hx-t]");
       if (!b) return;
-      state.histMode = true;
-      state.histT = Number(b.getAttribute("data-hx-t"));
-      document.body.classList.add("hx-hist");
-      paintHeader({ system: state.system, chips: state.chips, bottleneck: state.bottleneck, idle: state.idle, top: {} });
+      enterHist(Number(b.getAttribute("data-hx-t")));
     });
     const q = document.getElementById("q");
     if (q && !q.dataset.orch) {
@@ -330,11 +383,25 @@
 
   function mount() {
     loadCfg();
+    if (/[?&]perf=1/.test(location.search)) state.cfg.perf = true;
     applyCfg();
     paintCfg();
     bind();
+    if (global.HelixHel01 && HelixHel01.mount) HelixHel01.mount();
+    fetch(opsPrefix() + "/api/flight?range=" + encodeURIComponent(state.cfg.recorder || "24H"), { cache: "no-store" })
+      .then((r) => r.json()).then((d) => {
+        if (d && d.samples) state.flight = d.samples.slice().reverse().slice(0, 240);
+        state.flightEvents = d.events || [];
+      }).catch(() => {});
     tick();
     setInterval(tick, 1000);
+    setInterval(() => {
+      fetch(opsPrefix() + "/api/git", { cache: "no-store" }).then((r) => r.json()).then((d) => {
+        const el = document.getElementById("hx-git-chip");
+        if (!el || !d) return;
+        el.textContent = "GIT " + (d.branch || "—") + (d.clean ? " ●" : " △");
+      }).catch(() => {});
+    }, 20000);
     let frames = 0, t0 = (typeof performance !== "undefined" ? performance.now() : Date.now());
     function loop(t) {
       frames++;
@@ -344,11 +411,22 @@
         t0 = t;
         if (state.fps < 38) document.body.setAttribute("data-hx-gov", "low");
         else if (state.fps >= 50) document.body.removeAttribute("data-hx-gov");
+        const ov = document.getElementById("hx-perf");
+        if (ov && state.cfg.perf) {
+          const canv = document.querySelectorAll("canvas:not([hidden])");
+          let vis = 0;
+          canv.forEach((c) => { if (!c._hxOff && c.offsetParent) vis++; });
+          const pts = (global.HelixGraph && HelixGraph.buffers) ? HelixGraph.buffers.size : 0;
+          ov.textContent = "FPS " + state.fps + "  FRAME " + (state.fps ? (1000 / state.fps).toFixed(1) : "—")
+            + "ms  CANVAS " + String(canv.length).padStart(2, "0")
+            + "  VIS " + String(vis).padStart(2, "0")
+            + "  TEL 1Hz  BUF " + pts;
+        }
       }
       if (typeof requestAnimationFrame === "function") requestAnimationFrame(loop);
     }
     if (typeof requestAnimationFrame === "function") requestAnimationFrame(loop);
   }
 
-  global.HelixOrch = { mount, tick, derive, state, saveCfg, go, IDS, ageLabel };
+  global.HelixOrch = { mount, tick, derive, state, saveCfg, go, IDS, ageLabel, enterHist };
 })(window);
