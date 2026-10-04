@@ -2724,6 +2724,12 @@ class Handler(BaseHTTPRequestHandler):
             "/helix-ops-wordmark.svg": ("helix-ops-wordmark.svg", "image/svg+xml"),
             "/helix-ops-slash.svg": ("helix-ops-slash.svg", "image/svg+xml"),
             "/helix-core-mark.svg": ("helix-core-mark.svg", "image/svg+xml"),
+            "/helix-theme.css": ("helix-theme.css", "text/css; charset=utf-8"),
+            "/helix-theme.js": ("helix-theme.js", "application/javascript; charset=utf-8"),
+            "/helix-graph.js": ("helix-graph.js", "application/javascript; charset=utf-8"),
+            "/helix-priority.js": ("helix-priority.js", "application/javascript; charset=utf-8"),
+            "/helix-cog.js": ("helix-cog.js", "application/javascript; charset=utf-8"),
+            "/helix-orch.js": ("helix-orch.js", "application/javascript; charset=utf-8"),
             "/helix-crt.css": ("helix-crt.css", "text/css; charset=utf-8"),
             "/helix-noc.css": ("helix-noc.css", "text/css; charset=utf-8"),
             "/helix-noc.js": ("helix-noc.js", "application/javascript; charset=utf-8"),
@@ -2874,6 +2880,14 @@ class Handler(BaseHTTPRequestHandler):
                 body = json.dumps(hctl.invoke("home.status"), ensure_ascii=False).encode()
             except Exception:
                 body = json.dumps({"ok": False, "error": "HOME CONTROL UNAVAILABLE", "home": "OFFLINE"}).encode()
+            self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path == "/api/prefs":
+            try:
+                import helix_prefs as hp
+                body = json.dumps(hp.snapshot(), ensure_ascii=False).encode()
+            except Exception:
+                body = json.dumps({"ok": True, "honcho": "OFFLINE", "preferences": [], "count": 0}).encode()
             self._send(200, body, "application/json; charset=utf-8")
             return
         if path == "/api/events":
@@ -3140,6 +3154,42 @@ class Handler(BaseHTTPRequestHandler):
             cap = str(data.get("capability") or data.get("action") or "")
             params = data.get("params") if isinstance(data.get("params"), dict) else {k: v for k, v in data.items() if k not in ("capability", "action", "dry_run", "params")}
             out = hctl.invoke(cap, params, dry_run=dry)
+            self._send(200, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/prefs":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 8000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            if data.get("query") or data.get("sql") or data.get("raw"):
+                self._send(200, json.dumps({"ok": False, "error": "arbitrary honcho query denied"}).encode(), "application/json; charset=utf-8")
+                return
+            import helix_prefs as hp
+            if data.get("text"):
+                u = hp.handle_utterance(str(data.get("text") or ""), voice=bool(data.get("voice")))
+                if not u:
+                    self._send(200, json.dumps({"ok": False, "error": "unmapped preference"}).encode(), "application/json; charset=utf-8")
+                    return
+                out = hp.invoke(str(u.get("capability") or ""), u.get("params") or {}) if u.get("ok") else u
+            else:
+                action = str(data.get("action") or data.get("capability") or "list")
+                cap = action if action.startswith("memory.") else {
+                    "list": "memory.preferences.list",
+                    "get": "memory.preferences.get",
+                    "set": "memory.preferences.set",
+                    "delete": "memory.preferences.delete",
+                    "apply": "memory.preferences.apply",
+                    "status": "memory.status",
+                    "remember": "memory.preferences.set",
+                }.get(action, "")
+                if not cap:
+                    out = {"ok": False, "error": "unknown capability"}
+                else:
+                    out = hp.invoke(cap, data)
             self._send(200, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
             return
         if path == "/api/medic":

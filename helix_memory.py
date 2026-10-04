@@ -34,6 +34,9 @@ DOC_NAMES = (
 
 _CACHE: dict = {"t": 0.0, "data": None, "sig": {}}
 _EVENTS: list[dict] = []
+_HISTORY: list[dict] = []
+_LAST_HIST: dict = {}
+ENTRY_DELIMITER = "\n§\n"
 _INSPECTED = [
     str(CONFIG),
     str(MEM_DIR / "MEMORY.md"),
@@ -64,25 +67,33 @@ def _pressure(util) -> str | None:
     return "NOMINAL"
 
 
+def _parse_entries(raw: str) -> list[str]:
+    """Match Hermes MemoryStore._parse_entries (split on full \\n§\\n only)."""
+    return [e for e in (x.strip() for x in raw.split(ENTRY_DELIMITER)) if e]
+
+
 def _md_meta(path: Path) -> dict:
     if not path.is_file():
         return {"exists": False, "used": 0, "entries": 0, "bytes": 0, "mtime": None, "rev": None}
-    raw = path.read_text(encoding="utf-8", errors="replace")
-    used = len(raw)
-    parts = [p for p in raw.split("§") if p.strip()]
+    try:
+        raw = path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError):
+        raw = path.read_text(encoding="utf-8", errors="replace")
+    entries = _parse_entries(raw)
+    used = len(ENTRY_DELIMITER.join(entries)) if entries else 0
     st = path.stat()
     rev = f"{st.st_mtime_ns:x}"[-4:].upper()
     return {
         "exists": True,
         "used": used,
-        "entries": len(parts) if parts else (1 if raw.strip() else 0),
+        "entries": len(entries),
         "bytes": st.st_size,
         "mtime": int(st.st_mtime),
         "rev": rev,
     }
 
 
-def _mem_cfg() -> dict:
+def _mem_cfg(path: Path | None = None) -> dict:
     out = {
         "memory_enabled": True,
         "user_profile_enabled": True,
@@ -91,10 +102,11 @@ def _mem_cfg() -> dict:
         "user_char_limit": 1375,
         "provider": "builtin",
     }
-    if not CONFIG.is_file():
+    cfg = path or CONFIG
+    if not cfg.is_file():
         return out
     in_mem = False
-    for line in CONFIG.read_text(encoding="utf-8", errors="replace").splitlines():
+    for line in cfg.read_text(encoding="utf-8", errors="replace").splitlines():
         if line.startswith("memory:"):
             in_mem = True
             continue
@@ -133,6 +145,8 @@ def _bank(i: int, **kw) -> dict:
         "entries": kw.get("entries"),
         "bytes": kw.get("bytes"),
         "lastModified": kw.get("lastModified"),
+        "lastRead": kw.get("lastRead"),
+        "lastWrite": kw.get("lastWrite", kw.get("lastModified")),
         "sessionVisible": kw.get("sessionVisible"),
         "provider": kw.get("provider"),
         "capabilities": kw.get("capabilities") or {},
@@ -165,6 +179,7 @@ def _session_stats() -> dict:
         "tokens": None,
         "sessionHash": None,
         "sessionStarted": None,
+        "prompts": 0,
     }
     if not STATE_DB.is_file():
         return empty
@@ -172,7 +187,7 @@ def _session_stats() -> dict:
     out["ok"] = True
     out["bytes"] = STATE_DB.stat().st_size
     try:
-        con = sqlite3.connect(f"file:{STATE_DB}?mode=ro", uri=True)
+        con = sqlite3.connect(f"file:{STATE_DB}?mode=ro", uri=True, timeout=5)
         cur = con.cursor()
         tables = {r[0] for r in cur.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         out["fts"] = "messages_fts" in tables
@@ -195,6 +210,8 @@ def _session_stats() -> dict:
                 out["sessionHash"] = (cur_row[5] or "")[:8] or None
         if "messages" in tables:
             out["messages"] = int(cur.execute("SELECT COUNT(*) FROM messages").fetchone()[0])
+        if "system_prompts" in tables:
+            out["prompts"] = int(cur.execute("SELECT COUNT(*) FROM system_prompts").fetchone()[0])
         con.close()
     except sqlite3.Error:
         out["ok"] = False
@@ -226,6 +243,109 @@ def _honcho() -> dict:
     return info
 
 
+BUNDLED_PROVIDERS = (
+    "honcho",
+    "mem0",
+    "supermemory",
+    "byterover",
+    "hindsight",
+    "holographic",
+    "openviking",
+    "retaindb",
+)
+PLUGIN_CFG = {
+    "supermemory": HERMES_HOME / "supermemory.json",
+    "mem0": HERMES_HOME / "mem0.json",
+    "hindsight": HERMES_HOME / "hindsight.json",
+}
+
+
+def _provider_catalog(active: str) -> dict:
+    src = HERMES_HOME / "hermes-agent" / "plugins" / "memory"
+    installed = []
+    if src.is_dir():
+        installed = sorted(
+            p.name for p in src.iterdir() if p.is_dir() and p.name in BUNDLED_PROVIDERS
+        )
+    unused = [n for n in installed if n != active]
+    sidecar = []
+    unknown = []
+    for name, path in PLUGIN_CFG.items():
+        if path.is_file():
+            sidecar.append(name)
+            if name != active:
+                unknown.append(name)
+    return {
+        "active": active,
+        "installed": installed,
+        "unused": unused,
+        "sidecars": sidecar,
+        "unknown": unknown,
+    }
+
+
+def _honcho_records() -> int | None:
+    if not HONCHO_CFG.is_file():
+        return None
+    try:
+        raw = json.loads(HONCHO_CFG.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    base = str(raw.get("baseUrl") or "http://192.168.1.84:8000").rstrip("/")
+    ws = str(raw.get("workspace") or "hermes")
+    url = f"{base}/v3/workspaces/{ws}/conclusions/list?size=1"
+    t0 = time.time()
+    try:
+        req = Request(url, data=b"{}", method="POST")
+        req.add_header("Content-Type", "application/json")
+        with urlopen(req, timeout=2.0) as r:
+            blob = r.read(4096)
+            data = json.loads(blob.decode() or "{}") if blob else {}
+        total = data.get("total") if isinstance(data, dict) else None
+        return int(total) if isinstance(total, int) else None
+    except (URLError, HTTPError, TimeoutError, OSError, json.JSONDecodeError, ValueError):
+        _ = time.time() - t0
+        return None
+
+
+def _skill_count() -> dict:
+    root = HERMES_HOME / "skills"
+    if not root.is_dir():
+        return {"ok": False, "entries": 0, "bytes": 0}
+    n = 0
+    b = 0
+    for p in root.rglob("SKILL.md"):
+        if not p.is_file():
+            continue
+        n += 1
+        try:
+            b += p.stat().st_size
+        except OSError:
+            pass
+    return {"ok": True, "entries": n, "bytes": b}
+
+
+def _session_index() -> dict:
+    p = HERMES_HOME / "sessions" / "sessions.json"
+    dumps = HERMES_HOME / "sessions"
+    keys = 0
+    dump_n = 0
+    dump_b = 0
+    if p.is_file():
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                keys = sum(1 for k in data if k != "_README")
+        except (OSError, json.JSONDecodeError):
+            keys = 0
+    if dumps.is_dir():
+        for f in dumps.iterdir():
+            if f.is_file() and f.name.startswith("request_dump"):
+                dump_n += 1
+                dump_b += f.stat().st_size
+    return {"routes": keys, "dumps": dump_n, "dumpBytes": dump_b}
+
+
 def _project(git_now) -> dict:
     root = Path(__file__).resolve().parent
     files = 0
@@ -248,6 +368,45 @@ def _project(git_now) -> dict:
     }
 
 
+def _maybe_hist(b: dict, op: str, force: bool = False) -> None:
+    if not b.get("id"):
+        return
+    if b.get("utilization") is None and b.get("type") not in ("CORE", "USER", "SESSION"):
+        return
+    nowt = time.time()
+    last = _LAST_HIST.get(b["id"])
+    changed = (
+        not last
+        or last.get("used") != b.get("used")
+        or last.get("utilization") != b.get("utilization")
+        or last.get("entries") != b.get("entries")
+    )
+    if not changed and not force:
+        if last and nowt - last["t"] < 60:
+            return
+        if b.get("utilization") is None and b.get("type") != "SESSION":
+            return
+    _HISTORY.append(
+        {
+            "t": int(nowt),
+            "bank": b["id"],
+            "used": b.get("used"),
+            "limit": b.get("limit"),
+            "utilization": b.get("utilization"),
+            "entries": b.get("entries"),
+            "op": op,
+        }
+    )
+    while len(_HISTORY) > 180:
+        _HISTORY.pop(0)
+    _LAST_HIST[b["id"]] = {
+        "t": nowt,
+        "used": b.get("used"),
+        "utilization": b.get("utilization"),
+        "entries": b.get("entries"),
+    }
+
+
 def _emit(prev: dict | None, cur: dict) -> None:
     if not prev:
         return
@@ -260,9 +419,11 @@ def _emit(prev: dict | None, cur: dict) -> None:
         if o.get("used") != b.get("used") and b.get("capacityType") == "CHARACTERS":
             delta = int(b["used"] or 0) - int(o.get("used") or 0)
             sign = "+" if delta >= 0 else ""
+            op = "CONSOLIDATE" if delta < 0 and (b.get("entries") or 0) < (o.get("entries") or 0) else "WRITE"
             _EVENTS.append(
-                {"t": _now(), "code": f"MEM/{b['id']} WRITE {sign}{delta} CHR", "detail": b["name"]}
+                {"t": _now(), "code": f"MEM/{b['id']} {op} {sign}{delta} CHR", "detail": b["name"]}
             )
+            _maybe_hist(b, op, force=True)
             if b.get("utilization") is not None:
                 _EVENTS.append(
                     {
@@ -271,6 +432,11 @@ def _emit(prev: dict | None, cur: dict) -> None:
                         "detail": "",
                     }
                 )
+        elif o.get("used") != b.get("used") and b.get("type") == "SESSION":
+            _EVENTS.append(
+                {"t": _now(), "code": f"MEM/{b['id']} SESSIONS {o.get('used')}→{b.get('used')}", "detail": ""}
+            )
+            _maybe_hist(b, "GROWTH", force=True)
         if o.get("status") != b.get("status"):
             _EVENTS.append(
                 {"t": _now(), "code": f"MEM/{b['id']} {b['status']}", "detail": b["name"]}
@@ -286,10 +452,34 @@ def snapshot(git_now=None, force: bool = False) -> dict:
     cfg = _mem_cfg()
     sess = _session_stats()
     hon = _honcho()
+    hon_n = _honcho_records() if hon.get("ok") else None
     proj = _project(git_now)
+    catalog = _provider_catalog(str(cfg.get("provider") or "builtin"))
+    skills = _skill_count()
+    sidx = _session_index()
     banks = []
     n = 1
     write_mode = "ASK" if cfg.get("write_approval") else "AUTO"
+    inspected = [
+        str(CONFIG),
+        str(MEM_DIR / "MEMORY.md"),
+        str(MEM_DIR / "USER.md"),
+        str(STATE_DB),
+        str(HONCHO_CFG),
+        str(PROFILES),
+        str(HERMES_HOME / "skills"),
+        str(HERMES_HOME / "sessions" / "sessions.json"),
+        str(HERMES_HOME / "SOUL.md"),
+        str(HERMES_HOME / "hermes-agent" / "plugins" / "memory"),
+        str(HERMES_HOME / "hermes-agent" / "agent" / "memory_manager.py"),
+        "ops-dashboard/.git",
+        "ops-dashboard/docs",
+    ]
+
+    def add(**kw):
+        nonlocal n
+        banks.append(_bank(n, **kw))
+        n += 1
 
     core = _md_meta(MEM_DIR / "MEMORY.md")
     banks.append(
@@ -307,6 +497,8 @@ def snapshot(git_now=None, force: bool = False) -> dict:
             entries=core["entries"],
             bytes=core["bytes"],
             lastModified=core["mtime"],
+            lastWrite=core["mtime"],
+            lastRead=None,
             sessionVisible=True,
             provider="builtin",
             writeMode=write_mode,
@@ -316,7 +508,7 @@ def snapshot(git_now=None, force: bool = False) -> dict:
                 "utilization": True,
                 "entries": True,
                 "writes": True,
-                "history": False,
+                "history": True,
             },
         )
     )
@@ -337,6 +529,8 @@ def snapshot(git_now=None, force: bool = False) -> dict:
             entries=user["entries"],
             bytes=user["bytes"],
             lastModified=user["mtime"],
+            lastWrite=user["mtime"],
+            lastRead=None,
             sessionVisible=True,
             provider="builtin",
             writeMode=write_mode,
@@ -346,7 +540,7 @@ def snapshot(git_now=None, force: bool = False) -> dict:
                 "utilization": True,
                 "entries": True,
                 "writes": True,
-                "history": False,
+                "history": True,
             },
         )
     )
@@ -430,41 +624,169 @@ def snapshot(git_now=None, force: bool = False) -> dict:
             enabled=str(cfg.get("provider") or "") == "honcho",
             status="ONLINE" if hon["ok"] else "OFFLINE",
             capacityType="UNBOUNDED",
-            used=None,
+            used=hon_n,
             limit=None,
+            entries=hon_n,
             provider="honcho",
-            extra={"url": hon.get("url"), "ms": hon.get("ms"), "hosts": hon.get("hosts")},
-            capabilities={"capacity": False, "utilization": False, "latency": True},
+            extra={"url": hon.get("url"), "ms": hon.get("ms"), "hosts": hon.get("hosts"), "records": hon_n, "recall": hon.get("recall")},
+            capabilities={"capacity": False, "utilization": False, "latency": True, "records": hon_n is not None},
         )
     )
     n += 1
-    for name in KNOWN_AGENTS:
+    if sess.get("fts"):
+        banks.append(
+            _bank(
+                n,
+                name="SESSION SEARCH INDEX",
+                type="INDEX",
+                source="Hermes",
+                backend="FTS5 messages_fts",
+                status="ONLINE",
+                capacityType="RECORDS",
+                used=sess["messages"],
+                limit=None,
+                entries=sess["messages"],
+                extra={"trigram": True},
+                capabilities={"capacity": False, "utilization": False, "search": True, "records": True},
+            )
+        )
+        n += 1
+    if sidx["routes"] or sidx["dumps"]:
+        banks.append(
+            _bank(
+                n,
+                name="GATEWAY SESSION INDEX",
+                type="INDEX",
+                source="Hermes",
+                backend="sessions.json",
+                status="ONLINE",
+                capacityType="RECORDS",
+                used=sidx["routes"],
+                limit=None,
+                entries=sidx["dumps"],
+                bytes=sidx["dumpBytes"],
+                extra={"dumps": sidx["dumps"]},
+                capabilities={"capacity": False, "records": True, "size": True},
+            )
+        )
+        n += 1
+    soul = _md_meta(HERMES_HOME / "SOUL.md")
+    if soul["exists"]:
+        banks.append(
+            _bank(
+                n,
+                name="SOUL IDENTITY",
+                type="AGENT",
+                source="Hermes",
+                backend="SOUL.md",
+                status="ONLINE",
+                capacityType="CHARACTERS",
+                used=soul["used"],
+                limit=None,
+                entries=soul["entries"],
+                bytes=soul["bytes"],
+                lastModified=soul["mtime"],
+                capabilities={"capacity": False, "utilization": False, "entries": True},
+            )
+        )
+        n += 1
+    if skills["ok"] and skills["entries"]:
+        banks.append(
+            _bank(
+                n,
+                name="SKILL STORE",
+                type="AGENT",
+                source="Hermes",
+                backend="skills/**/SKILL.md",
+                status="ONLINE",
+                capacityType="DOCUMENTS",
+                used=skills["entries"],
+                limit=None,
+                entries=skills["entries"],
+                bytes=skills["bytes"],
+                capabilities={"capacity": False, "utilization": False, "records": True},
+            )
+        )
+        n += 1
+    if sess.get("prompts"):
+        banks.append(
+            _bank(
+                n,
+                name="PROMPT CACHE",
+                type="CACHE",
+                source="Hermes",
+                backend="system_prompts",
+                status="ONLINE",
+                capacityType="RECORDS",
+                used=sess["prompts"],
+                limit=None,
+                entries=sess["prompts"],
+                extra={"note": "hash index only"},
+                capabilities={"capacity": False, "records": True},
+            )
+        )
+        n += 1
+    agent_mem = []
+    profile_names = []
+    if PROFILES.is_dir():
+        profile_names = sorted(p.name for p in PROFILES.iterdir() if p.is_dir() and not p.name.startswith("."))
+    for name in profile_names:
+        pcfg = _mem_cfg(PROFILES / name / "config.yaml")
         md = PROFILES / name / "memories" / "MEMORY.md"
         ud = PROFILES / name / "memories" / "USER.md"
         st = PROFILES / name / "state.db"
-        has_mem = md.is_file() or ud.is_file()
-        if not has_mem and not st.is_file():
-            continue
-        if has_mem:
-            meta = _md_meta(md if md.is_file() else ud)
+        if md.is_file():
+            meta = _md_meta(md)
             banks.append(
                 _bank(
                     n,
-                    name=f"AGENT {name.upper()}",
+                    name=f"AGENT {name.upper()} CORE",
                     type="AGENT",
                     source=name,
-                    backend="MEMORY.md" if md.is_file() else "USER.md",
+                    backend="MEMORY.md",
                     status="ONLINE",
                     capacityType="CHARACTERS",
                     used=meta["used"],
-                    limit=None,
+                    limit=int(pcfg.get("memory_char_limit") or 0) or None,
                     entries=meta["entries"],
                     bytes=meta["bytes"],
                     lastModified=meta["mtime"],
-                    capabilities={"capacity": False, "entries": True, "utilization": False},
+                    provider=str(pcfg.get("provider") or ""),
+                    capabilities={
+                        "capacity": bool(pcfg.get("memory_char_limit")),
+                        "utilization": bool(pcfg.get("memory_char_limit")),
+                        "entries": True,
+                    },
                 )
             )
-        else:
+            agent_mem.append(name + "/CORE")
+            n += 1
+        if ud.is_file():
+            meta = _md_meta(ud)
+            banks.append(
+                _bank(
+                    n,
+                    name=f"AGENT {name.upper()} USER",
+                    type="AGENT",
+                    source=name,
+                    backend="USER.md",
+                    status="ONLINE",
+                    capacityType="CHARACTERS",
+                    used=meta["used"],
+                    limit=int(pcfg.get("user_char_limit") or 0) or None,
+                    entries=meta["entries"],
+                    bytes=meta["bytes"],
+                    lastModified=meta["mtime"],
+                    capabilities={
+                        "capacity": bool(pcfg.get("user_char_limit")),
+                        "utilization": bool(pcfg.get("user_char_limit")),
+                        "entries": True,
+                    },
+                )
+            )
+            agent_mem.append(name + "/USER")
+            n += 1
+        if st.is_file() and not md.is_file() and not ud.is_file():
             banks.append(
                 _bank(
                     n,
@@ -472,15 +794,16 @@ def snapshot(git_now=None, force: bool = False) -> dict:
                     type="STATE",
                     source=name,
                     backend="state.db",
-                    status="ONLINE" if st.is_file() else "NONE",
+                    status="ONLINE",
                     capacityType="BYTES",
-                    used=st.stat().st_size if st.is_file() else 0,
+                    used=st.stat().st_size,
                     limit=None,
-                    bytes=st.stat().st_size if st.is_file() else 0,
+                    bytes=st.stat().st_size,
                     capabilities={"capacity": False, "size": True},
                 )
             )
-        n += 1
+            agent_mem.append(name + "/STATE")
+            n += 1
 
     pending_n = len(list(PENDING.glob("*.json"))) if PENDING.is_dir() else 0
     if pending_n:
@@ -499,12 +822,16 @@ def snapshot(git_now=None, force: bool = False) -> dict:
                 capabilities={"capacity": False, "records": True},
             )
         )
+        n += 1
 
     disk_rev = core.get("rev")
     sess_rev = sess.get("sessionHash")
     pending_load = False
-    if sess.get("sessionStarted") and core.get("mtime"):
-        pending_load = float(core["mtime"]) > float(sess["sessionStarted"])
+    try:
+        if sess.get("sessionStarted") and core.get("mtime"):
+            pending_load = float(core["mtime"]) > float(sess["sessionStarted"])
+    except (TypeError, ValueError):
+        pending_load = False
 
     hel01 = "MEMORY MATRIX NOMINAL"
     if not hon["ok"] and str(cfg.get("provider") or "") == "honcho":
@@ -542,13 +869,27 @@ def snapshot(git_now=None, force: bool = False) -> dict:
         "provider": cfg.get("provider"),
         "hel01": hel01,
         "events": list(_EVENTS[-12:]),
-        "inspected": list(_INSPECTED),
+        "inspected": inspected,
+        "discovery": {
+            "lastDiscovery": _now(),
+            "banksDetected": len(banks),
+            "providers": catalog,
+            "sessionBackends": ["state.db", "sessions.json", "FTS5"] if sess.get("fts") else ["state.db", "sessions.json"],
+            "agentMemory": agent_mem,
+            "projectMemory": {"files": proj["files"], "repo": proj.get("repo"), "head": proj.get("head")},
+            "unknown": catalog.get("unknown") or [],
+        },
         "wrote": False,
+        "history": [],
     }
     prev = _CACHE.get("data")
     _emit(prev, data)
+    for b in banks:
+        if b.get("type") in ("CORE", "USER", "SESSION"):
+            _maybe_hist(b, "SAMPLE")
+    data["history"] = list(_HISTORY[-180:])
     data["events"] = list(_EVENTS[-12:])
-    wrote = any("WRITE" in (e.get("code") or "") for e in data["events"][-3:])
+    wrote = any(("WRITE" in (e.get("code") or "") or "CONSOLIDATE" in (e.get("code") or "")) for e in data["events"][-3:])
     data["wrote"] = wrote
     if wrote and hel01 == "MEMORY MATRIX NOMINAL":
         data["hel01"] = "MEMORY COMMIT CONFIRMED"

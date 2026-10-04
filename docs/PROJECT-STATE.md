@@ -1,12 +1,12 @@
 # PROJECT STATE
 
 CURRENT VERSION: 0.1.0-dev  
-CURRENT BRANCH: main (baseline)  
-LAST MAJOR CHANGE: amber HELIX/OPS particle identity + MEMORY MATRIX + GitHub project store
+CURRENT BRANCH: helix-medic (local; main is baseline)  
+LAST MAJOR CHANGE: Adaptive command centre + MEMORY MATRIX discovery on Mac :8790
 
 ## IMPLEMENTED
 
-- CRT ops deck `:8790` (Field Terminal, NOC/Botmesh, TRACE, ADZE strip, Remote Matrix, MEMORY MATRIX)
+- CRT ops deck `:8790` (Field Terminal, orchestrator SYSTEM STATE, NOC/Botmesh, TRACE, ADZE strip, Remote Matrix, MEMORY MATRIX with live Hermes discovery, HELIX/89 theme engine)
 - Particle HELIX/OPS wordmark (amber/orange squares, DORMANT boot)
 - RustDesk OSS collector (hbbs/hbbr TCP, sqlite ids, Mac LAN peers)
 - Docker start/stop of named Unraid containers
@@ -14,6 +14,7 @@ LAST MAJOR CHANGE: amber HELIX/OPS particle identity + MEMORY MATRIX + GitHub pr
 - LIGHTING CONTROL (`[08] LIGHTING`, WiZ LAN UDP, rooms/scenes)
 - Compact SOURCE CONTROL instrument
 - Desktop INSTRUMENT BUS (SYSTEM CORE / MODEL / SERVICE / DATA VAULT)
+- Hermes Agent API: POST `/api/hermes/chat` → localhost `:8642` `/v1/chat/completions`; GET `/api/hermes/status`
 
 ## IN-PROGRESS
 

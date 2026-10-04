@@ -28,13 +28,17 @@ No bundler, no WebSocket. Polling:
 | GET `/api/thoughts` | observable CLI events |
 | GET `/api/agents` `/api/talk` `/api/trace` `/api/adze` | agents / TRACE / ADZE status |
 | GET `/api/docker` `/api/clients` `/api/protect` | Unraid / LAN / cameras |
+| GET `/api/matrix` | MEMORY MATRIX telemetry (no file bodies) |
 | GET `/api/remote` | RustDesk OSS snapshot |
 | GET `/api/git` | local git status |
 | GET `/api/lights` | WiZ lighting snapshot |
 | GET `/api/voice` | voice config + history |
+| GET `/api/hcompute` | HELIX COMPUTE routing + telemetry |
 | GET `/manifest.webmanifest` | PWA manifest (Helix OS) |
 
-`/ops` prefix is applied when `location.pathname` starts with `/ops`.
+Frontend coordinators (no extra WebSocket): `HelixTheme`, `HelixPriority`, `HelixCog`, `HelixMatrix`, `HelixOrch`.
+
+`HelixOrch` derives SYSTEM STATE from live subsystem snapshots (Hermes/gateway, matrix, remote, mesh, priority scores). It does not invent a health percentage.
 
 ## Backend
 

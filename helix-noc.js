@@ -481,5 +481,5 @@
     state.raf = requestAnimationFrame(loop);
   }
 
-  global.HelixNoc = { mount, ingestStats, ingestAgents, ingestThoughts, ingestCompute, select, state };
+  global.HelixNoc = { mount, ingestStats, ingestAgents, ingestThoughts, ingestCompute, ingestEvent: pushEvent, select, state };
 })(window);

@@ -13,17 +13,32 @@
 <meta name="theme-color" content="#060705">
 <style>
   :root {
-    --bg: #060705;
-    --ink: #d6d4c8;
-    --dim: #7d8574;
-    --line: #243024;
+    --hx-bg: #050805;
+    --hx-surface: #070b07;
+    --hx-surface-raised: #0b100b;
+    --hx-primary: #7CFF7A;
+    --hx-primary-bright: #c8ffc0;
+    --hx-primary-dim: #3a8a38;
+    --hx-secondary: #6aa8a8;
+    --hx-warning: #E08A2A;
+    --hx-critical: #c44a3a;
+    --hx-text: #e8e4d4;
+    --hx-text-muted: #7d8574;
+    --hx-grid: rgba(80, 255, 90, 0.035);
+    --hx-border: #243024;
+    --hx-trace: #6aa8a8;
+    --hx-glow-strength: 0.32;
+    --bg: var(--hx-bg);
+    --ink: var(--hx-text);
+    --dim: var(--hx-text-muted);
+    --line: var(--hx-border);
     --panel: rgba(8, 12, 8, 0.94);
-    --gold: #d4a017;
-    --ok: #7CFF7A;
-    --bad: #c44a3a;
-    --warn: #e09030;
-    --cyan: #6aa8a8;
-    --mag: #c44a3a;
+    --gold: var(--hx-warning);
+    --ok: var(--hx-primary);
+    --bad: var(--hx-critical);
+    --warn: var(--hx-warning);
+    --cyan: var(--hx-secondary);
+    --mag: var(--hx-critical);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink);
@@ -75,11 +90,11 @@
   .fetch-rule { color: var(--line); letter-spacing: 0.08em; margin: 0 0 3px; }
   .fetch-info .row { color: var(--ok); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fetch-info .k { color: var(--ok); }
-  .fetch-info .v { color: #39ff14; }
+  .fetch-info .v { color: var(--ok); }
   header.logo #q {
-    min-width: 100px; width: 140px; background: transparent; color: #39ff14;
+    min-width: 100px; width: 140px; background: transparent; color: var(--ok);
     border: 0; border-bottom: 1px solid var(--ok); padding: 0 2px; font: 10px ui-monospace, Menlo, monospace;
-    outline: none; text-shadow: 0 0 6px #39ff14;
+    outline: none; text-shadow: 0 0 6px color-mix(in srgb, var(--ok) 50%, transparent);
   }
   .hel-desk { margin: 4px 0 0; font: 10px/1.15 ui-monospace, Menlo, "MS Gothic", monospace; color: var(--ok); white-space: pre; }
   @media (max-width: 767px) { .hel-desk { display: none; } }
@@ -451,7 +466,15 @@
   }
 </style>
 </head>
-<body>
+<body data-hx-theme="helix-89" data-hx-motion="enhanced">
+<div id="hx-env" aria-hidden="true">
+  <div id="hx-env-grid"></div>
+  <div id="hx-env-scan"></div>
+  <div id="hx-env-noise"></div>
+  <div id="hx-env-sweep"></div>
+</div>
+<div id="hx-reconfig" hidden>DISPLAY RECONFIGURATION</div>
+<div id="hx-prio-flash" hidden>DISPLAY PRIORITY UPDATED</div>
 <header class="logo">
 <pre class="banner plaque-edge">╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗</pre>
   <div class="plaque-row">
@@ -460,6 +483,8 @@
       <div id="helix-ops-mark" class="howm" aria-label="HELIX/OPS"></div>
       <div class="fetch-info">
         <p class="ident">HELIX/OPS // TOKYO-06<br><strong>SYSTEM COMMAND</strong> · 統合管制システム</p>
+        <div id="hx-sys-state" class="hx-sys-state">● SYSTEM NOMINAL</div>
+        <div id="hx-sys-chips" class="hx-sys-chips">HERMES ○  NET ○  MEM ○  REMOTE ○  SVC ○</div>
         <div class="fetch-host"><b>HELIX</b>/OPS · HOS://TKY-06</div>
         <div class="fetch-rule">-----------</div>
         <div class="row"><span class="k">UPLINK</span>: <span class="v">ACTIVE</span> · 東京統合管制</div>
@@ -563,8 +588,50 @@
   <button type="button" data-tab="control">[11] CONTROL</button>
   <button type="button" data-tab="medic">[12] MEDIC</button>
 </nav>
+<div class="hx-attn" id="hx-attn" data-hx-panel="events">
+  <span>ATTENTION BUS · ATTN // <b id="hx-attn-n">00</b></span>
+  <div id="hx-attn-body"><span class="empty">ATTN // 00 · NOMINAL</span></div>
+</div>
+<div id="hx-command">
+  <article class="hx-mod" id="hx-cog" data-hx-panel="cog">
+    <button type="button" class="hx-pin" data-hx-pin="cog" aria-label="pin">PIN</button>
+    <div class="ident">COGNITIVE LOAD · 認知演算負荷 · COG://HERMES</div>
+    <div class="hx-why" id="hx-cog-why">STATE LOW</div>
+    <canvas id="hx-cog-live" width="640" height="160" style="width:100%;height:140px;display:block" aria-label="cognitive load graph"></canvas>
+    <div class="hx-bar"><button type="button" id="hx-cog-livebtn">LIVE</button><span id="hx-cog-inspect" class="dim">LIVE</span></div>
+    <div id="hx-cog-vec" class="hx-vec"></div>
+    <div class="ident">TOKEN STREAM · トークン流量</div>
+    <div id="hx-tokens" class="dim">NO TELEMETRY</div>
+    <div class="ident">COGNITIVE PIPELINE · 推論経路</div>
+    <div id="hx-pipe" class="dim">USER → HERMES → RESPONSE</div>
+  </article>
+  <article class="hx-mod" data-hx-panel="system">
+    <div class="ident">RESOURCE PRESSURE · 資源負荷</div>
+    <div class="hx-why">Observable host load only</div>
+    <div id="hx-pressure" class="dim">NO TELEMETRY</div>
+    <div id="hx-bottleneck" class="ident">BOTTLENECK  NONE</div>
+    <canvas id="hx-pressure-bars" width="320" height="72" style="width:100%;height:72px;display:block" aria-label="resource bars"></canvas>
+    <div class="ident">SIGNAL SCOPE · 信号監視</div>
+    <canvas id="hx-cog-scope" width="320" height="72" style="width:100%;height:72px;display:block" aria-label="signal scope"></canvas>
+    <div class="ident">COGNITIVE OSCILLOSCOPE</div>
+    <canvas id="hx-cog-osc" width="320" height="72" style="width:100%;height:72px;display:block" aria-label="cognitive oscilloscope"></canvas>
+  </article>
+  <article class="hx-mod" data-hx-panel="hermes">
+    <div class="ident">ADAPTIVE LAYOUT · 適応管制</div>
+    <div id="hx-why" class="dim">WHY IS THIS HERE?</div>
+    <div class="ident">DISPLAY HISTORY</div>
+    <div id="hx-hist" class="dim">no promotions_</div>
+    <div class="ident">FLIGHT RECORDER · 飛行記録</div>
+    <div id="hx-flight" class="dim">no recorder_</div>
+    <div class="ident">SYSTEM ACTIVITY MATRIX</div>
+    <canvas id="hx-act-heat" width="320" height="108" style="width:100%;height:108px;display:block" aria-label="activity heatmap"></canvas>
+    <div class="ident dim">INF · TOOL · AGT · CTX · GPU · MEM</div>
+    <div class="ident">AGENT ORBIT</div>
+    <div id="hx-orbit" class="dim">NO TELEMETRY</div>
+  </article>
+</div>
 <div id="pane-ops">
-<section id="noc" class="noc">
+<section id="noc" class="noc" data-hx-panel="botmesh">
   <div class="noc-strip">
     <span><b>HELIX/OPS</b> // TOKYO-06 · BOTMESH // NETWORK CONTROL</span>
     <span>NODE/TKY-06</span>
@@ -690,7 +757,7 @@
       <div><span id="trace-who">HERMES // COGNITIVE TRACE</span><br><small>思考追跡システム</small></div>
       <span class="trace-live" id="trace-live">IDLE ○</span>
     </div>
-    <div class="dual-core" id="dual-core">
+    <div class="dual-core" id="dual-core" data-hx-panel="adze">
       <div class="ident">DUAL COGNITIVE CORE · 二重演算核</div>
       <div class="dual-pair">
         <div class="dual-node hermes">
@@ -770,7 +837,7 @@
     <pre id="rd-cli"></pre>
   </section>
 </div>
-<div id="pane-matrix" hidden>
+<div id="pane-matrix" hidden data-hx-panel="memory">
   <button type="button" class="trace-fs-close" id="mm-close">CLOSE MEMORY</button>
   <section class="mm">
     <div class="mm-head">
@@ -909,6 +976,12 @@
     </div>
     <div class="ident">ROOMS</div>
     <div id="hx-grid" class="hx-grid"></div>
+    <div class="ident">PREFERENCES</div>
+    <div id="hx-prefs" class="hx-grid"></div>
+    <section class="hx-visual" id="hx-visual">
+      <div class="ident">VISUAL SYSTEM · 表示系統</div>
+    </section>
+    <section class="hx-visual" id="hx-orch-cfg"></section>
     <p id="hx-err" class="hx-err"></p>
     <p class="dim">Low-risk lighting only. Locks, garage, alarms and appliances are not implemented.</p>
   </section>
@@ -1420,6 +1493,7 @@ async function loadThoughts() {
     if (!box) return;
     const items = d.items || [];
     if (globalThis.HelixNoc) HelixNoc.ingestThoughts(items);
+    if (globalThis.HelixCog) HelixCog.ingestThoughts(items);
     if (globalThis.HelixHermes && HelixHermes.hasChat && HelixHermes.hasChat()) return;
     const label = (it) => {
       if (it.kind === "thought") return null;
@@ -1614,7 +1688,7 @@ loadSkills();
 setInterval(loadSkills, 5000);
 
 const pf = document.getElementById("prompt-form");
-const CLI_CMDS = ["help","about","status","clear","whoami","uptime","node","orbit","tokyo","helix","matrix","memory","network","operations","system","archive","docker","security","clients","ops","net","sec","dock","trace","cognitive","remote","lights","lighting","voice","compute","home","control","room","medic"];
+const CLI_CMDS = ["help","about","status","clear","whoami","uptime","node","orbit","tokyo","helix","matrix","memory","preferences","remember","forget","network","operations","system","archive","docker","security","clients","ops","net","sec","dock","trace","cognitive","remote","lights","lighting","voice","compute","home","control","room","medic"];
 function cliOut(text) {
   const box = document.getElementById("thoughts");
   if (!box) return;
@@ -1633,6 +1707,7 @@ function selectTab(tab) {
 function runCli(raw) {
   const text = raw.trim();
   const cmd = text.split(/\s+/)[0].toLowerCase();
+  const rest = text.slice(cmd.length).trim().toLowerCase();
   const map = {
     help: "AVAILABLE COMMANDS\nhelp about status clear whoami uptime node orbit tokyo helix matrix\nnetwork operations system archive trace remote\nOther input is forwarded as an operator prompt.",
     about: "HELIX/OPS // TOKYO-06\nHELIX OPERATIONS SYSTEM\nHOS://TKY-06 · CORE 04.87\n統合管制システム",
@@ -1710,11 +1785,22 @@ function runCli(raw) {
       return true;
     }
   }
+  if ((cmd === "memory" && rest === "status") || cmd === "preferences" || cmd === "remember" || cmd === "forget") {
+    const payload = (cmd === "remember" || cmd === "forget")
+      ? { text }
+      : { action: cmd === "preferences" ? "list" : "status" };
+    fetch(api("/api/prefs"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+      .then((r) => r.json()).then((d) => {
+        if (d.preferences) cliOut((d.preferences || []).map((p) => (p.label || p.id)).join("\n") || "NO PREFERENCES");
+        else cliOut(d.speak || d.error || ("HONCHO " + (d.honcho || "") + " COUNT " + (d.count ?? "")));
+      }).catch(() => cliOut("PREFERENCE MEMORY UNAVAILABLE"));
+    return true;
+  }
   if (cmd === "home" || cmd === "control" || cmd === "room" || ((cmd === "lights" || cmd === "lighting") && text.split(/\s+/).length > 1)) {
     if (cmd === "home" || cmd === "control") selectTab("control");
-    const rest = text.slice(cmd.length).trim().toLowerCase();
-    if ((cmd === "home" || cmd === "control") && (!rest || rest === "status" || rest === "rooms" || rest === "devices")) {
-      const cap = rest === "rooms" ? "home.rooms" : rest === "devices" ? "home.devices" : "home.status";
+    const homeRest = text.slice(cmd.length).trim().toLowerCase();
+    if ((cmd === "home" || cmd === "control") && (!homeRest || homeRest === "status" || homeRest === "rooms" || homeRest === "devices")) {
+      const cap = homeRest === "rooms" ? "home.rooms" : homeRest === "devices" ? "home.devices" : "home.status";
       fetch(api("/api/home"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ capability: cap, dry_run: false }) })
         .then((r) => r.json()).then((d) => {
           if (d.rooms) cliOut((d.rooms || []).map((x) => (x.label || x.name) + " lights " + x.lights + " online " + x.online).join("\n") || "HOME");
@@ -1851,6 +1937,8 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   const go = () => {
     document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
     document.getElementById("pane-ops").hidden = tab !== "ops";
+    const cmd = document.getElementById("hx-command");
+    if (cmd) cmd.hidden = tab !== "ops";
     document.getElementById("pane-net").hidden = tab !== "net";
     document.getElementById("pane-sec").hidden = tab !== "sec";
     document.getElementById("pane-dock").hidden = tab !== "dock";
@@ -2012,7 +2100,7 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0504";
+    const ASSET_V = "hos0509";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;
@@ -2027,20 +2115,25 @@ async function loadClients() {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register(p + "/helix-sw.js", { scope: p ? p + "/" : "/" }).catch(() => {});
     }
-    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-lights.css", "helix-voice.css", "helix-compute.css", "helix-control.css", "helix-medic.css", "helix-tablet.css"].forEach((href) => {
+    ["helix-theme.css", "helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-lights.css", "helix-voice.css", "helix-compute.css", "helix-control.css", "helix-medic.css", "helix-tablet.css"].forEach((href) => {
       const css = document.createElement("link");
       css.rel = "stylesheet";
       css.href = p + "/" + href + "?v=" + ASSET_V;
       document.head.appendChild(css);
     });
+    const themeJs = document.createElement("script");
+    themeJs.src = p + "/helix-theme.js?v=" + ASSET_V;
+    themeJs.onload = function () { HelixTheme.mount(); };
+    document.body.appendChild(themeJs);
     const s = document.createElement("script");
     s.src = p + "/helix-ops-wordmark.js?v=" + ASSET_V;
     s.onload = function () {
       const mobile = matchMedia("(max-width: 767px)").matches;
+      const motion = (globalThis.HelixTheme && HelixTheme.state.motion) || "enhanced";
       HelixOpsWordmark.mount("#helix-ops-mark", {
         palette: "field",
         mask: p + "/helix-ops-slash.svg?v=" + ASSET_V,
-        anim: matchMedia("(prefers-reduced-motion: reduce)").matches ? "OFF" : "FULL"
+        anim: matchMedia("(prefers-reduced-motion: reduce)").matches || motion === "off" ? "OFF" : (motion === "reduced" ? "REDUCED" : "FULL")
       });
     };
     document.body.appendChild(s);
@@ -2074,6 +2167,23 @@ async function loadClients() {
     kjs.src = p + "/helix-control.js?v=" + ASSET_V;
     const mdjs = document.createElement("script");
     mdjs.src = p + "/helix-medic.js?v=" + ASSET_V;
+    const gjs = document.createElement("script");
+    gjs.src = p + "/helix-graph.js?v=" + ASSET_V;
+    gjs.async = false;
+    const pjs = document.createElement("script");
+    pjs.src = p + "/helix-priority.js?v=" + ASSET_V;
+    pjs.async = false;
+    const cogjs = document.createElement("script");
+    cogjs.src = p + "/helix-cog.js?v=" + ASSET_V;
+    cogjs.async = false;
+    cogjs.onload = function () {
+      if (globalThis.HelixPriority) HelixPriority.mount();
+      if (globalThis.HelixCog) HelixCog.mount();
+      const ojs = document.createElement("script");
+      ojs.src = p + "/helix-orch.js?v=" + ASSET_V;
+      ojs.onload = function () { if (globalThis.HelixOrch) HelixOrch.mount(); };
+      document.body.appendChild(ojs);
+    };
     document.body.appendChild(hjs);
     document.body.appendChild(ajs);
     document.body.appendChild(tjs);
@@ -2084,6 +2194,9 @@ async function loadClients() {
     document.body.appendChild(cjs);
     document.body.appendChild(kjs);
     document.body.appendChild(mdjs);
+    document.body.appendChild(gjs);
+    document.body.appendChild(pjs);
+    document.body.appendChild(cogjs);
 
     (function fieldTerm() {
       const mq = matchMedia("(max-width: 767px)");
@@ -2154,16 +2267,15 @@ async function loadClients() {
     const log = document.getElementById("boot-log");
     const skip = document.getElementById("boot-skip");
     const lines = [
-      "GRID INITIALIZE",
-      "HELIX CORE ONLINE",
-      "LOGO PARTICLES ASSEMBLE",
+      "SIGNAL ACQUISITION",
+      "HELIX CORE",
+      "MEMORY MAP",
+      "NETWORK MAP",
+      "COGNITIVE BUS",
+      "DISPLAY MATRIX",
+      "PRIORITY ENGINE",
+      "HΞL-01",
       "HELIX/OPS",
-      "SYSTEM BUS ACTIVATES",
-      "PANELS DRAW",
-      "HERMES ONLINE",
-      "MEMORY BUS ONLINE",
-      "NETWORK ONLINE",
-      "HΞL-01 ONLINE",
       "SYSTEM NOMINAL"
     ];
     function endBoot() {

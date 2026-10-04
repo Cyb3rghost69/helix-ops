@@ -1,6 +1,6 @@
 /* HELIX OPS — MEMORY MATRIX. Telemetry only. */
 (function (global) {
-  const state = { data: null, sel: null, flights: [], lastWrite: "" };
+  const state = { data: null, sel: null, flights: [], lastWrite: "", seenNoc: new Set() };
 
   function api(p) {
     const OPS = (location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "";
@@ -40,17 +40,24 @@
     return `<div class="mm-bar${amber ? " amber" : ""}"><i style="width:${Math.max(0, Math.min(100, pct))}%"></i></div>`;
   }
   function topo(banks) {
-    const has = (t) => banks.some((b) => b.type === t && b.status !== "NONE");
-    const line = (ok, label) => (ok ? `● ${label}` : "");
+    const rows = (banks || []).filter((b) => b.status && b.status !== "NONE");
+    const by = (t) => rows.filter((b) => b.type === t).map((b) => b.id);
+    const join = (xs) => (xs.length ? xs.join(" · ") : "");
+    const core = join(by("CORE"));
+    const user = join(by("USER").slice(0, 3));
+    const sess = join(by("SESSION").concat(by("INDEX")).slice(0, 3));
+    const ext = join(by("EXTERNAL"));
+    const proj = join(by("PROJECT"));
+    const ag = join(by("AGENT").slice(0, 6));
     return [
       "                HERMES",
       "                   │",
-      "       ┌───────────┼───────────┐",
-      "       │           │           │",
-      `       ▼           ▼           ▼`,
-      `   ${has("CORE") ? "CORE MEM" : "        "}      ${has("USER") ? "USER MEM" : "        "}     ${has("SESSION") ? "SESSION" : ""}`,
-      has("EXTERNAL") ? "              │\n              ▼\n         HONCHO / EXT" : "",
-      has("PROJECT") ? "              │\n              ▼\n         PROJECT GIT" : "",
+      core || user ? ("       " + [core, user].filter(Boolean).join("   ")) : "",
+      sess ? ("       " + sess) : "",
+      "              COGNITIVE CORE",
+      ext ? ("            " + ext) : "",
+      proj ? ("            " + proj) : "",
+      ag ? ("            " + ag) : "",
     ].filter(Boolean).join("\n");
   }
 
@@ -96,21 +103,28 @@
         <span class="k">FREE</span><span>${b.free == null ? "N/A" : b.free}</span>
         <span class="k">ENTRIES</span><span>${b.entries == null ? "—" : b.entries}</span>
         <span class="k">WRITE</span><span>${esc(b.writeMode || "—")}</span>
+        <span class="k">LAST WRITE</span><span>${b.lastWrite == null ? "—" : esc(String(b.lastWrite))}</span>
+        <span class="k">LAST READ</span><span>${b.lastRead == null ? "N/A" : esc(String(b.lastRead))}</span>
         <span class="k">HEAD</span><span>${esc(x.head || x.current || "—")}</span>
         <span class="k">SYNC</span><span>${esc(x.sync || "")}</span>
+        <span class="k">RECORDS</span><span>${x.records == null && b.entries == null ? "—" : esc(x.records ?? b.entries)}</span>
+        <span class="k">CAPABILITY</span><span>${esc(Object.entries(b.capabilities || {}).filter((kv) => kv[1]).map((kv) => kv[0].toUpperCase()).join(" · ") || "—")}</span>
       </div>`;
   }
 
   function drawBus(cv, d) {
     if (!cv) return;
+    const th = (global.HelixGraph && HelixGraph.theme && HelixGraph.theme()) || {
+      bg: "#050805", primary: "#7CFF7A", border: "#2a4a2a"
+    };
     const ctx = cv.getContext("2d");
     const w = cv.width = cv.clientWidth || 320;
     const h = cv.height = 36;
-    ctx.fillStyle = "#050805";
+    ctx.fillStyle = th.bg || "#050805";
     ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = "#2a4a2a";
+    ctx.strokeStyle = th.border || "#2a4a2a";
     ctx.beginPath(); ctx.moveTo(8, h / 2); ctx.lineTo(w - 8, h / 2); ctx.stroke();
-    ctx.fillStyle = "#7CFF7A";
+    ctx.fillStyle = th.primary || "#7CFF7A";
     ctx.font = "10px monospace";
     ctx.fillText("MEM BUS", 10, 12);
     state.flights = state.flights.filter((f) => {
@@ -121,12 +135,54 @@
     });
   }
 
+  function ensureGraphs() {
+    if (document.getElementById("mm-g-core")) return;
+    const host = document.querySelector(".mm");
+    if (!host) return;
+    const box = document.createElement("div");
+    box.className = "mm-box mm-graphs";
+    box.innerHTML = `<div class="ident">CORE UTILIZATION // TIME</div><canvas id="mm-g-core" class="mm-g" height="72" aria-label="core util"></canvas>
+      <div class="ident">USER UTILIZATION // TIME</div><canvas id="mm-g-user" class="mm-g" height="72" aria-label="user util"></canvas>
+      <div class="ident">SESSION GROWTH</div><canvas id="mm-g-sess" class="mm-g" height="72" aria-label="session growth"></canvas>`;
+    host.appendChild(box);
+  }
+
+  function paintGraphs(d) {
+    ensureGraphs();
+    const g = global.HelixGraph;
+    if (!g) return;
+    const hist = d.history || [];
+    function series(id, field) {
+      if (!id) return [];
+      const rows = hist.filter((h) => h.bank === id && h[field] != null);
+      return rows.length ? [{ y: rows.map((h) => Number(h[field])) }] : [];
+    }
+    const core = (d.banks || []).find((b) => b.type === "CORE");
+    const user = (d.banks || []).find((b) => b.type === "USER" && b.source === "Hermes") || (d.banks || []).find((b) => b.type === "USER");
+    const sess = (d.banks || []).find((b) => b.type === "SESSION");
+    g.drawTrace(document.getElementById("mm-g-core"), series(core && core.id, "utilization"), { min: 0, max: 100 });
+    g.drawTrace(document.getElementById("mm-g-user"), series(user && user.id, "utilization"), { min: 0, max: 100 });
+    g.drawTrace(document.getElementById("mm-g-sess"), series(sess && sess.id, "used"), {});
+  }
+
+  function emitNoc(d) {
+    const noc = global.HelixNoc;
+    if (!noc || !noc.ingestEvent) return;
+    (d.events || []).forEach((e) => {
+      const key = String(e.t || "") + String(e.code || "");
+      if (!key || state.seenNoc.has(key)) return;
+      state.seenNoc.add(key);
+      noc.ingestEvent({ node: "helix", kind: "mem", text: String(e.code || "").slice(0, 90) });
+    });
+  }
+
   function render(d) {
     state.data = d;
     fillHome(d);
     fillHermes(d);
     const cap = document.getElementById("mm-cap");
-    if (cap) cap.textContent = `BANKS ${String(d.bankCount || 0).padStart(2, "0")} · ${d.code || ""} · LAST ${d.discoveredAt || ""}`;
+    const disc = d.discovery || {};
+    if (cap) cap.textContent = `BANKS ${String(d.bankCount || 0).padStart(2, "0")} · ${d.code || ""} · LAST ${disc.lastDiscovery || d.discoveredAt || ""}`;
     const grid = document.getElementById("mm-grid");
     if (grid) {
       grid.innerHTML = (d.banks || []).map((b) =>
@@ -169,9 +225,12 @@
       if (globalThis.HelixOpsWordmark && HelixOpsWordmark.pulse) HelixOpsWordmark.pulse("hermes");
     }
     drawBus(document.getElementById("mm-cv"), d);
+    emitNoc(d);
+    paintGraphs(d);
   }
 
   async function load() {
+    if (document.hidden) return;
     try {
       const r = await fetch(api("/api/matrix"), { cache: "no-store" });
       const d = await r.json();

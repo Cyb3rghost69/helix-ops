@@ -1,18 +1,18 @@
 /* HELIX OPS — CRT / PC-98 operations skin. Loaded after inline CSS. */
 :root {
-  --bg: #060705;
-  --ink: #d6d4c8;
-  --dim: #7d8574;
-  --line: #243024;
-  --panel: rgba(8, 12, 8, 0.94);
-  --gold: #d4a017;
-  --ok: #6adf64;
-  --bad: #c44a3a;
-  --warn: #e09030;
-  --cyan: #6aa8a8;
-  --mag: #c44a3a;
-  --phos: #6adf64;
-  --amber: #d4a017;
+  --bg: var(--hx-bg, #050805);
+  --ink: var(--hx-text, #e8e4d4);
+  --dim: var(--hx-text-muted, #7d8574);
+  --line: var(--hx-border, #243024);
+  --panel: color-mix(in srgb, var(--hx-surface, #070b07) 94%, transparent);
+  --gold: var(--hx-warning, #E08A2A);
+  --ok: var(--hx-primary, #7CFF7A);
+  --bad: var(--hx-critical, #c44a3a);
+  --warn: var(--hx-warning, #E08A2A);
+  --cyan: var(--hx-secondary, #6aa8a8);
+  --mag: var(--hx-critical, #c44a3a);
+  --phos: var(--hx-primary, #7CFF7A);
+  --amber: var(--hx-warning, #E08A2A);
 }
 html, body {
   background: var(--bg);

@@ -14,10 +14,12 @@ Future agents must not restyle this into a generic dashboard.
 
 ## Palette
 
+Semantic tokens are `--hx-*` (legacy `--bg`/`--ok` aliased). Themes: HELIX/89 (default), MONOCHROME CRT, AMBER TERMINAL, AEROSPACE WHITE, NIGHT OPS, CUSTOM (contrast floor). Motion OFF/REDUCED/STANDARD/ENHANCED; `prefers-reduced-motion` wins. Density COMPACT/STANDARD/DENSE is independent of theme.
+
 | Role | Token / typical |
 |---|---|
-| Background | `--bg` near-black with green cast `#060705` |
-| Phosphor primary | `--ok` `#7CFF7A` |
+| Background | `--hx-bg` `#050805` |
+| Phosphor primary | `--hx-primary` / `--ok` `#7CFF7A` |
 | Bright phosphor | `#B8FFB0` / `#E8FFE2` |
 | Amber | `--gold` `#d4a017` — processing / secondary only |
 | Warning red | `--bad` `#c44a3a` |

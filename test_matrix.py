@@ -42,6 +42,31 @@ class MatrixPrivacy(unittest.TestCase):
         self.assertIsNone(b["utilization"])
         self.assertIsNone(b["pressure"])
 
+    def test_skills_and_session_have_no_fake_pct(self):
+        data = snapshot(lambda: {"ok": True, "repo": "t", "branch": "main", "head": "abc", "sync": "UP TO DATE"}, force=True)
+        sk = next((b for b in data["banks"] if b["name"] == "SKILL STORE"), None)
+        if sk:
+            self.assertIsNone(sk["utilization"])
+        idx = next((b for b in data["banks"] if b["type"] == "INDEX"), None)
+        if idx:
+            self.assertIsNone(idx["utilization"])
+        self.assertIn("discovery", data)
+        self.assertGreaterEqual(data["bankCount"], 6)
+        self.assertIn("history", data)
+        hist = json.dumps(data["history"])
+        self.assertNotIn("WebUI login", hist)
+        core = next(b for b in data["banks"] if b["type"] == "CORE")
+        self.assertIn("lastWrite", core)
+        self.assertIsNone(core.get("lastRead"))
+
+    def test_memorystore_delimiter(self):
+        from helix_memory import ENTRY_DELIMITER, _parse_entries
+        raw = "alpha" + ENTRY_DELIMITER + "beta"
+        self.assertEqual(_parse_entries(raw), ["alpha", "beta"])
+        self.assertEqual(_parse_entries("keep § inside"), ["keep § inside"])
+        used = len(ENTRY_DELIMITER.join(_parse_entries(raw)))
+        self.assertEqual(used, len("alpha" + ENTRY_DELIMITER + "beta"))
+
 
 if __name__ == "__main__":
     unittest.main()

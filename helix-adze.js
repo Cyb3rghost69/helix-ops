@@ -7,6 +7,7 @@
     const OPS = (typeof global.OPS === "string") ? global.OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     return OPS + p;
   }
+  const state = { online: false, last: {}, model: "", mode: "" };
   async function tick() {
     const box = document.getElementById("dual-core");
     if (!box) return;
@@ -14,6 +15,10 @@
       const r = await fetch(api("/api/adze"), { cache: "no-store" });
       if (!r.ok) return;
       const d = await r.json();
+      state.online = !!d.online;
+      state.last = d.last || {};
+      state.model = d.model || "";
+      state.mode = d.mode || "";
       const hs = document.getElementById("dual-hermes-st");
       const as = document.getElementById("dual-adze-st");
       const mid = document.getElementById("dual-mid");
@@ -49,5 +54,5 @@
     tick();
     setInterval(tick, 2500);
   }
-  global.HelixAdze = { mount };
+  global.HelixAdze = { mount, state };
 })(window);

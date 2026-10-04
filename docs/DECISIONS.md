@@ -1,5 +1,11 @@
 # Decisions
 
+## 2026-10-04 — Adaptive command centre
+**DECISION:** HelixOrch derives SYSTEM STATE from real subsystem snapshots; Priority Engine uses hysteresis (margin/min-show/cooldown); MEMORY.md utilization is CORE MEMORY, host RAM is SYSTEM. No fake health %. Flight recorder stores metrics/events only.  
+**REASON:** Operator asked for one coherent machine, not independent polling cards.  
+**ALTERNATIVES:** Rebuild panels; numeric sort every frame.  
+**CONSEQUENCES:** Offscreen canvases pause; historical mode is explicit.
+
 ## 2026-10-02 — Voice PTT
 **DECISION:** Browser Web Speech STT/TTS; backend intent router into existing tools; wake-word off by default; no faster-whisper on the 8 GB Mini yet.  
 **REASON:** Spec said ship reliable PTT first.  
