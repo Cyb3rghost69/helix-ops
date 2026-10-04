@@ -1,0 +1,10 @@
+{
+  "failure_threshold": 3,
+  "verify_seconds": 45,
+  "max_restarts": 2,
+  "restart_window_sec": 600,
+  "cooldown_sec": 300,
+  "poll_sec": 30,
+  "never_autorepair": ["ollama", "qbittorrent", "transmission"],
+  "comment": "Copy values into helix-medic.json if needed. Default mode is observe. Do not commit secrets."
+}

@@ -559,6 +559,9 @@
   <button type="button" data-tab="matrix">[07] MEMORY</button>
   <button type="button" data-tab="lights">[08] LIGHTING</button>
   <button type="button" data-tab="voice">[09] VOICE</button>
+  <button type="button" data-tab="compute">[10] COMPUTE</button>
+  <button type="button" data-tab="control">[11] CONTROL</button>
+  <button type="button" data-tab="medic">[12] MEDIC</button>
 </nav>
 <div id="pane-ops">
 <section id="noc" class="noc">
@@ -700,6 +703,12 @@
           <div class="st" id="dual-adze-st">OPENAI · CRITIC</div>
         </div>
       </div>
+      <div class="ident">HERMES AGENT API · 接続</div>
+      <div class="dual-x" id="hermes-api-kv">
+        <div>HERMES AGENT —</div>
+        <div>API LATENCY —</div>
+        <div>ACTIVE SESSION helix-main</div>
+      </div>
       <div class="ident">COGNITIVE EXCHANGE</div>
       <div class="dual-x" id="dual-x"><div class="empty">no exchange_</div></div>
     </div>
@@ -838,6 +847,85 @@
       <p>iPad Safari: Share → Add to Home Screen</p>
       <p>Android Chrome: Install app / Add to Home Screen</p>
     </details>
+  </section>
+</div>
+<div id="pane-compute" hidden>
+  <section class="hc">
+    <div class="hc-head">
+      <div>HELIX // COMPUTE<br><small>計算管制 · MAC HERMES · UNRAID WORKER · OLLAMA · HONCHO · CLOUD</small></div>
+      <span id="hc-cap">SCAN</span>
+    </div>
+    <div id="hc-active" class="hc-active">MODE AUTO · POLICY BALANCED · v2</div>
+    <div id="hc-meta" class="hc-active" style="font-size:12px;letter-spacing:0.12em">ACTIVE MODEL — · TASK — · DURATION —</div>
+    <div id="hc-grid" class="hc-grid"></div>
+    <div class="ident">BIGBOI · GPU</div>
+    <div id="hc-gpu" class="hc-grid"></div>
+    <div class="hc-bar">
+      <button type="button" data-ov="AUTO" class="on">AUTO</button>
+      <button type="button" data-ov="MAC">MAC</button>
+      <button type="button" data-ov="UNRAID">UNRAID</button>
+      <button type="button" data-ov="OLLAMA">OLLAMA</button>
+      <button type="button" data-ov="CLOUD">CLOUD</button>
+      <button type="button" data-pol="FAST">FAST</button>
+      <button type="button" data-pol="BALANCED" class="on">BALANCED</button>
+      <button type="button" data-pol="LOCAL-FIRST">LOCAL-FIRST</button>
+      <button type="button" id="hc-cpu">CPU ID ON BIGBOI</button>
+      <button type="button" id="hc-py">PYTHON ON BIGBOI</button>
+      <button type="button" id="hc-dk">DOCKER COUNT</button>
+    </div>
+    <input id="hc-task" class="vx-type" type="text" autocomplete="off" placeholder="route a task — e.g. Analyse 5GB of logs">
+    <div class="hc-bar"><button type="button" id="hc-route">ROUTE</button></div>
+    <div class="hc-err" id="hc-err"></div>
+    <div class="ident">ACTIVE PLAN</div>
+    <div id="hc-plan" class="hc-jobs"></div>
+    <div class="ident">METRICS</div>
+    <div id="hc-metrics" class="hc-jobs"></div>
+    <div class="ident">ACTIVE / RUNNING</div>
+    <div id="hc-active-jobs" class="hc-jobs"></div>
+    <div class="ident">QUEUED</div>
+    <div id="hc-queued" class="hc-jobs"></div>
+    <div class="ident">WAITING APPROVAL</div>
+    <div id="hc-wait" class="hc-jobs"></div>
+    <div class="ident">COMPLETED</div>
+    <div id="hc-done" class="hc-jobs"></div>
+    <div class="ident">FAILED</div>
+    <div id="hc-fail" class="hc-jobs"></div>
+    <p id="hc-note" class="dim"></p>
+  </section>
+</div>
+<div id="pane-control" hidden>
+  <section class="hx">
+    <div class="hx-head">
+      <div>HELIX // CONTROL<br><small>家電管制 · HOME · WIZ LAN · NO HA SERVICE CALLS</small></div>
+      <span id="hx-cap">v1</span>
+    </div>
+    <div id="hx-state" class="hx-state">HOME  SCAN</div>
+    <div id="hx-ha" class="dim">HOME ASSISTANT  —</div>
+    <div class="hx-bar">
+      <button type="button" id="hx-refresh">REFRESH</button>
+      <button type="button" id="hx-night">GOOD NIGHT</button>
+      <button type="button" id="hx-movie">MOVIE</button>
+      <button type="button" id="hx-alloff">ALL LIGHTS OFF</button>
+    </div>
+    <div class="ident">ROOMS</div>
+    <div id="hx-grid" class="hx-grid"></div>
+    <p id="hx-err" class="hx-err"></p>
+    <p class="dim">Low-risk lighting only. Locks, garage, alarms and appliances are not implemented.</p>
+  </section>
+</div>
+<div id="pane-medic" hidden>
+  <section class="hm">
+    <div class="hm-head">
+      <div>HELIX // MEDIC<br><small>DOCKER SRE · OBSERVE FIRST · GUARD ALLOWLIST</small></div>
+      <span>v1</span>
+    </div>
+    <div id="hm-state" class="hm-state">FLEET  SCAN</div>
+    <div id="hm-compact" class="dim"></div>
+    <div class="hx-bar"><button type="button" id="hm-refresh">REFRESH</button></div>
+    <div class="ident">CONTAINERS</div>
+    <div id="hm-grid" class="hm-grid"></div>
+    <p id="hm-err" class="hm-err"></p>
+    <p class="dim">Default observe. Manual stops are not started. Ollama/qBit/Transmission never auto-repair.</p>
   </section>
 </div>
 <div id="pane-dock" hidden>
@@ -1332,6 +1420,7 @@ async function loadThoughts() {
     if (!box) return;
     const items = d.items || [];
     if (globalThis.HelixNoc) HelixNoc.ingestThoughts(items);
+    if (globalThis.HelixHermes && HelixHermes.hasChat && HelixHermes.hasChat()) return;
     const label = (it) => {
       if (it.kind === "thought") return null;
       if (it.kind === "user" || it.kind === "prompt") return { who: "req", text: "REQUEST RECEIVED" };
@@ -1525,7 +1614,7 @@ loadSkills();
 setInterval(loadSkills, 5000);
 
 const pf = document.getElementById("prompt-form");
-const CLI_CMDS = ["help","about","status","clear","whoami","uptime","node","orbit","tokyo","helix","matrix","memory","network","operations","system","archive","docker","security","clients","ops","net","sec","dock","trace","cognitive","remote","lights","lighting"];
+const CLI_CMDS = ["help","about","status","clear","whoami","uptime","node","orbit","tokyo","helix","matrix","memory","network","operations","system","archive","docker","security","clients","ops","net","sec","dock","trace","cognitive","remote","lights","lighting","voice","compute","home","control","room","medic"];
 function cliOut(text) {
   const box = document.getElementById("thoughts");
   if (!box) return;
@@ -1574,6 +1663,10 @@ function runCli(raw) {
     lights: "__tab:lights",
     lighting: "__tab:lights",
     voice: "__tab:voice",
+    compute: "__tab:compute",
+    control: "__tab:control",
+    home: "__tab:control",
+    medic: "__tab:medic",
     memory: "__tab:matrix",
   };
   if (cmd === "clear") {
@@ -1586,6 +1679,53 @@ function runCli(raw) {
     const rest = text.slice(cmd.length).trim();
     const msg = (globalThis.HelixRemote && HelixRemote.cli(rest)) || "REMOTE MATRIX";
     cliOut(msg);
+    return true;
+  }
+  if (cmd === "compute") {
+    selectTab("compute");
+    const rest = text.slice(cmd.length).trim().toLowerCase();
+    const pin = { status: "", auto: "auto", mac: "mac", unraid: "unraid", ollama: "ollama", cloud: "cloud" };
+    if (!rest || rest === "status") {
+      fetch(api("/api/compute/status"), { cache: "no-store" }).then((r) => r.json()).then((d) => {
+        cliOut("COMPUTE " + (d.mode || "auto").toUpperCase() + "\\nMAC " + (d.mac_hermes && d.mac_hermes.status) + "\\nUNRAID " + (d.unraid_hermes && d.unraid_hermes.status) + "\\nOLLAMA " + (d.ollama && d.ollama.status) + "\\nHONCHO " + (d.honcho && d.honcho.status) + "\\nCLOUD " + (d.cloud && d.cloud.status));
+      }).catch(() => cliOut("COMPUTE STATUS FAIL"));
+      return true;
+    }
+    if (pin[rest] !== undefined && rest !== "status") {
+      fetch(api("/api/compute/route"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target: rest, message: "" }) })
+        .then((r) => r.json()).then((d) => cliOut("COMPUTE TARGET " + String(d.target || rest).toUpperCase()))
+        .catch(() => cliOut("COMPUTE PIN FAIL"));
+      if (globalThis.HelixCompute) HelixCompute.load();
+      return true;
+    }
+    cliOut("compute status|auto|mac|unraid|ollama|cloud");
+    return true;
+  }
+  if (cmd === "helix") {
+    const rest = text.slice(cmd.length).trim().toLowerCase();
+    if (rest === "doctor") {
+      fetch(api("/api/helix/doctor"), { cache: "no-store" }).then((r) => r.json()).then((d) => {
+        cliOut("HELIX DOCTOR " + (d.overall || "") + "\n" + (d.checks || []).map((c) => c.name + " " + c.state).join("\n"));
+      }).catch(() => cliOut("DOCTOR FAIL"));
+      return true;
+    }
+  }
+  if (cmd === "home" || cmd === "control" || cmd === "room" || ((cmd === "lights" || cmd === "lighting") && text.split(/\s+/).length > 1)) {
+    if (cmd === "home" || cmd === "control") selectTab("control");
+    const rest = text.slice(cmd.length).trim().toLowerCase();
+    if ((cmd === "home" || cmd === "control") && (!rest || rest === "status" || rest === "rooms" || rest === "devices")) {
+      const cap = rest === "rooms" ? "home.rooms" : rest === "devices" ? "home.devices" : "home.status";
+      fetch(api("/api/home"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ capability: cap, dry_run: false }) })
+        .then((r) => r.json()).then((d) => {
+          if (d.rooms) cliOut((d.rooms || []).map((x) => (x.label || x.name) + " lights " + x.lights + " online " + x.online).join("\n") || "HOME");
+          else if (d.devices) cliOut(String((d.devices || []).length) + " DEVICES");
+          else cliOut("HOME " + (d.home || "") + " · " + JSON.stringify(d.telemetry || {}));
+        }).catch(() => cliOut("HOME CONTROL UNAVAILABLE"));
+      return true;
+    }
+    fetch(api("/api/home"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, dry_run: false }) })
+      .then((r) => r.json()).then((d) => cliOut(d.speak || d.error || d.status || "HOME"))
+      .catch(() => cliOut("HOME CONTROL UNAVAILABLE"));
     return true;
   }
   if (map[cmd]) {
@@ -1610,9 +1750,10 @@ if (pf) pf.addEventListener("submit", async (e) => {
     if (ta) ta.value = "";
     return;
   }
-  await fetch(api("/api/prompt"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+  fetch(api("/api/prompt"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) }).catch(() => {});
   if (ta) ta.value = "";
-  loadThoughts();
+  if (typeof sendToHermes === "function") sendToHermes(text);
+  else loadThoughts();
 });
 window._helixHist = [];
 document.getElementById("prompt-in")?.addEventListener("keydown", (e) => {
@@ -1705,7 +1846,7 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-tab]");
   if (!b) return;
   const tab = b.dataset.tab;
-  const names = { ops: "01 OPERATIONS", net: "02 NETWORK", sec: "03 SYSTEM", dock: "04 ARCHIVE", trace: "05 TRACE", remote: "06 REMOTE", matrix: "07 MEMORY", lights: "08 LIGHTING", voice: "09 VOICE" };
+  const names = { ops: "01 OPERATIONS", net: "02 NETWORK", sec: "03 SYSTEM", dock: "04 ARCHIVE", trace: "05 TRACE", remote: "06 REMOTE", matrix: "07 MEMORY", lights: "08 LIGHTING", voice: "09 VOICE", compute: "10 COMPUTE", control: "11 CONTROL", medic: "12 MEDIC" };
   const flash = document.getElementById("modflash");
   const go = () => {
     document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
@@ -1723,6 +1864,15 @@ document.getElementById("tabs").addEventListener("click", (e) => {
     if (pl) pl.hidden = tab !== "lights";
     const pv = document.getElementById("pane-voice");
     if (pv) pv.hidden = tab !== "voice";
+    const pc = document.getElementById("pane-compute");
+    if (pc) pc.hidden = tab !== "compute";
+    const ph = document.getElementById("pane-control");
+    if (ph) ph.hidden = tab !== "control";
+    const pmd = document.getElementById("pane-medic");
+    if (pmd) pmd.hidden = tab !== "medic";
+    if (tab === "compute" && globalThis.HelixCompute) HelixCompute.load();
+    if (tab === "control" && globalThis.HelixControl) HelixControl.load();
+    if (tab === "medic" && globalThis.HelixMedic) HelixMedic.load();
     document.body.classList.toggle("trace-open", tab === "trace" && matchMedia("(max-width: 767px)").matches);
     document.body.classList.toggle("remote-open", tab === "remote" && matchMedia("(max-width: 767px)").matches);
     document.body.classList.toggle("matrix-open", tab === "matrix" && matchMedia("(max-width: 767px)").matches);
@@ -1862,7 +2012,7 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0497";
+    const ASSET_V = "hos0503";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;
@@ -1877,7 +2027,7 @@ async function loadClients() {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register(p + "/helix-sw.js", { scope: p ? p + "/" : "/" }).catch(() => {});
     }
-    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-lights.css", "helix-voice.css", "helix-tablet.css"].forEach((href) => {
+    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-lights.css", "helix-voice.css", "helix-compute.css", "helix-control.css", "helix-medic.css", "helix-tablet.css"].forEach((href) => {
       const css = document.createElement("link");
       css.rel = "stylesheet";
       css.href = p + "/" + href + "?v=" + ASSET_V;
@@ -1912,15 +2062,28 @@ async function loadClients() {
     const ljs = document.createElement("script");
     ljs.src = p + "/helix-lights.js?v=" + ASSET_V;
     ljs.onload = function () { HelixLights.mount(); };
+    const hjs = document.createElement("script");
+    hjs.src = p + "/helix-hermes.js?v=" + ASSET_V;
+    hjs.onload = function () { HelixHermes.mount(); };
     const vjs = document.createElement("script");
     vjs.src = p + "/helix-voice.js?v=" + ASSET_V;
     vjs.onload = function () { HelixVoice.mount(); };
+    const cjs = document.createElement("script");
+    cjs.src = p + "/helix-compute.js?v=" + ASSET_V;
+    const kjs = document.createElement("script");
+    kjs.src = p + "/helix-control.js?v=" + ASSET_V;
+    const mdjs = document.createElement("script");
+    mdjs.src = p + "/helix-medic.js?v=" + ASSET_V;
+    document.body.appendChild(hjs);
     document.body.appendChild(ajs);
     document.body.appendChild(tjs);
     document.body.appendChild(rjs);
     document.body.appendChild(mjs);
     document.body.appendChild(ljs);
     document.body.appendChild(vjs);
+    document.body.appendChild(cjs);
+    document.body.appendChild(kjs);
+    document.body.appendChild(mdjs);
 
     (function fieldTerm() {
       const mq = matchMedia("(max-width: 767px)");

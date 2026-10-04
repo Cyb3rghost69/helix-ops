@@ -31,6 +31,16 @@ helix-remote.json
 helix-lights.json
 helix-lights.json.tmp
 helix-voice.jsonl
+helix-compute.json
+helix-compute.json.tmp
+helix-compute-jobs.json
+helix-compute-jobs.json.tmp
+helix-control-prefs.json
+helix-control-prefs.json.tmp
+helix-medic.json
+helix-medic.json.tmp
+helix-medic-incidents.json
+helix-medic-incidents.json.tmp
 
 .DS_Store
 .cache/

@@ -1,0 +1,9 @@
+/* HELIX MEDIC — CRT compact fleet health. Not a redesign. */
+.hm { color: var(--ok); }
+.hm-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; padding: 8px 2px 10px; border-bottom: 1px solid var(--line); }
+.hm-head small { display: block; color: var(--dim); letter-spacing: 0.16em; font-size: 10px; }
+.hm-state { letter-spacing: 0.22em; font-size: 16px; margin: 12px 0 8px; color: var(--ok); }
+.hm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.hm-card { border: 1px solid var(--line); background: #070b07; padding: 8px 10px; font-size: 12px; }
+.hm-err { color: var(--bad); min-height: 1.2em; font-size: 11px; }
+@media (max-width: 767px) { .hm-grid { grid-template-columns: 1fr; } }

@@ -154,16 +154,16 @@ def auth_open() -> bool:
 
 def write_ops_password(user: str, password: str) -> None:
     user = (user or "helix").strip() or "helix"
-    auth = (_ops_env().get("HELIX_OPS_AUTH") or "").strip()
-    extra = f"HELIX_OPS_AUTH={auth}\n" if auth else ""
-    AUTH_FILE.write_text(
-        "# Helix ops login — never paste this in Telegram\n"
-        f"HELIX_OPS_USER={user}\n"
-        f"HELIX_OPS_PASSWORD={password}\n"
-        "HELIX_OPS_SETUP=0\n"
-        + extra,
-        encoding="utf-8",
-    )
+    env = _ops_env()
+    env["HELIX_OPS_USER"] = user
+    env["HELIX_OPS_PASSWORD"] = password
+    env["HELIX_OPS_SETUP"] = "0"
+    lines = ["# Helix ops login — never paste this in Telegram"]
+    for k, v in env.items():
+        if k.startswith("#"):
+            continue
+        lines.append(f"{k}={v}")
+    AUTH_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
     AUTH_FILE.chmod(0o600)
 
 
@@ -2578,14 +2578,17 @@ class Handler(BaseHTTPRequestHandler):
         return
 
     def _send(self, code: int, body: bytes, ctype: str, extra: list[tuple[str, str]] | None = None):
-        self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        for k, v in extra or []:
-            self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            for k, v in extra or []:
+                self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            return
 
     def _prefix(self) -> str:
         raw = self.path.split("?", 1)[0]
@@ -2737,6 +2740,13 @@ class Handler(BaseHTTPRequestHandler):
             "/helix-lights.js": ("helix-lights.js", "application/javascript; charset=utf-8"),
             "/helix-voice.css": ("helix-voice.css", "text/css; charset=utf-8"),
             "/helix-voice.js": ("helix-voice.js", "application/javascript; charset=utf-8"),
+            "/helix-compute.css": ("helix-compute.css", "text/css; charset=utf-8"),
+            "/helix-compute.js": ("helix-compute.js", "application/javascript; charset=utf-8"),
+            "/helix-control.css": ("helix-control.css", "text/css; charset=utf-8"),
+            "/helix-control.js": ("helix-control.js", "application/javascript; charset=utf-8"),
+            "/helix-medic.css": ("helix-medic.css", "text/css; charset=utf-8"),
+            "/helix-medic.js": ("helix-medic.js", "application/javascript; charset=utf-8"),
+            "/helix-hermes.js": ("helix-hermes.js", "application/javascript; charset=utf-8"),
             "/helix-tablet.css": ("helix-tablet.css", "text/css; charset=utf-8"),
             "/helix-sw.js": ("helix-sw.js", "application/javascript; charset=utf-8"),
             "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png"),
@@ -2838,6 +2848,67 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json; charset=utf-8",
             )
             return
+        if path == "/api/compute/status":
+            from helix_compute import status_api
+            self._send(
+                200,
+                json.dumps(status_api(), ensure_ascii=False).encode(),
+                "application/json; charset=utf-8",
+            )
+            return
+        if path == "/api/compute/caps":
+            import helix_compute_v2 as v2
+            self._send(200, json.dumps(v2.list_caps(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/compute/doctor":
+            import helix_compute_v2 as v2
+            self._send(200, json.dumps(v2.doctor(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/helix/doctor":
+            import helix_control as hctl
+            self._send(200, json.dumps(hctl.doctor(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/home":
+            try:
+                import helix_control as hctl
+                body = json.dumps(hctl.invoke("home.status"), ensure_ascii=False).encode()
+            except Exception:
+                body = json.dumps({"ok": False, "error": "HOME CONTROL UNAVAILABLE", "home": "OFFLINE"}).encode()
+            self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path == "/api/events":
+            import helix_control as hctl
+            self._send(200, json.dumps({"ok": True, "events": hctl.events()}, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/medic":
+            try:
+                import helix_medic as medic
+                body = json.dumps(medic.snapshot(), ensure_ascii=False).encode()
+            except Exception:
+                body = json.dumps({"ok": False, "error": "MEDIC UNAVAILABLE", "fleet": "UNKNOWN"}).encode()
+            self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path == "/api/compute/jobs":
+            import helix_jobs
+            self._send(200, json.dumps(helix_jobs.list_jobs(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path.startswith("/api/compute/jobs/"):
+            import helix_jobs
+            rest = path[len("/api/compute/jobs/"):]
+            parts = [p for p in rest.split("/") if p]
+            if not parts:
+                self._send(404, b"not found", "text/plain")
+                return
+            jid = parts[0]
+            if len(parts) == 1:
+                out = helix_jobs.get_job(jid)
+            elif parts[1] == "events":
+                out = helix_jobs.events(jid)
+            else:
+                out = {"ok": False, "error": "not found"}
+            code = 200 if out.get("ok") else 404
+            self._send(code, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
         if path == "/api/btop":
             self._send(
                 200,
@@ -2896,6 +2967,22 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json; charset=utf-8",
             )
             return
+        if path == "/api/hcompute":
+            from helix_compute import snapshot as hcompute_snapshot
+            self._send(
+                200,
+                json.dumps(hcompute_snapshot(), ensure_ascii=False).encode(),
+                "application/json; charset=utf-8",
+            )
+            return
+        if path == "/api/hermes/status":
+            import helix_hermes
+            self._send(
+                200,
+                json.dumps(helix_hermes.status(), ensure_ascii=False).encode(),
+                "application/json; charset=utf-8",
+            )
+            return
         if path == "/api/protect":
             self._send(
                 200,
@@ -2951,6 +3038,22 @@ class Handler(BaseHTTPRequestHandler):
             self._send(401, self._login_page("ACCESS DENIED"), "text/html; charset=utf-8")
             return
         if not self._gate(path, "POST"):
+            return
+        if path == "/api/hermes/chat":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 16000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            import helix_hermes
+            out = helix_hermes.chat(str(data.get("message") or ""), str(data.get("sessionId") or "helix-main"))
+            code = 200 if out.get("success") else helix_hermes.error_http(str(out.get("error") or "unavailable"))
+            if out.get("error") == "invalid":
+                code = 400
+            self._send(code, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
             return
         if path == "/api/mindscape/seed":
             body = json.dumps(seed_ms_graph(force=True), ensure_ascii=False).encode()
@@ -3014,6 +3117,49 @@ class Handler(BaseHTTPRequestHandler):
             body = json.dumps(lights_act(data if isinstance(data, dict) else {}), ensure_ascii=False).encode()
             self._send(200, body, "application/json; charset=utf-8")
             return
+        if path == "/api/home":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 8000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            import helix_control as hctl
+            dry = bool(data.get("dry_run"))
+            if data.get("text"):
+                u = hctl.resolve_utterance(str(data.get("text") or ""))
+                if not u.get("ok"):
+                    self._send(200, json.dumps(u, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+                    return
+                out = hctl.invoke(u["capability"], u.get("params") or {}, dry_run=dry)
+                out["resolved"] = u
+                self._send(200, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+                return
+            cap = str(data.get("capability") or data.get("action") or "")
+            params = data.get("params") if isinstance(data.get("params"), dict) else {k: v for k, v in data.items() if k not in ("capability", "action", "dry_run", "params")}
+            out = hctl.invoke(cap, params, dry_run=dry)
+            self._send(200, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/medic":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 8000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            import helix_medic as medic
+            if data.get("text"):
+                out = medic.query(str(data.get("text") or ""))
+            elif data.get("mode") and data.get("name"):
+                out = medic.set_mode(str(data.get("name")), str(data.get("mode")))
+            else:
+                out = medic.propose(str(data.get("task") or data.get("action") or ""))
+            self._send(200, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
         if path == "/api/voice":
             n = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(max(0, min(n, 2000000)))
@@ -3023,6 +3169,102 @@ class Handler(BaseHTTPRequestHandler):
                 data = {}
             from helix_voice import act as voice_act
             body = json.dumps(voice_act(data if isinstance(data, dict) else {}), ensure_ascii=False).encode()
+            self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path == "/api/compute/plan":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 8000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            import helix_jobs
+            exe = True if not isinstance(data, dict) else data.get("execute", True)
+            task = str((data or {}).get("task") or (data or {}).get("message") or "")
+            pol = str((data or {}).get("policy") or "")
+            if exe:
+                out = helix_jobs.plan_job(task, policy=pol or None)
+            else:
+                import helix_compute_v2 as v2
+                out = v2.make_plan(task, policy=pol or None)
+            self._send(200, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/compute/policy":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 2000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            import helix_compute_v2 as v2
+            out = v2.set_policy(str((data or {}).get("policy") or (data or {}).get("name") or ""))
+            self._send(200, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/compute/route":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 16000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            from helix_compute import route_api
+            msg = str(data.get("message") or data.get("task") or "")
+            tgt = str(data.get("target") or "auto")
+            exe = data.get("execute")
+            if exe is None:
+                exe = True
+            sid = str(data.get("sessionId") or data.get("session_id") or "helix-main")
+            out = route_api(msg, tgt, execute=bool(exe), session_id=sid)
+            self._send(200, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/compute/jobs":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 8000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            import helix_jobs
+            out = helix_jobs.create_job(str((data or {}).get("task") or (data or {}).get("message") or ""), kind=str((data or {}).get("kind") or ""))
+            self._send(200, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path.startswith("/api/compute/jobs/"):
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 4000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            import helix_jobs
+            rest = path[len("/api/compute/jobs/"):]
+            parts = [p for p in rest.split("/") if p]
+            if len(parts) < 2:
+                self._send(404, b"not found", "text/plain")
+                return
+            jid, verb = parts[0], parts[1]
+            if verb == "approve":
+                allow = True if not isinstance(data, dict) else data.get("allow", True)
+                out = helix_jobs.approve_job(jid, allow=bool(allow))
+            elif verb == "steer":
+                out = helix_jobs.steer_job(jid, str((data or {}).get("message") or ""))
+            elif verb == "stop":
+                out = helix_jobs.stop_job(jid)
+            else:
+                out = {"ok": False, "error": "not found"}
+            code = 200 if out.get("ok") else 404
+            self._send(code, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/hcompute":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 8000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            from helix_compute import act as hcompute_act
+            body = json.dumps(hcompute_act(data if isinstance(data, dict) else {}), ensure_ascii=False).encode()
             self._send(200, body, "application/json; charset=utf-8")
             return
         if path == "/api/protect/hook":
@@ -3052,6 +3294,11 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     ensure_ops_auth()
+    try:
+        import helix_medic as medic
+        medic.start_loop()
+    except Exception:
+        pass
     httpd = ThreadingHTTPServer((HOST, PORT), Handler)
     httpd.serve_forever()
 

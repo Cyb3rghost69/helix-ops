@@ -161,6 +161,11 @@ COLORS = {
     "green": [124, 255, 122],
     "red": [200, 16, 8],
     "blue": [40, 80, 220],
+    "purple": [160, 32, 240],
+    "pink": [255, 80, 160],
+    "orange": [255, 120, 20],
+    "yellow": [255, 210, 40],
+    "cyan": [40, 200, 220],
     "warm white": None,
 }
 
@@ -179,6 +184,16 @@ def parse_intent(text: str) -> dict:
         if k in t:
             room = v
             break
+    if room is None and re.search(r"\b(them|those|those lights)\b", t):
+        try:
+            from helix_control import context_room
+            room = context_room()
+        except Exception:
+            room = None
+    if re.search(r"\bgood\s*night\b", t):
+        return {"ok": True, "tool": "home.scene.apply", "args": {"scene": "good-night"}, "permission": LOW, "confidence": 0.9}
+    if room and re.search(r"what('s| is) on|what is happening|\bstatus\b", t) and not re.search(r"\b(on|off|percent|bright|dim|colour|color)\b", t.replace("what's on", " ")):
+        return {"ok": True, "tool": "home.room.status", "args": {"room": room}, "permission": READ, "confidence": 0.86}
     m_pct = re.search(r"(\d{1,3})\s*(%|percent)", t)
     pct = int(m_pct.group(1)) if m_pct else None
     if pct is None:
@@ -189,8 +204,18 @@ def parse_intent(text: str) -> dict:
     if pct is not None:
         pct = max(10, min(100, pct))
 
+    if re.search(r"\b(delete|wipe|destroy)\b", t) and re.search(r"\b(plex|appdata)\b", t):
+        return {"ok": True, "tool": "compute.destructive", "args": {"task": text.strip()}, "permission": DESTRUCTIVE, "confidence": 0.9, "speak_ask": "That is destructive. Approval is required on Helix COMPUTE. Voice is not approval."}
     if re.search(r"\b(shut\s*down|power\s*off|wipe|format|delete|destroy)\b", t) and re.search(r"\b(bigboi|unraid|server|array)\b", t):
         return {"ok": True, "tool": "server.shutdown", "args": {}, "permission": DESTRUCTIVE, "confidence": 0.9, "speak_ask": "Confirm shutdown of BigBoi?"}
+    if re.search(r"restart\s+plex", t):
+        return {"ok": True, "tool": "compute.privileged", "args": {"task": "restart plex"}, "permission": SENSITIVE, "confidence": 0.86, "speak_ask": "Restart Plex needs Helix approval. Voice is not approval."}
+    if re.search(r"\b(unhealthy|what containers are unhealthy|what is wrong with|what's wrong with|why did .+ restart|what did medic|waiting for approval)\b", t):
+        return {"ok": True, "tool": "medic.query", "args": {"text": text.strip()}, "permission": READ, "confidence": 0.8}
+    if re.search(r"observe mode|disable auto repair", t):
+        return {"ok": True, "tool": "medic.query", "args": {"text": text.strip()}, "permission": LOW, "confidence": 0.8}
+    if re.search(r"docker", t) and re.search(r"\b(check|list|status|all)\b", t):
+        return {"ok": True, "tool": "compute.docker_read", "args": {}, "permission": READ, "confidence": 0.88}
 
     if "rustdesk" in t or "remote desktop" in t:
         return {"ok": True, "tool": "rustdesk.status", "args": {}, "permission": READ, "confidence": 0.85}
@@ -282,10 +307,25 @@ def execute(intent: dict, confirm: bool = False) -> dict:
         return {"ok": False, "need_confirm": True, "permission": perm, "speak": intent.get("speak_ask") or "Confirm that action?", "tool": tool}
     if perm == SENSITIVE and not confirm:
         return {"ok": False, "need_confirm": True, "permission": perm, "speak": intent.get("speak_ask") or "Confirm that control action?", "tool": tool}
-    if perm == DESTRUCTIVE:
+    if perm == DESTRUCTIVE and tool not in ("compute.destructive", "compute.privileged"):
         return {"ok": False, "error": "refused", "speak": "I will not run destructive actions from voice.", "permission": perm}
 
     result: dict = {"ok": False}
+    if tool == "medic.query":
+        import helix_medic as medic
+        result = medic.query(str(args.get("text") or ""))
+        speak = result.get("speak") or result.get("error") or "Medic."
+        _TELEM["tool_ms"] = int((time.time() - t0) * 1000)
+        return {"ok": bool(result.get("ok")), "tool": tool, "permission": perm, "result": {"ok": result.get("ok")}, "speak": speak}
+    if tool and tool.startswith("home."):
+        from helix_control import invoke as home_invoke
+        result = home_invoke(tool, args)
+        speak = result.get("speak") or (result.get("error") if not result.get("ok") else "Home updated.")
+        if result.get("error") == "HOME CONTROL UNAVAILABLE":
+            speak = "HOME CONTROL UNAVAILABLE"
+        slim_home = {k: result.get(k) for k in ("ok", "error", "room", "status", "speak") if k in result}
+        _TELEM["tool_ms"] = int((time.time() - t0) * 1000)
+        return {"ok": bool(result.get("ok")), "tool": tool, "permission": perm, "result": slim_home, "speak": speak}
     if tool and tool.startswith("lights."):
         from helix_lights import act as lights_act, snapshot as lights_snap
         if tool == "lights.list":
@@ -331,6 +371,11 @@ def execute(intent: dict, confirm: bool = False) -> dict:
             speak = _speak_lights(result, intent)
         else:
             speak = "Unknown lighting tool."
+        try:
+            from helix_control import remember
+            remember((args or {}).get("group"))
+        except Exception:
+            pass
     elif tool == "rustdesk.status":
         from rustdesk_remote import snapshot as rd
         # run callback not available — return short offline-safe text
@@ -360,20 +405,40 @@ def execute(intent: dict, confirm: bool = False) -> dict:
         if rtt is not None:
             speak = f"BigBoi is online, about {rtt} milliseconds. Honcho is {'up' if honcho else 'down'}."
         result = {"ok": rtt is not None, "ping_ms": rtt, "honcho": honcho}
+    elif tool == "compute.docker_read":
+        from helix_compute import run_bigboi
+        res = run_bigboi("docker")
+        speak = "Docker on BigBoi: " + (res.get("out") or res.get("error") or "no data")[:120]
+        result = {"ok": bool(res.get("ok")), "queued": False}
+    elif tool == "compute.privileged":
+        import helix_jobs
+        helix_jobs.create_job(str(args.get("task") or "restart plex"))
+        speak = "Privileged action needs Helix COMPUTE approval. Voice is not approval."
+        result = {"ok": True, "queued": True}
+    elif tool == "compute.destructive":
+        import helix_jobs
+        helix_jobs.create_job(str(args.get("task") or "destructive"))
+        speak = "Destructive action is waiting on Helix COMPUTE. Voice is not approval."
+        result = {"ok": True, "queued": True}
     elif tool == "agent.prompt":
         rec = {"t": time.strftime("%Y-%m-%dT%H:%M:%S"), "text": str(args.get("text") or "")[:400], "src": "voice"}
         log = ROOT / "prompts.jsonl"
         with log.open("a") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        speak = "Logged as an operator prompt. Use the CLI for a full Hermes turn."
-        result = {"ok": True, "queued": True}
+        text = str(args.get("text") or "").strip()
+        speak = "Routing to Hermes."
+        result = {"ok": True, "queued": True, "route": "hermes", "transcript": text}
     else:
         speak = "I did not map that to a Helix tool."
         result = {"ok": False, "error": "unmapped"}
 
     _TELEM["tool_ms"] = int((time.time() - t0) * 1000)
-    slim = {k: result.get(k) for k in ("ok", "error", "telemetry", "ping_ms", "honcho", "queued") if k in result}
-    return {"ok": bool(result.get("ok", True)), "tool": tool, "permission": perm, "result": slim, "speak": speak}
+    slim = {k: result.get(k) for k in ("ok", "error", "telemetry", "ping_ms", "honcho", "queued", "route", "transcript") if k in result}
+    out = {"ok": bool(result.get("ok", True)), "tool": tool, "permission": perm, "result": slim, "speak": speak}
+    if result.get("route"):
+        out["route"] = result["route"]
+        out["transcript"] = result.get("transcript") or ""
+    return out
 
 
 def transcribe_audio(data: bytes, mime: str = "") -> str:
