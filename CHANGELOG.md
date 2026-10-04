@@ -33,4 +33,5 @@
 
 ### Security
 
+- HELIX Medic 1.2 — isolated tests, GET `/api/medic` does not tick fail counts, auto-restart writes `docker_diagnosis` then COMPLETE, prune ghost desired names. Live guard stays allowlisted bash; capabilities-only stub not deployed.
 - Runtime secrets (`ops.env`, `unifi.env`) excluded from version control.

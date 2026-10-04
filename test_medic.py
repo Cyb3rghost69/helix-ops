@@ -1,9 +1,43 @@
+import tempfile
+import time
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
+import helix_jobs
 import helix_medic as m
 
 
-class GuardPolicy(unittest.TestCase):
+class IsolatedMedicTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory(prefix="medic-test-")
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        for module, attr, filename in (
+            (m, "STATE", "medic.json"),
+            (m, "INCIDENTS", "incidents.json"),
+            (helix_jobs, "STATE", "jobs.json"),
+        ):
+            p = patch.object(module, attr, root / filename)
+            p.start()
+            self.addCleanup(p.stop)
+        p = patch.object(m, "_MOCK", None)
+        p.start()
+        self.addCleanup(p.stop)
+        st = m._load()
+        st["modes"] = {}
+        st["desired"] = {}
+        st["restarts"] = {}
+        st["fail_counts"] = {}
+        pol = dict(st.get("policy") or {})
+        pol["auto_restart"] = True
+        pol["never_autorepair"] = ["ollama", "transmission"]
+        pol["failure_threshold"] = 3
+        st["policy"] = pol
+        m._save(st)
+
+
+class GuardPolicy(IsolatedMedicTest):
     def test_unknown_cmd_denied(self):
         r = m.guard("rm", mock={"cmds": {}})
         self.assertTrue(r.get("denied"))
@@ -24,22 +58,12 @@ class GuardPolicy(unittest.TestCase):
         self.assertFalse(m.NAME_RE.match("plex; docker rm"))
         self.assertTrue(m.NAME_RE.match("Plex-Media-Server"))
 
+    def test_plain_cmd_rejects_extra(self):
+        r = m.guard("ps", extra="--all", mock={"cmds": {"ps": "x"}})
+        self.assertTrue(r.get("denied"))
 
-class Observe(unittest.TestCase):
-    def setUp(self):
-        m._MOCK = None
-        st = m._load()
-        st["modes"] = {}
-        st["desired"] = {}
-        st["restarts"] = {}
-        st["fail_counts"] = {}
-        pol = dict(st.get("policy") or {})
-        pol["auto_restart"] = True
-        pol["never_autorepair"] = ["ollama", "transmission"]
-        pol["failure_threshold"] = 3
-        st["policy"] = pol
-        m._save(st)
 
+class Observe(IsolatedMedicTest):
     def test_healthy_fleet(self):
         mock = {"cmds": {"ps": "Plex-Media-Server|running|Up 3h|plex|abc\nHermes-Agent|running|Up 1h|hermes|def"}}
         r = m.reconcile(mock=mock, mutate=False)
@@ -60,8 +84,6 @@ class Observe(unittest.TestCase):
             "restart:Plex-Media-Server": "Plex-Media-Server",
         }}
         m.set_mode("Plex-Media-Server", m.OBSERVE)
-        # first reconcile sets desired running? exited on first see -> stopped
-        # force desired running
         st = m._load()
         st["desired"]["Plex-Media-Server"] = "running"
         m._save(st)
@@ -77,7 +99,7 @@ class Observe(unittest.TestCase):
         m.set_mode("demo", m.RESTART)
         st = m._load()
         st["desired"]["demo"] = "running"
-        st["restarts"] = {"demo": [time_now() - 10, time_now() - 5]}
+        st["restarts"] = {"demo": [time.time() - 10, time.time() - 5]}
         m._save(st)
         r = m.reconcile(mock=mock, mutate=True)
         self.assertTrue(any((a or {}).get("status") == m.ESCALATED for a in r.get("actions") or []))
@@ -120,6 +142,20 @@ class Observe(unittest.TestCase):
         m._save(st)
         r = m.reconcile(mock=mock, mutate=True)
         self.assertTrue(any((a or {}).get("status") == "RECOVERING" for a in r.get("actions") or []))
+        jobs = helix_jobs.list_jobs()
+        completed = jobs.get("completed") or []
+        self.assertTrue(any(j.get("kind") == "docker_diagnosis" and j.get("status") == helix_jobs.COMPLETE for j in completed))
+
+    def test_ghost_desired_pruned(self):
+        mock = {"cmds": {"ps": "Hermes-Agent|running|Up 1h|hermes|def"}}
+        st = m._load()
+        st["desired"]["helix-medic-probe"] = "running"
+        st["fail_counts"]["helix-medic-probe"] = 3
+        m._save(st)
+        m.reconcile(mock=mock, mutate=False, tick=True)
+        st2 = m._load()
+        self.assertNotIn("helix-medic-probe", st2.get("desired") or {})
+        self.assertNotIn("helix-medic-probe", st2.get("fail_counts") or {})
 
     def test_ollama_never_autorepair(self):
         mock = {"cmds": {
@@ -143,10 +179,20 @@ class Observe(unittest.TestCase):
         self.assertEqual(r["fleet"], "HEALTHY")
         self.assertFalse(any((a or {}).get("status") == "RECOVERING" for a in r.get("actions") or []))
 
+    def test_snapshot_does_not_tick_failures(self):
+        mock = {"cmds": {"ps": "Plex-Media-Server|exited|Exited (137)|plex|abc"}}
+        st = m._load()
+        st["desired"]["Plex-Media-Server"] = "running"
+        st["fail_counts"] = {"Plex-Media-Server": 1}
+        m._save(st)
+        m.snapshot(mock=mock)
+        self.assertEqual(m._load()["fail_counts"].get("Plex-Media-Server"), 1)
 
-def time_now():
-    import time
-    return time.time()
+    def test_guard_down_is_not_healthy(self):
+        r = m.reconcile(mock={"cmds": {}}, mutate=False)
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["fleet"], "CRITICAL")
+        self.assertNotEqual(m._load().get("fleet"), "HEALTHY")
 
 
 if __name__ == "__main__":

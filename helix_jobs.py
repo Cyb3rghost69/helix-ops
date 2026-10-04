@@ -35,6 +35,8 @@ COMPLETE = "COMPLETE"
 FAILED = "FAILED"
 STOPPED = "STOPPED"
 
+MEDIC_KINDS = ("docker_diagnosis", "docker_repair", "docker_verification")
+
 _LOCK = threading.Lock()
 _THREADS: dict[str, threading.Event] = {}
 
@@ -66,7 +68,24 @@ def classify_policy(task: str) -> str:
         )
     ):
         return DESTRUCTIVE
-    if any(k in t for k in ("restart plex", "docker start", "docker stop", "docker restart", "restart container", "medic escalate", "medic recreate")):
+    if any(
+        k in t
+        for k in (
+            "restart plex",
+            "docker start",
+            "docker stop",
+            "docker restart",
+            "restart container",
+            "medic escalate",
+            "medic recreate",
+            "pull a new image",
+            "pull image",
+            "change environment",
+            "change env",
+            "volume mapping",
+            "docker network",
+        )
+    ):
         return PRIVILEGED
     if any(k in t for k in ("python on bigboi", "cpu identity", "sleep job", "harmless")):
         return SAFE
@@ -133,6 +152,66 @@ def _put(job: dict) -> dict:
     st["jobs"] = jobs[-MAX_JOBS:]
     _save(st)
     return job
+
+
+def create_medic_job(task: str, kind: str, approval_required: bool,
+                     card: dict | None = None, metadata: dict | None = None) -> dict:
+    """Record structured Medic work without routing or executing prose."""
+    if kind not in MEDIC_KINDS:
+        return {"ok": False, "error": "invalid Medic kind"}
+    needs_approval = kind == "docker_repair" or bool(approval_required)
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    job = {
+        "id": "job_" + uuid.uuid4().hex[:12],
+        "task": (task or "")[:240],
+        "target": "BIGBOI",
+        "kind": kind,
+        "source": "medic",
+        "model": None,
+        "provider": None,
+        "worker": "medic-controller",
+        "created": now,
+        "started": None if needs_approval else now,
+        "duration": None,
+        "status": WAITING_APPROVAL if needs_approval else RUNNING,
+        "progress": 0,
+        "approval_required": needs_approval,
+        "policy": PRIVILEGED if needs_approval else READ,
+        "result": "",
+        "error": None,
+        "events": [],
+        "run_id": None,
+        "card": card or {},
+        "metadata": metadata or {},
+    }
+    _event(job, "Medic waiting approval — not executed" if needs_approval else "Medic controller started")
+    with _LOCK:
+        _put(job)
+    return {"ok": True, "job": job}
+
+
+def update_medic_job(jid: str, status: str, result: str = "", error: str | None = None) -> dict:
+    allowed = {RUNNING, WAITING_APPROVAL, COMPLETE, STOPPED, FAILED}
+    if status not in allowed:
+        return {"ok": False, "error": "invalid status"}
+    with _LOCK:
+        g = None
+        for j in _load().get("jobs") or []:
+            if j.get("id") == jid:
+                g = j
+                break
+        if not g:
+            return {"ok": False, "error": "not found"}
+        if g.get("status") in (STOPPED, COMPLETE, FAILED) and status != g.get("status"):
+            return {"ok": False, "error": "terminal", "job": g}
+        g["status"] = status
+        if result:
+            g["result"] = result[:800]
+        if error is not None:
+            g["error"] = error
+        _event(g, "medic status " + status)
+        _put(g)
+        return {"ok": True, "job": g}
 
 
 def _machine_specific(task: str) -> bool:
@@ -303,7 +382,7 @@ def stop_job(jid: str) -> dict:
                 break
         if not g:
             return {"ok": False, "error": "not found"}
-        if g.get("status") in (RUNNING, PLANNING, COLLECTING, PROCESSING, REASONING):
+        if g.get("status") in (RUNNING, PLANNING, COLLECTING, PROCESSING, REASONING, WAITING_APPROVAL, QUEUED, ROUTING):
             g["status"] = STOPPED
             _event(g, "stop requested")
             _put(g)

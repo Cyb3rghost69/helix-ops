@@ -15,7 +15,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent
 STATE = ROOT / "helix-medic.json"
 INCIDENTS = ROOT / "helix-medic-incidents.json"
-VERSION = "1.1"
+VERSION = "1.2"
 
 HEALTHY = "HEALTHY"
 SUSPECT = "SUSPECT"
@@ -149,7 +149,7 @@ def forbidden(task: str) -> bool:
 
 
 def mode_of(st: dict, name: str, desired: str | None = None) -> str:
-    never = (st.get("policy") or DEFAULTS).get("never_autorepair") or []
+    never = ({**DEFAULTS, **(st.get("policy") or {})}).get("never_autorepair") or []
     if name in never:
         return OBSERVE
     m = (st.get("modes") or {}).get(name)
@@ -185,24 +185,28 @@ def set_mode(name: str, mode: str) -> dict:
 
 
 def guard(cmd: str, extra: str = "", *, mock: dict | None = None, timeout: int = 25) -> dict:
-    if extra and cmd in ("inspect", "mounts", "logs", "health", "start", "restart") and not NAME_RE.match(extra):
-        return {"ok": False, "error": "bad name"}
+    named = ("inspect", "mounts", "logs", "health", "start", "restart")
+    plain = ("version", "info", "ps", "stats", "ping")
+    if not isinstance(cmd, str) or not isinstance(extra, str):
+        return {"ok": False, "error": "bad arguments", "denied": True}
+    if cmd in named:
+        if not NAME_RE.fullmatch(extra):
+            return {"ok": False, "error": "bad name", "denied": True}
+    elif cmd in plain:
+        if extra:
+            return {"ok": False, "error": "unexpected arguments", "denied": True}
+    elif cmd == "events":
+        if extra and not (re.fullmatch(r"[1-9][0-9]{0,3}s", extra) and int(extra[:-1]) <= 3600):
+            return {"ok": False, "error": "bad event window", "denied": True}
+    else:
+        return {"ok": False, "error": "denied", "denied": True}
     mock = mock if mock is not None else _MOCK
     if mock is not None:
         key = cmd if not extra else f"{cmd}:{extra}"
-        if cmd in ("rm", "prune", "exec", "kill", "pull", "system"):
-            return {"ok": False, "error": "denied", "denied": True}
         row = (mock.get("cmds") or {}).get(key) or (mock.get("cmds") or {}).get(cmd)
         if row is None:
             return {"ok": False, "error": "denied", "denied": True}
         return {"ok": True, "out": str(row), "mocked": True}
-    if cmd not in (
-        "version", "info", "ps", "inspect", "mounts", "logs", "stats",
-        "health", "events", "start", "restart", "ping",
-    ):
-        return {"ok": False, "error": "denied", "denied": True}
-    if extra and cmd in ("inspect", "mounts", "logs", "health", "start", "restart") and not NAME_RE.match(extra):
-        return {"ok": False, "error": "bad name"}
     import subprocess
     from helix_compute import SSH_KEY, SSH_USER, UNRAID
     ssh = [
@@ -249,13 +253,18 @@ def _http_ok(url: str, timeout: float = 3.0) -> bool:
         return False
 
 
-def reconcile(*, mock: dict | None = None, mutate: bool = False) -> dict:
+def reconcile(*, mock: dict | None = None, mutate: bool = False, tick: bool = True) -> dict:
     st = _load()
     pol = {**DEFAULTS, **(st.get("policy") or {})}
     g = guard("ps", mock=mock)
     if not g.get("ok"):
         st["fleet"] = "CRITICAL"
         st["guard"] = "OFFLINE"
+        st["stale"] = True
+        for c in (st.get("containers") or {}).values():
+            if isinstance(c, dict):
+                c["stale"] = True
+                c["phase"] = "UNKNOWN"
         _save(st)
         return {"ok": False, "error": g.get("error") or "guard down", "fleet": "CRITICAL"}
     rows = parse_ps(g.get("out") or "")
@@ -267,18 +276,22 @@ def reconcile(*, mock: dict | None = None, mutate: bool = False) -> dict:
     for row in rows:
         name = row["name"]
         state = row["state"]
-        if name not in desired:
+        if tick and name not in desired:
             desired[name] = "running" if state == "running" else "stopped"
         phase = HEALTHY
         if state == "running":
             running += 1
-            fails[name] = 0
+            if tick:
+                fails[name] = 0
         elif desired.get(name) == "stopped":
-            fails[name] = 0
+            if tick:
+                fails[name] = 0
             phase = HEALTHY  # intentionally stopped
         else:
-            fails[name] = int(fails.get(name) or 0) + 1
-            phase = DIAGNOSING if fails[name] >= thresh else SUSPECT
+            if tick:
+                fails[name] = int(fails.get(name) or 0) + 1
+            fc = int(fails.get(name) or 0)
+            phase = DIAGNOSING if fc >= thresh else SUSPECT
         containers[name] = {
             **row,
             "host": "bigboi",
@@ -288,15 +301,19 @@ def reconcile(*, mock: dict | None = None, mutate: bool = False) -> dict:
             "fails": int(fails.get(name) or 0),
             "http": None,
         }
-    # HTTP probes (cheap, skip if mutate tests)
-    for name, url in (pol.get("http_probes") or {}).items():
-        if name in containers and containers[name].get("state") == "running" and mock is None:
-            ok = _http_ok(url)
-            containers[name]["http"] = ok
-            if not ok:
-                fails[name] = int(fails.get(name) or 0) + 1
-                containers[name]["fails"] = fails[name]
-                containers[name]["phase"] = DIAGNOSING if fails[name] >= thresh else SUSPECT
+    live_names = {r["name"] for r in rows}
+    if tick and rows:
+        desired = {k: v for k, v in desired.items() if k in live_names}
+        fails = {k: v for k, v in fails.items() if k in live_names}
+    if tick:
+        for name, url in (pol.get("http_probes") or {}).items():
+            if name in containers and containers[name].get("state") == "running" and mock is None:
+                ok = _http_ok(url)
+                containers[name]["http"] = ok
+                if not ok:
+                    fails[name] = int(fails.get(name) or 0) + 1
+                    containers[name]["fails"] = fails[name]
+                    containers[name]["phase"] = DIAGNOSING if fails[name] >= thresh else SUSPECT
     fleet = HEALTHY
     suspect = [n for n, c in containers.items() if c.get("phase") in (SUSPECT, DIAGNOSING, RECOVERING, ESCALATED)]
     if suspect:
@@ -304,11 +321,13 @@ def reconcile(*, mock: dict | None = None, mutate: bool = False) -> dict:
     if not rows:
         fleet = "CRITICAL"
     st["containers"] = containers
-    st["desired"] = desired
-    st["fail_counts"] = fails
+    if tick:
+        st["desired"] = desired
+        st["fail_counts"] = fails
+        st["last_reconcile"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     st["fleet"] = fleet
     st["guard"] = "ONLINE"
-    st["last_reconcile"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    st["stale"] = False
     st["counts"] = {"total": len(rows), "running": running, "healthy": len(rows) - len(suspect), "suspect": len(suspect)}
     _save(st)
 
@@ -346,7 +365,20 @@ def _maybe_repair(st: dict, name: str, *, mock: dict | None, pol: dict) -> dict 
     if len(hist) >= max_r:
         record_incident(host="bigboi", container=name, symptoms="restart storm", diagnosis="escalated", result="ESCALATED")
         import helix_jobs
-        helix_jobs.create_job(f"medic escalate {name} restart loop", kind="docker_repair")
+        helix_jobs.create_medic_job(
+            f"medic escalate {name} restart loop",
+            "docker_repair",
+            True,
+            card={
+                "what_failed": f"{name} restart loop",
+                "theory": "automatic restart cap reached",
+                "evidence": "restart window exceeded",
+                "proposed": "stop automatic repair; operator recreate/inspect",
+                "impact": "container stays down until approved",
+                "rollback": "re-enable observe/restart after fix",
+                "risk": "PRIVILEGED",
+            },
+        )
         return {"name": name, "status": ESCALATED}
     thresh = int(pol.get("failure_threshold") or 3)
     fails = int((st.get("fail_counts") or {}).get(name) or 0)
@@ -361,8 +393,38 @@ def _maybe_repair(st: dict, name: str, *, mock: dict | None, pol: dict) -> dict 
     )
     if mode == REPAIR:
         import helix_jobs
-        helix_jobs.create_job(f"medic recreate {name}", kind="docker_repair")
+        helix_jobs.create_medic_job(
+            f"medic recreate {name}",
+            "docker_repair",
+            True,
+            card={
+                "what_failed": f"{name} not running",
+                "theory": "repair mode requested recreate",
+                "evidence": sig.get("excerpt") or "",
+                "proposed": f"recreate {name}",
+                "impact": "brief outage; config/template compare required",
+                "rollback": "Unraid DockerMan template",
+                "risk": "PRIVILEGED",
+            },
+        )
         return {"name": name, "status": "WAITING_APPROVAL"}
+    import helix_jobs
+    diag = helix_jobs.create_medic_job(
+        f"medic diagnose {name}",
+        "docker_diagnosis",
+        False,
+        card={
+            "what_failed": f"{name} not in desired running state",
+            "theory": "consecutive failed polls",
+            "evidence": sig.get("excerpt") or "",
+            "proposed": f"restart {name}",
+            "impact": "brief interruption; no recreate",
+            "rollback": "container remains on existing image",
+            "risk": "LOW",
+        },
+        metadata={"container": name, "signatures": sig.get("signatures")},
+    )
+    jid = (diag.get("job") or {}).get("id") if isinstance(diag, dict) else None
     r = guard("restart", name, mock=mock, timeout=45)
     hist.append(time.time())
     with _LOCK:
@@ -370,12 +432,17 @@ def _maybe_repair(st: dict, name: str, *, mock: dict | None, pol: dict) -> dict 
         st2.setdefault("restarts", {})[name] = hist[-8:]
         _save(st2)
     if r.get("ok"):
-        return {"name": name, "status": "RECOVERING"}
+        if jid:
+            helix_jobs.update_medic_job(jid, helix_jobs.COMPLETE, result="restart issued")
+        return {"name": name, "status": "RECOVERING", "job": jid}
+    if jid:
+        helix_jobs.update_medic_job(jid, helix_jobs.FAILED, error=str(r.get("error") or "restart failed"))
     return {"name": name, "status": "FAILED", "error": r.get("error")}
 
 
 def snapshot(*, mock: dict | None = None) -> dict:
-    rec = reconcile(mock=mock, mutate=False)
+    # Dashboard GET is a projection. Failure counters only advance in the loop.
+    rec = reconcile(mock=mock, mutate=False, tick=False)
     st = _load()
     rows = list((st.get("containers") or {}).values())
     compact = rec.get("fleet") == HEALTHY or rec.get("fleet") == "HEALTHY"
@@ -417,7 +484,20 @@ def propose(task: str) -> dict:
     name = m.group(1) if m else ""
     if any(k in t for k in ("recreate", "remove", "pull", "rollback", "network", "env", "volume", "engine", "desktop")):
         import helix_jobs
-        job = helix_jobs.create_job(task, kind="docker_repair")
+        job = helix_jobs.create_medic_job(
+            task,
+            "docker_repair",
+            True,
+            card={
+                "what_failed": task,
+                "theory": "Higher-risk Docker change requested.",
+                "evidence": "policy: WAITING_APPROVAL",
+                "proposed": task,
+                "impact": "Service interruption possible.",
+                "rollback": "Re-apply Unraid template / previous container.",
+                "risk": "PRIVILEGED",
+            },
+        )
         return {
             "ok": True,
             "approval": True,

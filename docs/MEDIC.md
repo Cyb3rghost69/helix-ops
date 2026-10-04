@@ -33,6 +33,8 @@ Hermes / Helix ops (Mac)
 
 Default for **desired-running** containers: **auto-restart** after 3 consecutive failed polls (~90s). Intentionally stopped containers stay stopped. Hard never-autorepair: **ollama**, **transmission**. Recreate/rm/prune/engine still need approval or are forbidden. Mac Docker is not required and is not installed.
 
+Dashboard `GET /api/medic` is read-only (does not increment failure counters). `POST /api/medic` requires an existing HELIX session even if the rest of the board is `HELIX_OPS_AUTH=off`. Job APPROVE requires an explicit JSON boolean `allow`. Auto-restart records a `docker_diagnosis` job then `COMPLETE`. High-risk Medic work uses `create_medic_job` `docker_repair` and stays `WAITING_APPROVAL` with no executor. Desired entries for containers gone from `docker ps -a` are pruned. Do not replace the live guard with a capabilities-only stub.
+
 ## Threat model
 
 - LLM / dashboard cannot pass arbitrary docker/shell.
