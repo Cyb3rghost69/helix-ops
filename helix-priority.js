@@ -226,14 +226,6 @@
       const w = el.querySelector(".hx-why");
       if (w && primary[0] === id) w.textContent = "PROMOTED: " + row.why + " // " + row.score;
     });
-    const ft = document.querySelector(".ft-grid");
-    if (ft && document.body.classList.contains("field-term") && now() >= interactingUntil) {
-      const order = ["hermes", "cog", "system", "net", "memory", "remote", "botmesh", "events"];
-      const ranked = snapshot().map((x) => x.id);
-      const seq = ranked.filter((id) => order.includes(id)).concat(order.filter((id) => !ranked.includes(id)));
-      const cards = [...ft.children];
-      cards.forEach((c, i) => { c.style.order = String(Math.min(i, 20)); });
-    }
     const go = (tab) => {
       const b = document.querySelector('#tabs [data-tab="' + tab + '"]');
       if (b) b.click();
@@ -241,6 +233,32 @@
     document.getElementById("hx-attn-body")?.querySelectorAll("[data-hx-go]")?.forEach((b) => {
       b.onclick = () => go(b.getAttribute("data-hx-go"));
     });
+    applyHero(list);
+  }
+  function applyHero(list) {
+    const host = document.getElementById("hx-command");
+    if (!host || cfg.adaptive === false) return;
+    if (now() < interactingUntil) return;
+    const ranked = primary.concat(list.map((x) => x.id)).filter((v, i, a) => a.indexOf(v) === i);
+    host.querySelectorAll(":scope > [data-hx-panel]").forEach((el) => {
+      const id = el.getAttribute("data-hx-panel");
+      const i = ranked.indexOf(id);
+      el.style.order = i < 0 ? "9" : String(i);
+      el.classList.toggle("hx-hero", primary[0] === id);
+    });
+    const lab = document.getElementById("hx-primary-lab");
+    if (lab) {
+      const row = list.find((x) => x.id === primary[0]);
+      lab.textContent = row ? ("PRIMARY  " + row.label + "  ·  " + row.why) : "PRIMARY OPERATIONS";
+    }
+    const ft = document.querySelector(".ft-grid");
+    if (ft && document.body.classList.contains("field-term")) {
+      ft.querySelectorAll("[data-hx-ft]").forEach((c) => {
+        const id = c.getAttribute("data-hx-ft");
+        const i = ranked.indexOf(id);
+        if (i >= 0) c.style.order = String(i);
+      });
+    }
   }
   function esc(s) {
     return String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));

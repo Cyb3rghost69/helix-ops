@@ -229,6 +229,25 @@ body.hx-hel-night #hel-01, body.hx-hel-night #hel-01-desk { color: #4a7a5a; }
 }
 body.field-term #hx-command { display: none; }
 body.field-term #hx-env-sweep { display: none; }
+#hx-command { display: grid; }
+.hx-mod.hx-hero {
+  outline: 1px solid var(--hx-primary-dim);
+}
+@media (min-width: 1024px) {
+  .hx-mod.hx-hero { grid-column: 1 / span 2; min-height: 240px; }
+}
+.hx-fkey {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px;
+}
+.hx-fkey button {
+  min-height: 36px; padding: 4px 8px; font: 10px var(--hx-font-data);
+  background: var(--hx-surface); color: var(--hx-text); border: 1px solid var(--hx-border);
+  letter-spacing: 0.12em; cursor: pointer;
+}
+@media (max-width: 360px) { .hx-fkey { display: none; } }
+body[data-hx-gov="low"] #hx-env-sweep { display: none; }
+body[data-hx-gov="low"] #hx-env-noise { opacity: 0.02; }
+body[data-hx-gov="low"] { --hx-persist: 0.08; }
 
 .hx-sys-state { letter-spacing: 0.16em; font-size: 11px; color: var(--hx-primary); margin: 2px 0; }
 .hx-sys-state[data-sev="ATTENTION"], .hx-sys-state[data-sev="DEGRADED"] { color: var(--hx-warning); }

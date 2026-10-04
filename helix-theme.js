@@ -254,6 +254,7 @@
       tokens["--hx-scan-opacity"] = String(c.scan == null ? 0.5 : c.scan);
       tokens["--hx-noise-opacity"] = String(c.noise == null ? 0.06 : c.noise);
       tokens["--hx-glow-strength"] = String(c.glow == null ? 0.28 : c.glow);
+      tokens["--hx-persist"] = String(c.persist == null ? 0.3 : c.persist);
     }
     applyTokens(tokens);
     document.body.setAttribute("data-hx-theme", id);
@@ -312,7 +313,14 @@
         <label>WARNING <input type="color" data-hx-c="warning" value="${c.warning || "#E08A2A"}"></label>
         <label>CRITICAL <input type="color" data-hx-c="critical" value="${c.critical || "#c44a3a"}"></label>
       </div>
-      <p class="dim">Contrast floor enforced. Custom cannot drop below readable phosphor on background.</p>`;
+      <p class="dim">Contrast floor enforced. Custom cannot drop below readable phosphor on background.</p>
+      <div class="ident">CUSTOM DEPTH</div>
+      <div class="hx-bar">
+        <label>GLOW <input type="range" min="0" max="1" step="0.05" data-hx-n="glow" value="${c.glow == null ? 0.28 : c.glow}"></label>
+        <label>SCAN <input type="range" min="0" max="1" step="0.05" data-hx-n="scan" value="${c.scan == null ? 0.5 : c.scan}"></label>
+        <label>NOISE <input type="range" min="0" max="0.2" step="0.01" data-hx-n="noise" value="${c.noise == null ? 0.06 : c.noise}"></label>
+        <label>PERSIST <input type="range" min="0" max="0.8" step="0.05" data-hx-n="persist" value="${c.persist == null ? 0.3 : c.persist}"></label>
+      </div>`;
   }
   function bindVisual() {
     const box = document.getElementById("hx-visual");
@@ -326,9 +334,15 @@
     });
     box.addEventListener("input", (e) => {
       const inp = e.target.closest("[data-hx-c]");
-      if (!inp) return;
-      state.custom = Object.assign({}, state.custom, { [inp.getAttribute("data-hx-c")]: inp.value });
-      applyTheme("custom");
+      const rng = e.target.closest("[data-hx-n]");
+      if (inp) {
+        state.custom = Object.assign({}, state.custom, { [inp.getAttribute("data-hx-c")]: inp.value });
+        applyTheme("custom");
+      }
+      if (rng) {
+        state.custom = Object.assign({}, state.custom, { [rng.getAttribute("data-hx-n")]: Number(rng.value) });
+        applyTheme("custom");
+      }
     });
   }
   function mount() {

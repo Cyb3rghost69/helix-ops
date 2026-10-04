@@ -485,6 +485,8 @@
         <p class="ident">HELIX/OPS // TOKYO-06<br><strong>SYSTEM COMMAND</strong> · 統合管制システム</p>
         <div id="hx-sys-state" class="hx-sys-state">● SYSTEM NOMINAL</div>
         <div id="hx-sys-chips" class="hx-sys-chips">HERMES ○  NET ○  MEM ○  REMOTE ○  SVC ○</div>
+        <div id="hx-git-chip" class="hx-sys-chips">GIT —</div>
+        <div id="hx-fresh" class="hx-sys-chips">TELEMETRY LIVE</div>
         <div class="fetch-host"><b>HELIX</b>/OPS · HOS://TKY-06</div>
         <div class="fetch-rule">-----------</div>
         <div class="row"><span class="k">UPLINK</span>: <span class="v">ACTIVE</span> · 東京統合管制</div>
@@ -529,14 +531,14 @@
         <div class="ft-act" id="ft-act"><div class="empty">idle_</div></div>
       </div>
     </div>
-    <button type="button" class="ft-card wide ft-remote" id="ft-remote">
+    <button type="button" class="ft-card wide ft-remote" id="ft-remote" data-hx-ft="remote">
       <div class="ft-k">REMOTE MATRIX · 遠隔端末</div>
       <div id="ft-remote-body">
         <div class="ft-v">REMOTE</div>
         <div class="ft-k">HBBS ○ · HBBR ○</div>
       </div>
     </button>
-    <button type="button" class="ft-card wide" id="ft-matrix">
+    <button type="button" class="ft-card wide" id="ft-matrix" data-hx-ft="memory">
       <div class="ft-k">MEMORY MATRIX · 記憶演算</div>
       <div id="ft-matrix-body">
         <div class="ft-v">MEMORY</div>
@@ -588,10 +590,19 @@
   <button type="button" data-tab="control">[11] CONTROL</button>
   <button type="button" data-tab="medic">[12] MEDIC</button>
 </nav>
+<nav id="hx-fkey" class="hx-fkey" aria-label="function keys">
+  <button type="button" data-fk="ops">F1 CORE</button>
+  <button type="button" data-fk="ops">F2 AI</button>
+  <button type="button" data-fk="net">F3 NET</button>
+  <button type="button" data-fk="ops">F4 NODES</button>
+  <button type="button" data-fk="matrix">F5 MEM</button>
+  <button type="button" data-fk="control">F6 MORE</button>
+</nav>
 <div class="hx-attn" id="hx-attn" data-hx-panel="events">
   <span>ATTENTION BUS · ATTN // <b id="hx-attn-n">00</b></span>
   <div id="hx-attn-body"><span class="empty">ATTN // 00 · NOMINAL</span></div>
 </div>
+<div class="ident" id="hx-primary-lab">PRIMARY OPERATIONS · 主運用表示</div>
 <div id="hx-command">
   <article class="hx-mod" id="hx-cog" data-hx-panel="cog">
     <button type="button" class="hx-pin" data-hx-pin="cog" aria-label="pin">PIN</button>
@@ -1469,10 +1480,12 @@ async function loadGit() {
     const r = await fetch(api("/api/git"), { cache: "no-store" });
     const d = await r.json();
     if (!d.ok) { box.textContent = d.error || "NO REPO"; return; }
-    const led = d.clean ? "● CLEAN" : "△ " + d.dirty + " MODIFIED";
+    const led = d.clean ? "● CLEAN" : "△ " + d.dirty + " CHANGED";
     box.innerHTML = `<b>${esc((d.repo || "helix-ops").toUpperCase())}</b> · ${esc(d.branch || "—")}<br>
       ${led} · SYNC ${esc(d.sync)}<br>
       HEAD ${esc((d.head || "").toUpperCase())} · ${esc(d.subject || "")}`;
+    const chip = document.getElementById("hx-git-chip");
+    if (chip) chip.textContent = d.clean ? "GIT ● CLEAN" : ("GIT △ " + d.dirty + " CHANGED");
     const hline = document.getElementById("hel-01-line");
     if (hline && d.sync === "NO REMOTE") {
       /* do not spam; only if still default */
@@ -2100,7 +2113,7 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0509";
+    const ASSET_V = "hos0510";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;

@@ -172,6 +172,11 @@
         + "  REMOTE " + (c.remote === "ON" ? "●" : (c.remote === "OFF" ? "×" : "○"))
         + "  SVC " + (c.svc === "ON" ? "●" : "○");
     }
+    const fresh = document.getElementById("hx-fresh");
+    if (fresh) {
+      const a = ageLabel("hermes", 45000);
+      fresh.textContent = a === "STALE" ? "TELEMETRY LOST · STALE" : (a === "NO TELEMETRY" ? "TELEMETRY —" : "TELEMETRY LIVE");
+    }
     const ft = document.querySelector("#field .ft-title small");
     if (ft) ft.textContent = "FIELD TERMINAL · NODE://TKY-06 · " + glyph(d.system) + " SYSTEM " + d.system;
     document.body.setAttribute("data-hx-idle", d.idle ? "1" : "0");
@@ -309,6 +314,18 @@
         }
       });
     }
+    document.getElementById("hx-fkey")?.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-fk]");
+      if (b) go(b.getAttribute("data-fk"));
+    });
+    if (!document.body.dataset.hxFk) {
+      document.body.dataset.hxFk = "1";
+      document.addEventListener("keydown", (e) => {
+        if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+        const map = { F1: "ops", F2: "ops", F3: "net", F4: "ops", F5: "matrix", F6: "control" };
+        if (map[e.key]) { e.preventDefault(); go(map[e.key]); }
+      });
+    }
   }
 
   function mount() {
@@ -318,6 +335,19 @@
     bind();
     tick();
     setInterval(tick, 1000);
+    let frames = 0, t0 = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    function loop(t) {
+      frames++;
+      if (t - t0 >= 1000) {
+        state.fps = frames;
+        frames = 0;
+        t0 = t;
+        if (state.fps < 38) document.body.setAttribute("data-hx-gov", "low");
+        else if (state.fps >= 50) document.body.removeAttribute("data-hx-gov");
+      }
+      if (typeof requestAnimationFrame === "function") requestAnimationFrame(loop);
+    }
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(loop);
   }
 
   global.HelixOrch = { mount, tick, derive, state, saveCfg, go, IDS, ageLabel };

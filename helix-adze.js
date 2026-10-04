@@ -29,8 +29,15 @@
       if (hs) hs.textContent = "GROK · LEAD";
       if (as) as.textContent = online ? ((d.model || "OPENAI") + " · " + (last.state || d.mode || "READY").toUpperCase()) : "OPENAI PROVIDER UNAVAILABLE";
       if (mid) {
-        const st = last.state || (online ? "STANDBY" : "ADZE // OFFLINE");
-        mid.textContent = "DELIBERATION\n" + st;
+        const raw = String(last.state || (online ? "STANDBY" : "ADZE // OFFLINE"));
+        let consensus = "SOLO";
+        if (online) {
+          if (/REVIEWING/i.test(raw)) consensus = "REVIEWING";
+          else if (/NOT REACHED|DIVERGENCE/i.test(raw)) consensus = "DIVERGENCE";
+          else if (/REACHED|RESOLVED|AGREEMENT/i.test(raw)) consensus = "AGREEMENT";
+          else consensus = "STANDBY";
+        }
+        mid.textContent = "◉════ COG BUS ════◉\n" + consensus;
       }
       if (x) {
         const ev = d.events || [];
