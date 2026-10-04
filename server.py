@@ -3156,6 +3156,8 @@ class Handler(BaseHTTPRequestHandler):
                 out = medic.query(str(data.get("text") or ""))
             elif data.get("mode") and data.get("name"):
                 out = medic.set_mode(str(data.get("name")), str(data.get("mode")))
+            elif "auto_restart" in data:
+                out = medic.set_auto(bool(data.get("auto_restart")))
             else:
                 out = medic.propose(str(data.get("task") or data.get("action") or ""))
             self._send(200, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")

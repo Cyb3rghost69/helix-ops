@@ -32,6 +32,12 @@ class Observe(unittest.TestCase):
         st["modes"] = {}
         st["desired"] = {}
         st["restarts"] = {}
+        st["fail_counts"] = {}
+        pol = dict(st.get("policy") or {})
+        pol["auto_restart"] = True
+        pol["never_autorepair"] = ["ollama", "transmission"]
+        pol["failure_threshold"] = 3
+        st["policy"] = pol
         m._save(st)
 
     def test_healthy_fleet(self):
@@ -88,6 +94,54 @@ class Observe(unittest.TestCase):
     def test_denied_approval_stays_policy(self):
         p = m.propose("recreate container Plex-Media-Server")
         self.assertTrue(p.get("approval"))
+
+    def test_below_threshold_no_restart(self):
+        mock = {"cmds": {
+            "ps": "Plex-Media-Server|exited|Exited (137)|plex|abc",
+            "logs:Plex-Media-Server": "error boom",
+            "restart:Plex-Media-Server": "Plex-Media-Server",
+        }}
+        st = m._load()
+        st["desired"]["Plex-Media-Server"] = "running"
+        st["fail_counts"] = {"Plex-Media-Server": 1}
+        m._save(st)
+        r = m.reconcile(mock=mock, mutate=True)
+        self.assertTrue(any((a or {}).get("skipped") == "threshold" for a in r.get("actions") or []))
+
+    def test_auto_restart_after_threshold(self):
+        mock = {"cmds": {
+            "ps": "Plex-Media-Server|exited|Exited (137)|plex|abc",
+            "logs:Plex-Media-Server": "error boom",
+            "restart:Plex-Media-Server": "Plex-Media-Server",
+        }}
+        st = m._load()
+        st["desired"]["Plex-Media-Server"] = "running"
+        st["fail_counts"] = {"Plex-Media-Server": 2}
+        m._save(st)
+        r = m.reconcile(mock=mock, mutate=True)
+        self.assertTrue(any((a or {}).get("status") == "RECOVERING" for a in r.get("actions") or []))
+
+    def test_ollama_never_autorepair(self):
+        mock = {"cmds": {
+            "ps": "ollama|exited|Exited (1)|ollama/ollama|abc",
+            "logs:ollama": "fatal",
+            "restart:ollama": "ollama",
+        }}
+        st = m._load()
+        st["desired"]["ollama"] = "running"
+        st["fail_counts"] = {"ollama": 9}
+        m._save(st)
+        r = m.reconcile(mock=mock, mutate=True)
+        self.assertTrue(any((a or {}).get("skipped") == "observe" for a in r.get("actions") or []))
+
+    def test_auto_does_not_start_stopped(self):
+        mock = {"cmds": {
+            "ps": "transmission|exited|Exited (137)|linuxserver/transmission|aaa",
+            "restart:transmission": "transmission",
+        }}
+        r = m.reconcile(mock=mock, mutate=True)
+        self.assertEqual(r["fleet"], "HEALTHY")
+        self.assertFalse(any((a or {}).get("status") == "RECOVERING" for a in r.get("actions") or []))
 
 
 def time_now():

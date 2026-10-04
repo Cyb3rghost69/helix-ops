@@ -1,7 +1,7 @@
 """HELIX Medic — deterministic Docker observer/repair on top of helix-docker-guard.
 
-LLM never talks to docker.sock. Default mode is observe. Manual stops are not fought.
-Forbidden ops are denied even after natural-language requests.
+LLM never talks to docker.sock. Desired-running containers auto-restart after
+consecutive failures. Manual/desired stops are not fought. Forbidden ops stay denied.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent
 STATE = ROOT / "helix-medic.json"
 INCIDENTS = ROOT / "helix-medic-incidents.json"
-VERSION = "1.0"
+VERSION = "1.1"
 
 HEALTHY = "HEALTHY"
 SUSPECT = "SUSPECT"
@@ -54,7 +54,8 @@ DEFAULTS = {
     "restart_window_sec": 600,
     "cooldown_sec": 300,
     "poll_sec": 30,
-    "never_autorepair": ["ollama", "qbittorrent", "transmission"],
+    "auto_restart": True,
+    "never_autorepair": ["ollama", "transmission"],
     "dependencies": {
         "honcho-api-1": ["honcho-database-1", "honcho-redis-1"],
         "immich": ["immich-postgres", "Immich_Valkey"],
@@ -147,12 +148,28 @@ def forbidden(task: str) -> bool:
     return any(k in t for k in FORBIDDEN)
 
 
-def mode_of(st: dict, name: str) -> str:
-    m = (st.get("modes") or {}).get(name) or OBSERVE
+def mode_of(st: dict, name: str, desired: str | None = None) -> str:
     never = (st.get("policy") or DEFAULTS).get("never_autorepair") or []
     if name in never:
         return OBSERVE
-    return m if m in (OBSERVE, RESTART, REPAIR) else OBSERVE
+    m = (st.get("modes") or {}).get(name)
+    if m in (OBSERVE, RESTART, REPAIR):
+        return m
+    pol = {**DEFAULTS, **(st.get("policy") or {})}
+    want = desired if desired is not None else (st.get("desired") or {}).get(name)
+    if pol.get("auto_restart") and want == "running":
+        return RESTART
+    return OBSERVE
+
+
+def set_auto(enabled: bool) -> dict:
+    with _LOCK:
+        st = _load()
+        pol = {**DEFAULTS, **(st.get("policy") or {})}
+        pol["auto_restart"] = bool(enabled)
+        st["policy"] = pol
+        _save(st)
+    return {"ok": True, "auto_restart": bool(enabled)}
 
 
 def set_mode(name: str, mode: str) -> dict:
@@ -242,12 +259,11 @@ def reconcile(*, mock: dict | None = None, mutate: bool = False) -> dict:
         _save(st)
         return {"ok": False, "error": g.get("error") or "guard down", "fleet": "CRITICAL"}
     rows = parse_ps(g.get("out") or "")
-    now = time.time()
     desired = dict(st.get("desired") or {})
+    fails = dict(st.get("fail_counts") or {})
     containers = {}
-    incidents_open = 0
-    healthy = 0
     running = 0
+    thresh = int(pol.get("failure_threshold") or 3)
     for row in rows:
         name = row["name"]
         state = row["state"]
@@ -256,18 +272,20 @@ def reconcile(*, mock: dict | None = None, mutate: bool = False) -> dict:
         phase = HEALTHY
         if state == "running":
             running += 1
-            healthy += 1
+            fails[name] = 0
         elif desired.get(name) == "stopped":
+            fails[name] = 0
             phase = HEALTHY  # intentionally stopped
         else:
-            phase = SUSPECT
-            healthy = healthy  # not counted
+            fails[name] = int(fails.get(name) or 0) + 1
+            phase = DIAGNOSING if fails[name] >= thresh else SUSPECT
         containers[name] = {
             **row,
             "host": "bigboi",
-            "mode": mode_of(st, name),
+            "mode": mode_of(st, name, desired.get(name)),
             "desired": desired.get(name),
             "phase": phase,
+            "fails": int(fails.get(name) or 0),
             "http": None,
         }
     # HTTP probes (cheap, skip if mutate tests)
@@ -276,15 +294,18 @@ def reconcile(*, mock: dict | None = None, mutate: bool = False) -> dict:
             ok = _http_ok(url)
             containers[name]["http"] = ok
             if not ok:
-                containers[name]["phase"] = SUSPECT
+                fails[name] = int(fails.get(name) or 0) + 1
+                containers[name]["fails"] = fails[name]
+                containers[name]["phase"] = DIAGNOSING if fails[name] >= thresh else SUSPECT
     fleet = HEALTHY
-    suspect = [n for n, c in containers.items() if c.get("phase") == SUSPECT]
+    suspect = [n for n, c in containers.items() if c.get("phase") in (SUSPECT, DIAGNOSING, RECOVERING, ESCALATED)]
     if suspect:
         fleet = "DEGRADED"
     if not rows:
         fleet = "CRITICAL"
     st["containers"] = containers
     st["desired"] = desired
+    st["fail_counts"] = fails
     st["fleet"] = fleet
     st["guard"] = "ONLINE"
     st["last_reconcile"] = time.strftime("%Y-%m-%dT%H:%M:%S")
@@ -327,6 +348,10 @@ def _maybe_repair(st: dict, name: str, *, mock: dict | None, pol: dict) -> dict 
         import helix_jobs
         helix_jobs.create_job(f"medic escalate {name} restart loop", kind="docker_repair")
         return {"name": name, "status": ESCALATED}
+    thresh = int(pol.get("failure_threshold") or 3)
+    fails = int((st.get("fail_counts") or {}).get(name) or 0)
+    if fails < thresh:
+        return {"name": name, "skipped": "threshold", "fails": fails, "need": thresh}
     logs = guard("logs", name, mock=mock)
     sig = analyse_logs(logs.get("out") or "")
     record_incident(
@@ -373,6 +398,8 @@ def snapshot(*, mock: dict | None = None) -> dict:
         "incidents": incidents,
         "waiting_approval": waiting,
         "watchdog_ok": True,
+        "auto_restart": bool(({**DEFAULTS, **(st.get("policy") or {})}).get("auto_restart")),
+        "never_autorepair": list(({**DEFAULTS, **(st.get("policy") or {})}).get("never_autorepair") or []),
         "mac": {"docker": False, "role": "control-plane"},
     }
 
@@ -407,7 +434,7 @@ def propose(task: str) -> dict:
         }
     if "restart" in t or "repair" in t:
         rec = reconcile(mutate=False)
-        return {"ok": True, "approval": False, "note": "low-risk restart only if mode=restart", "fleet": rec.get("fleet")}
+        return {"ok": True, "approval": False, "note": "low-risk restart for desired-running after consecutive failures", "fleet": rec.get("fleet")}
     return {"ok": True, "read": True, "snapshot": snapshot()}
 
 
@@ -423,15 +450,18 @@ def query(text: str) -> dict:
         return {"ok": True, "speak": f"{len(inc)} incidents recorded.", "items": inc}
     if "waiting for approval" in t:
         return {"ok": True, "speak": f"{snap.get('waiting_approval') or 0} waiting.", "waiting": snap.get("waiting_approval")}
+    if "enable auto repair" in t or "make medic automatic" in t:
+        return set_auto(True)
+    if t.strip() in ("disable auto repair", "observe mode") or t.startswith("disable auto repair") and len(t.split()) <= 3:
+        return set_auto(False)
     if t.startswith("observe ") or "observe mode" in t or "disable auto repair" in t:
         m = re.search(r"\b([A-Za-z0-9][A-Za-z0-9_.-]{0,40})\b", text or "")
         name = m.group(1) if m else ""
         if name.lower() in ("put", "disable", "auto", "repair", "observe", "mode"):
             name = ""
-        # last token
         toks = [w for w in re.findall(r"[A-Za-z0-9_.-]+", text or "") if w.lower() not in ("put", "into", "observe", "mode", "disable", "auto", "repair", "for", "this", "container")]
         name = toks[-1] if toks else name
-        return set_mode(name, OBSERVE) if name else {"ok": False, "error": "bad name"}
+        return set_mode(name, OBSERVE) if name else set_auto(False)
     if forbidden(text):
         return {"ok": False, "error": "forbidden", "speak": "That operation is forbidden for Medic."}
     return {"ok": True, "speak": f"Fleet {snap.get('fleet')}.", "snapshot": {"fleet": snap.get("fleet"), "counts": snap.get("counts")}}
@@ -474,7 +504,7 @@ def doctor() -> dict:
         "overall": "HEALTHY" if g.get("ok") else "DEGRADED",
         "checks": [
             {"name": "helix-docker-guard", "state": "HEALTHY" if g.get("ok") else "FAILED", "reason": (g.get("out") or g.get("error") or "")[:80]},
-            {"name": "Mac Docker", "state": "HEALTHY", "reason": "not installed — control plane only"},
-            {"name": "policy default", "state": "HEALTHY", "reason": "observe"},
+            {"name": "Mac Docker", "state": "HEALTHY", "reason": "not installed — control plane only; not required"},
+            {"name": "policy default", "state": "HEALTHY", "reason": "auto-restart desired-running after 3 fails"},
         ],
     }

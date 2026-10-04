@@ -19,7 +19,7 @@
     if (st) st.textContent = "FLEET  " + (data.fleet || "SCAN") + "  ·  GUARD  " + (data.guard || "—");
     if (compact) {
       compact.textContent = data.compact
-        ? ("HELIX MEDIC  BIGBOI  " + (c.healthy || 0) + "/" + (c.total || 0) + " HEALTHY  MAC  0/0  INCIDENTS " + ((data.incidents || []).length) + "  STATUS NOMINAL")
+        ? ("HELIX MEDIC  BIGBOI  " + (c.healthy || 0) + "/" + (c.total || 0) + " HEALTHY  AUTO " + (data.auto_restart ? "ON" : "OFF") + "  MAC  0/0  INCIDENTS " + ((data.incidents || []).length) + "  STATUS NOMINAL")
         : "";
     }
     if (note) note.textContent = data.error || "";

@@ -31,7 +31,7 @@ Hermes / Helix ops (Mac)
 
 `helix-docker-guard` is bash (Unraid host has no python3). It is **not** a LAN API. No TCP 2375.
 
-Default container mode: **observe**. qBittorrent, Transmission, Ollama never auto-repair.
+Default for **desired-running** containers: **auto-restart** after 3 consecutive failed polls (~90s). Intentionally stopped containers stay stopped. Hard never-autorepair: **ollama**, **transmission**. Recreate/rm/prune/engine still need approval or are forbidden. Mac Docker is not required and is not installed.
 
 ## Threat model
 
