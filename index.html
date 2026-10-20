@@ -108,7 +108,8 @@
     pre.banner { font-size: 7px; overflow: auto; max-width: 100%; }
   }
   .cockpit { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 10px; margin: 10px 0 14px; position: relative; z-index: 1; }
-  @media (max-width: 900px) { .cockpit { grid-template-columns: 1fr; } }
+  .cockpit:has(#hx-av:not([hidden])) { grid-template-columns: 200px 1.2fr 0.8fr; }
+  @media (max-width: 900px) { .cockpit, .cockpit:has(#hx-av:not([hidden])) { grid-template-columns: 1fr; } }
   .term {
     background: #050805;
     border: 1px solid var(--line);
@@ -577,6 +578,7 @@
 </section>
 <button type="button" id="nav-toggle" class="nav-toggle" aria-expanded="false" aria-controls="tabs">☰ MODULES</button>
 <nav class="tabs" id="tabs">
+  <button type="button" data-tab="floor">[00] FLOOR</button>
   <button type="button" data-tab="ops" class="on">[01] OPERATIONS</button>
   <button type="button" data-tab="net">[02] NETWORK</button>
   <button type="button" data-tab="sec">[03] SYSTEM</button>
@@ -589,6 +591,12 @@
   <button type="button" data-tab="compute">[10] COMPUTE</button>
   <button type="button" data-tab="control">[11] CONTROL</button>
   <button type="button" data-tab="medic">[12] MEDIC</button>
+  <button type="button" data-tab="ecc">[13] ECC</button>
+  <button type="button" data-tab="comms">[14] COMMS</button>
+  <button type="button" data-tab="discord">[15] DISCORD</button>
+  <button type="button" data-tab="media">[16] MEDIA</button>
+  <button type="button" data-tab="community">[17] COMMUNITY</button>
+  <button type="button" data-tab="brains">[18] BRAINS</button>
 </nav>
 <nav id="hx-fkey" class="hx-fkey" aria-label="function keys">
   <button type="button" data-fk="ops">F1 CORE</button>
@@ -601,6 +609,8 @@
 <div class="hx-attn" id="hx-attn" data-hx-panel="events">
   <span>ATTENTION BUS · ATTN // <b id="hx-attn-n">00</b></span>
   <div id="hx-attn-body"><span class="empty">ATTN // 00 · NOMINAL</span></div>
+  <button type="button" id="hx-appr-all">APPROVE ALL WAITING</button>
+  <button type="button" id="hx-appr-deny-all">DENY ALL</button>
 </div>
 <div class="ident" id="hx-primary-lab">PRIMARY OPERATIONS · 主運用表示</div>
 <div id="hx-command">
@@ -642,6 +652,36 @@
     <div id="hx-orbit" class="dim">NO TELEMETRY</div>
   </article>
 </div>
+<div id="pane-floor" hidden>
+  <div id="hne-boot" class="hne-boot" hidden>
+    <div class="ident">HELIX OPS</div>
+    <pre></pre>
+    <button type="button" id="hne-skip">SKIP</button>
+  </div>
+  <section class="hne">
+    <div class="hne-head">
+      <b>HELIX OPS</b>
+      <span id="hne-conn">LINK …</span>
+      <span id="hne-clock">--:--:--</span>
+      <span id="hne-alerts">ATTN 00</span>
+      <button type="button" id="hne-theme">NEON OPS ARCADE</button>
+    </div>
+    <div id="hne-cards" class="hne-cards"></div>
+    <div class="hne-room-wrap"><canvas id="hne-room" aria-label="command floor"></canvas></div>
+    <div class="hne-graph">
+      <canvas id="hne-activity" aria-label="activity 1 hour"></canvas>
+    </div>
+    <div class="hne-support">
+      <div class="hne-panel"><h3>BOT MESH</h3><div id="hne-mesh"></div></div>
+      <div class="hne-panel"><h3>JOBS</h3><canvas id="hne-donut-jobs" class="hne-donut"></canvas><div id="hne-jobs"></div></div>
+      <div class="hne-panel"><h3>HOST INFRA</h3><div id="hne-infra" class="dim">NO TELEMETRY</div></div>
+      <div class="hne-panel"><h3>MEMORY STORES</h3><canvas id="hne-donut-mem" class="hne-donut"></canvas><div id="hne-memory"></div></div>
+      <div class="hne-panel"><h3>API / TOKENS</h3><div id="hne-api" class="dim">NO TELEMETRY</div><div id="hne-lat"></div></div>
+      <div class="hne-panel"><h3>EVENT LOG</h3><div id="hne-log"></div></div>
+    </div>
+  </section>
+  <aside id="hne-drawer" class="hne-drawer" hidden></aside>
+</div>
 <div id="pane-ops">
 <section id="noc" class="noc" data-hx-panel="botmesh">
   <div class="noc-strip">
@@ -677,8 +717,28 @@
   <canvas id="noc-scope" aria-label="fleet cpu"></canvas>
 </section>
 <section class="cockpit">
+  <aside id="hx-av" class="hx-av" aria-label="Main AI">
+    <div class="ident">MAIN AI</div>
+    <div class="hx-av-stage"><canvas id="hx-av-cv" width="260" height="260" aria-label="avatar"></canvas></div>
+    <div class="hx-av-meta"><b id="hx-av-name">—</b></div>
+    <div class="hx-av-meta dim" id="hx-av-model">—</div>
+    <div class="hx-av-meta" id="hx-av-status">Ready</div>
+    <div class="hx-av-err" id="hx-av-err"></div>
+    <div class="hx-av-bar">
+      <label>SHOW <input id="hx-av-vis" type="checkbox" checked></label>
+      <label>SIZE <select id="hx-av-size"><option value="large">LARGE</option><option value="compact">COMPACT</option></select></label>
+      <label>MOTION <select id="hx-av-anim"><option value="subtle">SUBTLE</option><option value="normal">NORMAL</option><option value="expressive">EXPRESSIVE</option></select></label>
+      <label>BG <input id="hx-av-bg" type="checkbox" checked></label>
+    </div>
+    <label class="dim">EXPRESSION PREVIEW (does not run tasks)
+      <select id="hx-av-preview"></select>
+    </label>
+  </aside>
   <div class="term">
-    <div class="term-bar">HERMES // COGNITIVE CORE · 人工知能演算核</div>
+    <div class="term-bar">
+      <button type="button" class="hx-av-mini" id="hx-av-mini" aria-label="avatar portrait"><canvas id="hx-av-mini-cv" width="40" height="40"></canvas></button>
+      HERMES // COGNITIVE CORE · 人工知能演算核
+    </div>
     <div id="thoughts"><div class="empty">waiting for stream_</div></div>
     <form id="prompt-form" class="term-prompt">
       <span class="ps1">NODE://TOKYO-06&gt;</span>
@@ -692,6 +752,10 @@
     <div id="cpu-hosts"></div>
   </div>
 </section>
+<div id="hx-av-portrait" class="hx-av-portrait" hidden>
+  <canvas id="hx-av-big-cv" width="420" height="420" aria-label="portrait"></canvas>
+  <button type="button" id="hx-av-close">CLOSE</button>
+</div>
 <div id="need-you"></div>
 <section class="btop">
   <div class="term-bar">SYSTEM CORE · AI RESOURCES · 演算資源 <span class="ok">LIVE</span></div>
@@ -1020,6 +1084,193 @@
     <div id="hm-grid" class="hm-grid"></div>
     <p id="hm-err" class="hm-err"></p>
     <p class="dim">Default observe. Manual stops are not started. Ollama/qBit/Transmission never auto-repair.</p>
+  </section>
+</div>
+<div id="pane-ecc" hidden>
+  <section class="hecc">
+    <div class="hecc-head">
+      <div>HELIX // ECC<br><small>SILENT PROFILE · TDD · REVIEW · SECURITY · NO TELEGRAM</small></div>
+      <span id="hecc-cap">SCAN</span>
+    </div>
+    <div class="hecc-grid">
+      <div class="hecc-card">VER <b id="hecc-ver">—</b></div>
+      <div class="hecc-card">SKILLS <b id="hecc-skills">—</b></div>
+      <div class="hecc-card">AGENTS <b id="hecc-agents">—</b></div>
+      <div class="hecc-card">CMDS <b id="hecc-cmd">—</b></div>
+      <div class="hecc-card">SECURITY <b id="hecc-sec">—</b></div>
+      <div class="hecc-card">CLI <b id="hecc-cli">—</b></div>
+    </div>
+    <p class="dim" id="hecc-note"></p>
+    <div class="ident">WAITING APPROVAL</div>
+    <div id="hx-appr-list" class="hc-jobs"></div>
+    <div class="hecc-bar">
+      <button type="button" id="hecc-refresh">REFRESH</button>
+    </div>
+    <input id="hecc-q" class="vx-type" type="text" autocomplete="off" placeholder="consult or ecc-profile chat — e.g. security review">
+    <div class="hecc-bar">
+      <button type="button" id="hecc-consult">CONSULT</button>
+      <button type="button" id="hecc-chat">ECC CHAT</button>
+    </div>
+    <div class="hecc-out" id="hecc-out">—</div>
+  </section>
+</div>
+<div id="pane-comms" hidden>
+  <section class="hxc">
+    <div class="hxc-head">
+      <div>HELIX // MATRIX COMMS<br><small>TUWUNEL · CLOUDFLARE · GATEWAY · NO FAMILY BODIES</small></div>
+      <span id="hxc-cap">SCAN</span>
+    </div>
+    <div class="hxc-grid">
+      <div class="hxc-card">HOMESERVER <b id="hxc-hs">—</b></div>
+      <div class="hxc-card">CLOUDFLARE <b id="hxc-cf">—</b></div>
+      <div class="hxc-card">GATEWAY <b id="hxc-gw">—</b></div>
+      <div class="hxc-card">BOT <b id="hxc-bot">—</b></div>
+      <div class="hxc-card">E2EE <b id="hxc-e2ee">—</b></div>
+      <div class="hxc-card">FEDERATION <b id="hxc-fed">—</b></div>
+      <div class="hxc-card">MX SESSIONS <b id="hxc-sess">—</b></div>
+    </div>
+    <div class="ident">AGENT TOPOLOGY</div>
+    <div id="hxc-topo" class="hxc-topo"></div>
+    <div class="ident">PUBLIC RTT</div>
+    <canvas id="hxc-spark" aria-label="homeserver latency"></canvas>
+    <p class="dim" id="hxc-note"></p>
+    <p class="hxc-err" id="hxc-err"></p>
+    <div class="hecc-bar">
+      <button type="button" id="hxc-refresh">REFRESH</button>
+    </div>
+  </section>
+</div>
+<div id="pane-discord" hidden>
+  <section class="hxd">
+    <div class="hxd-head">
+      <div>HELIX // DISCORD<br><small>GATEWAY · SKYNET · NO TOKENS</small></div>
+      <span id="hxd-cap">SCAN</span>
+    </div>
+    <div class="hxd-grid">
+      <div class="hxd-card">BOT <b id="hxd-bot">—</b></div>
+      <div class="hxd-card">GATEWAY <b id="hxd-gw">—</b></div>
+      <div class="hxd-card">ALLOWED USERS <b id="hxd-users">—</b></div>
+      <div class="hxd-card">CHANNELS <b id="hxd-ch">—</b></div>
+      <div class="hxd-card">AI ROUTE <b id="hxd-ai">—</b></div>
+      <div class="hxd-card">LAST ERROR <b id="hxd-err">—</b></div>
+      <div class="hxd-card">RECONNECTS <b id="hxd-re">—</b></div>
+      <div class="hxd-card">UNAUTH LOG <b id="hxd-unauth">—</b></div>
+      <div class="hxd-card">LAST CONNECT <b id="hxd-last">—</b></div>
+    </div>
+    <p class="dim" id="hxd-note"></p>
+    <button type="button" id="hxd-refresh">REFRESH</button>
+  </section>
+</div>
+<div id="pane-media" hidden>
+  <section class="hxmd">
+    <div class="hxmd-head">
+      <div class="hxmd-av" aria-hidden="true"></div>
+      <div>HELIX // MEDIA<br><small>PLEX · *ARR · SEERR · READ-ONLY</small></div>
+      <span id="hxmd-cap">SCAN</span>
+    </div>
+    <div class="hxmd-grid">
+      <div class="hxmd-card">FACE <b id="hxmd-face">—</b></div>
+      <div class="hxmd-card">PEER <b id="hxmd-peer">—</b></div>
+      <div class="hxmd-card">DISCORD GW <b id="hxmd-discord">—</b></div>
+      <div class="hxmd-card">MATRIX HS <b id="hxmd-matrix">—</b></div>
+      <div class="hxmd-card">PLEX <b id="hxmd-plex">—</b></div>
+      <div class="hxmd-card">RADARR <b id="hxmd-radarr">—</b></div>
+      <div class="hxmd-card">SONARR <b id="hxmd-sonarr">—</b></div>
+      <div class="hxmd-card">SEERR <b id="hxmd-seerr">—</b></div>
+      <div class="hxmd-card">PROWLARR <b id="hxmd-prowl">—</b></div>
+      <div class="hxmd-card">PLEX MOVIES <b id="hxmd-pm">—</b></div>
+      <div class="hxmd-card">PLEX TV <b id="hxmd-pt">—</b></div>
+      <div class="hxmd-card">RADARR MOVIES <b id="hxmd-rm">—</b></div>
+      <div class="hxmd-card">RADARR FILES <b id="hxmd-rf">—</b></div>
+      <div class="hxmd-card">SONARR SERIES <b id="hxmd-ss">—</b></div>
+      <div class="hxmd-card">EP FILES <b id="hxmd-ef">—</b></div>
+      <div class="hxmd-card">SEERR PENDING <b id="hxmd-pend">—</b></div>
+      <div class="hxmd-card">INDEXERS <b id="hxmd-idx">—</b></div>
+    </div>
+    <div class="hxmd-viz">
+      <canvas id="hxmd-pie" width="180" height="180" aria-label="resolution distribution"></canvas>
+      <div id="hxmd-lang"></div>
+    </div>
+    <p class="dim" id="hxmd-note"></p>
+    <button type="button" id="hxmd-refresh">REFRESH</button>
+  </section>
+</div>
+<div id="pane-community" hidden>
+  <section class="hxc">
+    <div class="hxc-head">
+      <div>HELIX // COMMUNITY BOT<br><small>MATRIX #home · NO ADMIN TOOLS</small></div>
+      <span id="hxc-cap">SCAN</span>
+    </div>
+    <div class="hxc-grid">
+      <div class="hxc-card">MXID <b id="hxc-mxid">—</b></div>
+      <div class="hxc-card">ROOM <b id="hxc-room">—</b></div>
+      <div class="hxc-card">AI <b id="hxc-ai">—</b></div>
+      <div class="hxc-card">GATEWAY <b id="hxc-gw">—</b></div>
+      <div class="hxc-card">TOOLS <b id="hxc-tools">—</b></div>
+      <div class="hxc-card">PRIVILEGED <b id="hxc-priv">—</b></div>
+      <div class="hxc-card">POLICY <b id="hxc-mention">—</b></div>
+      <div class="hxc-card">MEMORY <b id="hxc-mem">—</b></div>
+    </div>
+    <p class="dim" id="hxc-note"></p>
+    <button type="button" id="hxc-refresh">REFRESH</button>
+  </section>
+</div>
+<div id="pane-brains" hidden>
+  <section class="hxb">
+    <div class="hxb-head">
+      <div>HELIX // DUAL-BRAIN<br><small>MONITOR ONLY · FAILOVER OFF</small></div>
+      <span id="hxb-cap">SCAN</span>
+    </div>
+    <div id="hxb-simbar" class="hxb-sim" hidden>SIMULATION MODE · NOT LIVE · <span id="hxb-simlab"></span></div>
+    <label class="hxb-simctl">SIM <select id="hxb-sim">
+      <option value="">OFF (live)</option>
+      <option value="alpha-offline">1 Alpha failure</option>
+      <option value="bravo-offline">2 Bravo failure</option>
+      <option value="honcho-down">3 Honcho outage</option>
+      <option value="witness-none">4 Witness unavailable</option>
+      <option value="partition">5 Network partition</option>
+      <option value="gateway-fail">6 Gateway failure</option>
+      <option value="alpha-recovery">7 Alpha recovery</option>
+      <option value="bravo-recovery">8 Bravo recovery</option>
+      <option value="failback-controlled">9 Controlled failback</option>
+      <option value="dual-power">10 Simultaneous failure</option>
+      <option value="quorum-loss">11 Loss of quorum</option>
+      <option value="split-brain">12 Split-brain attempt</option>
+    </select></label>
+    <div class="hxb-grid">
+      <div class="hxb-card">PRIMARY <b id="hxb-primary">—</b></div>
+      <div class="hxb-card">STANDBY <b id="hxb-standby">—</b></div>
+      <div class="hxb-card">AUTO FAILOVER <b id="hxb-auto">—</b></div>
+      <div class="hxb-card">ALPHA API <b id="hxb-alpha">—</b></div>
+      <div class="hxb-card">BRAVO API <b id="hxb-bravo">—</b></div>
+      <div class="hxb-card">HONCHO <b id="hxb-honcho">—</b></div>
+      <div class="hxb-card">HONCHO HOST <b id="hxb-hhost">UNRAID</b></div>
+      <div class="hxb-card">CHARLIE OBS <b id="hxb-umbrel">—</b></div>
+      <div class="hxb-card">WITNESS <b id="hxb-witness">—</b></div>
+      <div class="hxb-card">FENCING <b id="hxb-fence">—</b></div>
+      <div class="hxb-card">CONTROLLER <b id="hxb-ctrl">—</b></div>
+      <div class="hxb-card">REPLICATION <b id="hxb-repl">—</b></div>
+      <div class="hxb-card">ALPHA LOAD <b id="hxb-load">—</b></div>
+      <div class="hxb-card">ALPHA UPTIME <b id="hxb-uptime">—</b></div>
+      <div class="hxb-card">GATEWAY OWNER <b id="hxb-gw">—</b></div>
+      <div class="hxb-card">OPS LAUNCHD <b id="hxb-opsld">—</b></div>
+      <div class="hxb-card">VERSIONS <b id="hxb-ver">—</b></div>
+      <div class="hxb-card">BACKUP <b id="hxb-bak">—</b></div>
+      <div class="hxb-card">FAILOVER READY <b id="hxb-ready">—</b></div>
+      <div class="hxb-card">INCIDENTS <b id="hxb-inc">—</b></div>
+      <div class="hxb-card">HONCHO DUMP <b id="hxb-hdump">—</b></div>
+      <div class="hxb-card">NAS COPY <b id="hxb-hnas">—</b></div>
+      <div class="hxb-card">RESTORE TEST <b id="hxb-hrest">—</b></div>
+      <div class="hxb-card">BACKUP WARN <b id="hxb-hwarn">—</b></div>
+    </div>
+    <div class="hxb-check" id="hxb-check">HA CHECKLIST loading_</div>
+    <p class="dim" id="hxb-overall"></p>
+    <p class="dim" id="hxb-note"></p>
+    <div class="hxb-btns">
+      <button type="button" id="hxb-refresh">REFRESH</button>
+      <button type="button" disabled title="Disabled until witness, fencing, and later-phase approval">PROMOTE BRAVO</button>
+      <button type="button" disabled title="Disabled until witness, fencing, and later-phase approval">FAILBACK ALPHA</button>
+    </div>
   </section>
 </div>
 <div id="pane-dock" hidden>
@@ -1367,7 +1618,7 @@ function renderDock(d) {
   const tiles = [
     { name: "Unraid", url: "http://192.168.1.84/", s: null },
     { name: "Board :8788", url: "http://192.168.1.84:8788/", s: ls.command_board },
-    { name: "Honcho", url: "http://192.168.1.84:8000/", s: ls.honcho },
+    { name: "Honcho", url: "http://192.168.1.84:8000/health", s: ls.honcho },
     { name: "UniFi", url: "https://192.168.1.1/", s: null },
     { name: "iLO", url: "https://192.168.1.82/", s: null },
     { name: "Umbrel", url: "http://192.168.1.236/", s: null },
@@ -1792,6 +2043,8 @@ function runCli(raw) {
     net: "__tab:net",
     operations: "__tab:ops",
     ops: "__tab:ops",
+    floor: "__tab:floor",
+    neon: "__theme:neon-ops",
     system: "__tab:sec",
     security: "__tab:sec",
     sec: "__tab:sec",
@@ -1809,6 +2062,10 @@ function runCli(raw) {
     control: "__tab:control",
     home: "__tab:control",
     medic: "__tab:medic",
+    ecc: "__tab:ecc",
+    approvals: "__tab:ecc",
+    approve: "__tab:ecc",
+    arcade: "__theme:arcade",
     memory: "__tab:matrix",
   };
   if (cmd === "clear") {
@@ -1885,6 +2142,12 @@ function runCli(raw) {
     if (String(map[cmd]).startsWith("__tab:")) {
       cliOut("REQUEST MODULE · ACCESSING…");
       selectTab(map[cmd].slice(6));
+      return true;
+    }
+    if (String(map[cmd]).startsWith("__theme:")) {
+      const th = map[cmd].slice(8);
+      if (globalThis.HelixTheme) HelixTheme.applyTheme(th);
+      cliOut("THEME " + th.toUpperCase());
       return true;
     }
     cliOut(map[cmd]);
@@ -1999,13 +2262,19 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-tab]");
   if (!b) return;
   const tab = b.dataset.tab;
-  const names = { ops: "01 OPERATIONS", net: "02 NETWORK", sec: "03 SYSTEM", dock: "04 ARCHIVE", trace: "05 TRACE", remote: "06 REMOTE", matrix: "07 MEMORY", lights: "08 LIGHTING", voice: "09 VOICE", compute: "10 COMPUTE", control: "11 CONTROL", medic: "12 MEDIC" };
+  const names = { floor: "00 FLOOR", ops: "01 OPERATIONS", net: "02 NETWORK", sec: "03 SYSTEM", dock: "04 ARCHIVE", trace: "05 TRACE", remote: "06 REMOTE", matrix: "07 MEMORY", lights: "08 LIGHTING", voice: "09 VOICE", compute: "10 COMPUTE", control: "11 CONTROL", medic: "12 MEDIC", ecc: "13 ECC", comms: "14 COMMS", discord: "15 DISCORD", media: "16 MEDIA", community: "17 COMMUNITY", brains: "18 BRAINS" };
   const flash = document.getElementById("modflash");
   const go = () => {
     document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
     document.getElementById("pane-ops").hidden = tab !== "ops";
     const cmd = document.getElementById("hx-command");
     if (cmd) cmd.hidden = tab !== "ops";
+    const pf = document.getElementById("pane-floor");
+    if (pf) pf.hidden = tab !== "floor";
+    if (tab === "floor" && globalThis.HelixNeonOps) {
+      HelixNeonOps.load();
+      if (HelixNeonOps.boot) HelixNeonOps.boot();
+    }
     document.getElementById("pane-net").hidden = tab !== "net";
     document.getElementById("pane-sec").hidden = tab !== "sec";
     document.getElementById("pane-dock").hidden = tab !== "dock";
@@ -2025,9 +2294,28 @@ document.getElementById("tabs").addEventListener("click", (e) => {
     if (ph) ph.hidden = tab !== "control";
     const pmd = document.getElementById("pane-medic");
     if (pmd) pmd.hidden = tab !== "medic";
+    const pe = document.getElementById("pane-ecc");
+    if (pe) pe.hidden = tab !== "ecc";
+    const pcm = document.getElementById("pane-comms");
+    if (pcm) pcm.hidden = tab !== "comms";
+    const pdc = document.getElementById("pane-discord");
+    if (pdc) pdc.hidden = tab !== "discord";
+    const pmdia = document.getElementById("pane-media");
+    if (pmdia) pmdia.hidden = tab !== "media";
+    const pcbot = document.getElementById("pane-community");
+    if (pcbot) pcbot.hidden = tab !== "community";
+    const pbrains = document.getElementById("pane-brains");
+    if (pbrains) pbrains.hidden = tab !== "brains";
     if (tab === "compute" && globalThis.HelixCompute) HelixCompute.load();
     if (tab === "control" && globalThis.HelixControl) HelixControl.load();
     if (tab === "medic" && globalThis.HelixMedic) HelixMedic.load();
+    if (tab === "ecc" && globalThis.HelixEcc) HelixEcc.load();
+    if (tab === "ecc" && globalThis.HelixApprovals) HelixApprovals.load();
+    if (tab === "comms" && globalThis.HelixComms) HelixComms.load();
+    if (tab === "discord" && globalThis.HelixDiscord) HelixDiscord.load();
+    if (tab === "media" && globalThis.HelixMedia) HelixMedia.load();
+    if (tab === "community" && globalThis.HelixCommunity) HelixCommunity.load();
+    if (tab === "brains" && globalThis.HelixBrains) HelixBrains.load();
     document.body.classList.toggle("trace-open", tab === "trace" && matchMedia("(max-width: 767px)").matches);
     document.body.classList.toggle("remote-open", tab === "remote" && matchMedia("(max-width: 767px)").matches);
     document.body.classList.toggle("matrix-open", tab === "matrix" && matchMedia("(max-width: 767px)").matches);
@@ -2167,7 +2455,7 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0512";
+    const ASSET_V = "hos0532";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;
@@ -2182,7 +2470,7 @@ async function loadClients() {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register(p + "/helix-sw.js", { scope: p ? p + "/" : "/" }).catch(() => {});
     }
-    ["helix-theme.css", "helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-lights.css", "helix-voice.css", "helix-compute.css", "helix-control.css", "helix-medic.css", "helix-tablet.css"].forEach((href) => {
+    ["helix-theme.css", "helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-lights.css", "helix-voice.css", "helix-compute.css", "helix-control.css", "helix-medic.css", "helix-ecc.css", "helix-comms.css", "helix-discord.css", "helix-media.css", "helix-community.css", "helix-brains.css", "helix-neon-ops.css", "helix-avatar.css", "helix-tablet.css"].forEach((href) => {
       const css = document.createElement("link");
       css.rel = "stylesheet";
       css.href = p + "/" + href + "?v=" + ASSET_V;
@@ -2234,6 +2522,31 @@ async function loadClients() {
     kjs.src = p + "/helix-control.js?v=" + ASSET_V;
     const mdjs = document.createElement("script");
     mdjs.src = p + "/helix-medic.js?v=" + ASSET_V;
+    const eccjs = document.createElement("script");
+    eccjs.src = p + "/helix-ecc.js?v=" + ASSET_V;
+    eccjs.onload = function () { if (globalThis.HelixEcc) HelixEcc.load(); };
+    const commsjs = document.createElement("script");
+    commsjs.src = p + "/helix-comms.js?v=" + ASSET_V;
+    const djs = document.createElement("script");
+    djs.src = p + "/helix-discord.js?v=" + ASSET_V;
+    const mdiajs = document.createElement("script");
+    mdiajs.src = p + "/helix-media.js?v=" + ASSET_V;
+    const cbotjs = document.createElement("script");
+    cbotjs.src = p + "/helix-community.js?v=" + ASSET_V;
+    const simjs = document.createElement("script");
+    simjs.src = p + "/helix-brains-sim.js?v=" + ASSET_V;
+    const brjs = document.createElement("script");
+    brjs.src = p + "/helix-brains.js?v=" + ASSET_V;
+    const apjs = document.createElement("script");
+    apjs.src = p + "/helix-approvals.js?v=" + ASSET_V;
+    const nops = document.createElement("script");
+    nops.src = p + "/helix-neon-ops.js?v=" + ASSET_V;
+    const pixjs = document.createElement("script");
+    pixjs.src = p + "/helix-avatar-pixels.js?v=" + ASSET_V;
+    pixjs.async = false;
+    const avjs = document.createElement("script");
+    avjs.src = p + "/helix-avatar.js?v=" + ASSET_V;
+    avjs.async = false;
     const gjs = document.createElement("script");
     gjs.src = p + "/helix-graph.js?v=" + ASSET_V;
     gjs.async = false;
@@ -2266,6 +2579,17 @@ async function loadClients() {
     document.body.appendChild(cjs);
     document.body.appendChild(kjs);
     document.body.appendChild(mdjs);
+    document.body.appendChild(eccjs);
+    document.body.appendChild(commsjs);
+    document.body.appendChild(djs);
+    document.body.appendChild(mdiajs);
+    document.body.appendChild(cbotjs);
+    document.body.appendChild(simjs);
+    document.body.appendChild(brjs);
+    document.body.appendChild(apjs);
+    document.body.appendChild(nops);
+    document.body.appendChild(pixjs);
+    document.body.appendChild(avjs);
     document.body.appendChild(gjs);
     document.body.appendChild(pjs);
     document.body.appendChild(cogjs);

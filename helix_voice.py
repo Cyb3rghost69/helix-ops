@@ -179,6 +179,16 @@ def parse_intent(text: str) -> dict:
     t = _norm(text)
     if not t:
         return {"ok": False, "error": "empty", "permission": READ, "confidence": 0}
+    try:
+        import helix_prefs as hp
+        mem = hp.handle_utterance(text, voice=True)
+        if mem is not None:
+            if mem.get("blocked") or mem.get("capability") == "memory.preferences.delete":
+                return {"ok": False, "error": "voice cannot delete memory", "blocked": True, "permission": READ, "confidence": 0.9}
+            perm = READ if mem.get("read") else LOW
+            return {"ok": True, "tool": mem.get("capability"), "args": mem.get("params") or {}, "permission": perm, "confidence": 0.88}
+    except Exception:
+        pass
     room = None
     for k, v in ROOM.items():
         if k in t:
@@ -311,6 +321,16 @@ def execute(intent: dict, confirm: bool = False) -> dict:
         return {"ok": False, "error": "refused", "speak": "I will not run destructive actions from voice.", "permission": perm}
 
     result: dict = {"ok": False}
+    if tool and str(tool).startswith("memory."):
+        if str(tool).endswith("delete"):
+            _TELEM["tool_ms"] = int((time.time() - t0) * 1000)
+            return {"ok": False, "tool": tool, "permission": perm, "speak": "Voice cannot delete memory.", "error": "voice cannot delete memory"}
+        import helix_prefs as hp
+        result = hp.invoke(str(tool), args)
+        speak = result.get("speak") or ("Remembered." if result.get("wrote") else (result.get("error") if not result.get("ok") else "Preferences."))
+        _TELEM["tool_ms"] = int((time.time() - t0) * 1000)
+        slim = {k: result.get(k) for k in ("ok", "error", "wrote", "read", "count", "honcho") if k in result}
+        return {"ok": bool(result.get("ok")), "tool": tool, "permission": perm, "result": slim, "speak": speak}
     if tool == "medic.query":
         import helix_medic as medic
         result = medic.query(str(args.get("text") or ""))

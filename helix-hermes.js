@@ -37,6 +37,7 @@
     if (!text) return null;
     log.push({ role: "user", text });
     paint();
+    document.dispatchEvent(new CustomEvent("helix-chat", { detail: { phase: "start" } }));
     let d = { success: false, error: "network", source: "hermes" };
     try {
       const r = await fetch(api("/api/hermes/chat"), {
@@ -57,6 +58,7 @@
     );
     log.push({ role: "assistant", text: reply, ok: !!(d && d.success) });
     paint();
+    document.dispatchEvent(new CustomEvent("helix-chat", { detail: { phase: (d && d.success) ? "ok" : "err", error: d && d.error } }));
     if (d && d.success && global.HelixVoice && typeof global.HelixVoice.speak === "function") {
       global.HelixVoice.speak(reply);
     }

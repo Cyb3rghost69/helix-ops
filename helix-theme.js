@@ -126,6 +126,62 @@
         "--hx-noise-opacity": "0.04"
       }
     },
+    "neon-ops": {
+      label: "NEON OPS ARCADE",
+      hel: "hx-hel-neon",
+      tokens: {
+        "--hx-bg": "#050008",
+        "--hx-surface": "#0c0114",
+        "--hx-surface-raised": "#16041e",
+        "--hx-primary": "#ff2bd6",
+        "--hx-primary-bright": "#ff9aee",
+        "--hx-primary-dim": "#8a186e",
+        "--hx-secondary": "#00e5ff",
+        "--hx-warning": "#ffb000",
+        "--hx-critical": "#ff5533",
+        "--hx-text": "#fff6ff",
+        "--hx-text-muted": "#b44cff",
+        "--hx-grid": "rgba(255,43,214,0.06)",
+        "--hx-border": "#ff2bd6",
+        "--hx-trace": "#00e5ff",
+        "--hx-glow-strength": "0.42",
+        "--hx-persist": "0.28",
+        "--hx-scan-opacity": "0.55",
+        "--hx-noise-opacity": "0.07",
+        "--hx-font-display": "ui-monospace, Menlo, \"MS Gothic\", monospace",
+        "--hx-font-data": "ui-monospace, Menlo, \"MS Gothic\", monospace",
+        "--hx-radius": "0px",
+        "--hx-line-width": "1px"
+      }
+    },
+    arcade: {
+      label: "ARCADE CABINET",
+      hel: "hx-hel-arcade",
+      tokens: {
+        "--hx-bg": "#0a0014",
+        "--hx-surface": "#140028",
+        "--hx-surface-raised": "#1e0838",
+        "--hx-primary": "#ff2bd6",
+        "--hx-primary-bright": "#7dfffb",
+        "--hx-primary-dim": "#9a1a88",
+        "--hx-secondary": "#00e5ff",
+        "--hx-warning": "#ffe600",
+        "--hx-critical": "#ff3355",
+        "--hx-text": "#fff6ff",
+        "--hx-text-muted": "#c77dff",
+        "--hx-grid": "rgba(0,229,255,0.08)",
+        "--hx-border": "#ff2bd6",
+        "--hx-trace": "#00e5ff",
+        "--hx-glow-strength": "0.72",
+        "--hx-persist": "0.55",
+        "--hx-scan-opacity": "0.85",
+        "--hx-noise-opacity": "0.12",
+        "--hx-font-display": "\"Press Start 2P\", \"VT323\", ui-monospace, Menlo, monospace",
+        "--hx-font-data": "ui-monospace, Menlo, \"MS Gothic\", monospace",
+        "--hx-radius": "0px",
+        "--hx-line-width": "2px"
+      }
+    },
     custom: {
       label: "CUSTOM",
       hel: "",
@@ -196,7 +252,7 @@
     setTimeout(() => { el.hidden = true; }, reduce ? 80 : 520);
   }
   function helClass(theme) {
-    document.body.classList.remove("hx-hel-mono", "hx-hel-amber", "hx-hel-aero", "hx-hel-night");
+    document.body.classList.remove("hx-hel-mono", "hx-hel-amber", "hx-hel-aero", "hx-hel-night", "hx-hel-arcade", "hx-hel-neon");
     const c = (THEMES[theme] || {}).hel;
     if (c) document.body.classList.add(c);
   }

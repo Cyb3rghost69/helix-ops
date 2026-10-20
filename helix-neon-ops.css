@@ -1,0 +1,117 @@
+/* NEON OPS ARCADE — layout + room. Tokens live in helix-theme.js. */
+body.hx-hel-neon #hel-01, body.hx-hel-neon #hel-01-desk { color: #ff2bd6; text-shadow: 0 0 8px #00e5ff; }
+
+body[data-hx-theme="neon-ops"] {
+  --hx-radius: 0px;
+  --hx-line-width: 1px;
+}
+body[data-hx-theme="neon-ops"] .ident,
+body[data-hx-theme="neon-ops"] .tabs button {
+  color: #ff2bd6;
+  letter-spacing: 0.14em;
+  text-shadow: 0 0 6px color-mix(in srgb, #ff2bd6 calc(var(--hx-glow-strength, 0.4) * 80%), transparent);
+}
+body[data-hx-theme="neon-ops"] .tabs button.on {
+  background: #1a0024;
+  box-shadow: inset 0 0 0 1px #ff2bd6, 0 0 10px color-mix(in srgb, #ff2bd6 35%, transparent);
+}
+body[data-hx-theme="neon-ops"] .hx-mod,
+body[data-hx-theme="neon-ops"] .hc,
+body[data-hx-theme="neon-ops"] .hecc,
+body[data-hx-theme="neon-ops"] .hx-attn,
+body[data-hx-theme="neon-ops"] .hne-panel {
+  border: 1px solid #ff2bd6;
+  box-shadow: 0 0 8px color-mix(in srgb, #ff2bd6 calc(var(--hx-glow-strength, 0.4) * 40%), transparent);
+  background: #08010c;
+}
+body[data-hx-theme="neon-ops"] button {
+  min-height: 44px;
+  border: 1px solid #ff2bd6;
+  background: #120018;
+  color: #fff6ff;
+  box-shadow: 0 3px 0 #6a0a58;
+}
+body[data-hx-theme="neon-ops"] button:active { transform: translateY(2px); box-shadow: 0 1px 0 #6a0a58; }
+body[data-hx-theme="neon-ops"] #hx-env-grid {
+  background-size: 16px 16px;
+}
+body[data-hx-theme="neon-ops"] #helix-ops-mark,
+body[data-hx-theme="neon-ops"] .hx-ops-wordmark {
+  filter: hue-rotate(280deg) saturate(1.4);
+}
+
+#pane-floor { position: relative; z-index: 1; }
+.hne {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr;
+}
+.hne-head {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  border: 1px solid var(--hx-border); padding: 8px 10px; background: var(--hx-surface);
+  min-height: 48px;
+}
+.hne-head b { color: #ff2bd6; letter-spacing: 0.16em; }
+.hne-head .dim { margin-left: auto; }
+.hne-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 8px;
+}
+.hne-card {
+  border: 1px solid var(--hx-border);
+  background: var(--hx-surface);
+  padding: 8px;
+  min-height: 88px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.hne-card .id { font-size: 11px; letter-spacing: 0.12em; color: #ff2bd6; }
+.hne-card .st { font-size: 12px; }
+.hne-card .task { font-size: 11px; color: var(--hx-text-muted); max-height: 2.6em; overflow: hidden; }
+.hne-room-wrap {
+  border: 1px solid var(--hx-border);
+  background: #050008;
+  position: relative;
+  min-height: 260px;
+}
+#hne-room { width: 100%; height: 360px; image-rendering: pixelated; display: block; cursor: pointer; }
+.hne-graph { border: 1px solid var(--hx-border); background: var(--hx-surface); padding: 8px; }
+#hne-activity { width: 100%; height: 88px; display: block; }
+.hne-support {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+.hne-panel { padding: 8px; min-height: 120px; }
+.hne-panel h3 { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.14em; color: #ff2bd6; }
+.hne-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.hne-mesh svg { width: 100%; height: 140px; }
+.hne-drawer {
+  position: fixed; z-index: 40; top: 0; right: 0; height: 100%; width: min(420px, 100vw);
+  background: #0a0010; border-left: 1px solid #ff2bd6; padding: 16px; overflow: auto;
+  box-shadow: -12px 0 24px rgba(0,0,0,.55);
+}
+.hne-drawer[hidden] { display: none !important; }
+.hne-drawer h2 { margin: 0 0 8px; color: #ff2bd6; letter-spacing: 0.12em; font-size: 14px; }
+.hne-boot {
+  position: fixed; inset: 0; z-index: 80; background: #050008; color: #ff2bd6;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: ui-monospace, Menlo, monospace; letter-spacing: 0.12em;
+}
+.hne-boot[hidden] { display: none !important; }
+.hne-boot pre { font-size: 12px; color: #00e5ff; max-width: 90vw; }
+.hne-boot button { margin-top: 16px; min-width: 160px; }
+.hne-donut { width: 100%; height: 92px; }
+body[data-hx-motion="off"] #hne-room { pointer-events: auto; }
+@media (min-width: 900px) {
+  .hne { grid-template-columns: 1fr; }
+  #hne-room { height: 420px; }
+}
+@media (max-width: 767px) {
+  .hne-cards { grid-auto-flow: column; grid-template-columns: none; overflow-x: auto; padding-bottom: 6px; }
+  .hne-card { min-width: 160px; }
+  #hne-room { height: 240px; }
+  .hne-drawer { width: 100vw; }
+}

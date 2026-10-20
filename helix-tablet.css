@@ -69,6 +69,7 @@
   .term-prompt { flex-wrap: wrap; gap: 6px; }
   .table-scroll, #pane-dock { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   #pane-dock table { min-width: 640px; }
+  #pane-comms .hxc-grid { grid-template-columns: repeat(2, 1fr); }
   #inst-ridge, #git-box, #need-you { font-size: 12px; }
   .btop { max-height: 220px; overflow: auto; }
 

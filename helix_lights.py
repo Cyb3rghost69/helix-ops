@@ -250,9 +250,32 @@ PROVIDERS: dict[str, LightingProvider] = {"wiz": WizProvider()}
 
 _LOCK = threading.Lock()
 _STATE: dict = {"devices": {}, "groups": [], "scenes": [], "last_discovery": None}
+_LOADED = False
 _POLL_T = 0.0
 _DISC_T = 0.0
 _BG_ONCE = False
+
+
+def _ensure() -> dict:
+    global _STATE, _LOADED
+    if not _LOADED or not _STATE.get("groups"):
+        _STATE = _load()
+        _LOADED = True
+    return _STATE
+
+
+def _stamp_desired(st: dict, ids: list[str], cmd: dict) -> None:
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+    for did in ids:
+        d = st["devices"].get(did)
+        if not d:
+            continue
+        des = dict(d.get("desired") or {})
+        for k, v in cmd.items():
+            if v is not None:
+                des[k] = v
+        des["t"] = now
+        d["desired"] = des
 
 
 def _load() -> dict:
@@ -296,15 +319,17 @@ def _merge_device(st: dict, incoming: dict) -> str:
     did = _did(incoming)
     old = st["devices"].get(did) or {}
     ip = incoming.get("ip") or old.get("ip")
-    row = {**old, **{k: v for k, v in incoming.items() if v is not None}}
+    row = {**old, **{k: v for k, v in incoming.items() if v is not None and k != "desired"}}
+    if old.get("desired") and "desired" not in incoming:
+        row["desired"] = old["desired"]
     row["id"] = did
     row["ip"] = ip
     row["provider"] = incoming.get("provider") or old.get("provider") or "wiz"
     row["last_seen"] = time.strftime("%Y-%m-%dT%H:%M:%S") if incoming.get("online") else old.get("last_seen")
     if incoming.get("online") is False:
         row["online"] = False
-    if not row.get("group"):
-        row["group"] = old.get("group") or "unassigned"
+    if not incoming.get("group"):
+        row["group"] = old.get("group") or row.get("group") or "unassigned"
     st["devices"][did] = row
     # keep group membership
     gid = row["group"]
@@ -332,8 +357,7 @@ def _refresh_one(st: dict, did: str) -> None:
 def snapshot() -> dict:
     global _STATE, _POLL_T, _BG_ONCE
     with _LOCK:
-        if not _STATE.get("devices") and not _STATE.get("groups"):
-            _STATE = _load()
+        _STATE = _ensure()
         now = time.time()
         poll = _int_env("WIZ_STATE_POLL_INTERVAL", 20)
         if enabled() and _STATE["devices"] and now - _POLL_T > poll:
@@ -415,7 +439,7 @@ def act(data: dict) -> dict:
         return {"ok": False, "error": "disabled", **snapshot()}
     action = str(data.get("action") or "").strip().lower()
     with _LOCK:
-        st = _STATE if _STATE.get("groups") else _load()
+        st = _ensure()
         _STATE = st
         prov = PROVIDERS.get(str(data.get("provider") or "wiz")) or PROVIDERS["wiz"]
         err = None
@@ -458,6 +482,7 @@ def act(data: dict) -> dict:
         elif action in ("on", "off", "toggle", "brightness", "color", "temperature", "scene", "wiz_scene"):
             ids = _target_ids(st, data)
             cmd = _cmd_from(action, data, st)
+            _stamp_desired(st, ids, cmd)
             for did in ids:
                 d = st["devices"].get(did)
                 if not d or not d.get("ip"):
@@ -467,6 +492,7 @@ def act(data: dict) -> dict:
             _save(st)
         elif action == "all_off":
             cmd = {"power": False}
+            _stamp_desired(st, list(st["devices"]), cmd)
             for did, d in list(st["devices"].items()):
                 if d.get("ip"):
                     got = prov.apply(d["ip"], cmd)
@@ -488,6 +514,7 @@ def act(data: dict) -> dict:
                 }
                 if scene.get("power") is False:
                     cmd = {"power": False}
+                _stamp_desired(st, ids, cmd)
                 for did in ids:
                     d = st["devices"].get(did)
                     if d and d.get("ip"):

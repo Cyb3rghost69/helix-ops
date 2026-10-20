@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>HELIX // RELAY PROTO (SIM)</title>
+<style>
+ body{background:#0b120b;color:#7CFF7A;font-family:ui-monospace,monospace;padding:16px}
+ .banner{background:#3a1a00;color:#ffb000;padding:8px;margin:8px 0}
+ .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+ .card{border:1px solid #3a5a3a;padding:8px}
+ b{display:block}
+</style>
+</head>
+<body>
+<h1>HELIX // RELAY PANEL (SIM)</h1>
+<div class="banner">SIMULATION · NOT PRODUCTION · NO PLATFORM TOKENS · AUTO FAILOVER OFF</div>
+<div class="grid">
+ <div class="card">PLATFORM SOCK <b>SIM UP (dummy)</b></div>
+ <div class="card">ACTIVE BACKEND <b>alpha (sim)</b></div>
+ <div class="card">STANDBY BACKEND <b>bravo (sim)</b></div>
+ <div class="card">QUEUE <b>SQLite durable (SIM)</b></div>
+ <div class="card">CONTRACT <b>v1 handshake TG+Discord</b></div>
+ <div class="card">SPLIT-BRAIN <b>REJECTED</b></div>
+ <div class="card">RELAY HEALTH <b>PROTO ONLY</b></div>
+ <div class="card">LEASE <b>epoch + fence required</b></div>
+ <div class="card">STALE REPLIES <b>DROPPED</b></div>
+ <div class="card">HANDOVER <b>platform socket kept</b></div>
+</div>
+<p>Native Hermes RelayAdapter exists (experimental). It does not switch brains. Helix still needs exclusive backend selection on the connector.</p>
+<p>Source: ~/.hermes/reports/ha-fence-proto/ — not a Helix Ops production route.</p>
+</body>
+</html>

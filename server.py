@@ -819,7 +819,7 @@ DOCKER_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 DOCKER_WEBUI_FALLBACK = {
     "helix-command": f"http://{UNRAID}:8788/",
     "UptimeKuma": f"http://{UNRAID}:3001/",
-    "honcho-api-1": f"http://{UNRAID}:8000/",
+    "honcho-api-1": f"http://{UNRAID}:8000/docs",
     "Hermes-Agent": f"http://{UNRAID}:9119/",
 }
 
@@ -985,7 +985,7 @@ def docker_act(name: str, action: str) -> dict:
 def unraid_host() -> dict:
     rtt = ping_ms(UNRAID)
     agent = http_code(f"http://{UNRAID}:8642/")
-    honcho = http_code(f"http://{UNRAID}:8000/")
+    honcho = http_code(f"http://{UNRAID}:8000/health")
     webui = http_code(f"http://{UNRAID}:9119/")
     return {
         "id": "unraid",
@@ -1204,33 +1204,49 @@ def bot_mesh(profiles: list[dict], peers: list[dict], gw_running: bool, local_sv
                 return "running" in str(p.get("gateway") or "").lower()
         return False
 
+    def installed(name: str) -> bool:
+        return os.path.isdir(os.path.expanduser(f"~/.hermes/profiles/{name}"))
+
     src = sessions.get("by_source") or {}
     honcho_ok = (local_svcs.get("honcho") or {}).get("status") == 200
     peer_names = {p.get("name") for p in peers}
+    unraid_ok = ping_ms(UNRAID) is not None
+    umbrel_ok = ping_ms(UMBREL) is not None
+    ecc_ok = installed("ecc")
     nodes = [
-        {"id": "helix", "label": "HELIX", "kind": "orchestra", "host": "mac", "online": True},
-        {"id": "prefect", "label": "Prefect", "kind": "bot", "host": "mac", "online": on("prefect")},
-        {"id": "foreman", "label": "Foreman", "kind": "bot", "host": "mac", "online": on("foreman")},
-        {"id": "canon", "label": "Canon", "kind": "bot", "host": "mac", "online": on("canon")},
-        {"id": "scribe", "label": "Scribe", "kind": "bot", "host": "mac", "online": on("scribe")},
-        {"id": "adze", "label": "ADZE", "kind": "bot", "host": "mac", "online": on("adze")},
-        {"id": "unraid", "label": "Unraid peer", "kind": "peer", "host": "unraid", "online": "unraid" in peer_names},
-        {"id": "umbrel", "label": "Umbrel peer", "kind": "peer", "host": "umbrel", "online": "umbrel" in peer_names},
-        {"id": "telegram", "label": "Telegram", "kind": "channel", "host": "mac", "online": gw_running},
-        {"id": "honcho", "label": "Honcho", "kind": "memory", "host": "unraid", "online": honcho_ok},
-        {"id": "user", "label": "You", "kind": "human", "host": "lan", "online": True},
+        {"id": "helix", "label": "HELIX", "kind": "orchestra", "host": "mac", "online": True, "installed": True},
+        {"id": "prefect", "label": "Prefect", "kind": "bot", "host": "mac", "online": on("prefect") or installed("prefect"), "installed": installed("prefect")},
+        {"id": "foreman", "label": "Foreman", "kind": "bot", "host": "mac", "online": on("foreman") or installed("foreman"), "installed": installed("foreman")},
+        {"id": "canon", "label": "Canon", "kind": "bot", "host": "mac", "online": on("canon") or installed("canon"), "installed": installed("canon")},
+        {"id": "scribe", "label": "Scribe", "kind": "bot", "host": "mac", "online": on("scribe") or installed("scribe"), "installed": installed("scribe")},
+        {"id": "adze", "label": "ADZE", "kind": "bot", "host": "mac", "online": on("adze") or installed("adze"), "installed": installed("adze")},
+        {"id": "ecc", "label": "ECC", "kind": "bot", "host": "mac", "online": ecc_ok, "installed": ecc_ok},
+        {"id": "unraid", "label": "Unraid peer", "kind": "peer", "host": "unraid", "online": unraid_ok, "installed": True},
+        {"id": "umbrel", "label": "Umbrel peer", "kind": "peer", "host": "umbrel", "online": umbrel_ok, "installed": True},
+        {"id": "telegram", "label": "Telegram", "kind": "channel", "host": "mac", "online": gw_running, "installed": True},
+        {"id": "discord", "label": "Discord", "kind": "channel", "host": "mac", "online": gw_running, "installed": True},
+        {"id": "bluebubbles", "label": "BlueBubbles", "kind": "channel", "host": "mac", "online": gw_running, "installed": True},
+        {"id": "honcho", "label": "Honcho", "kind": "memory", "host": "unraid", "online": honcho_ok, "installed": True},
+        {"id": "user", "label": "You", "kind": "human", "host": "lan", "online": True, "installed": True},
     ]
     edges = [
         {"from": "user", "to": "helix", "label": "desktop", "live": True},
         {"from": "user", "to": "telegram", "label": "chat", "live": gw_running},
+        {"from": "user", "to": "discord", "label": "chat", "live": gw_running, "weight": src.get("discord", 0)},
+        {"from": "user", "to": "bluebubbles", "label": "imessage", "live": gw_running, "weight": src.get("bluebubbles", 0)},
         {"from": "telegram", "to": "helix", "label": "gateway", "live": gw_running, "weight": src.get("telegram", 0)},
-        {"from": "helix", "to": "prefect", "label": "align", "live": on("prefect")},
-        {"from": "helix", "to": "foreman", "label": "kanban", "live": on("foreman")},
-        {"from": "helix", "to": "canon", "label": "docs", "live": on("canon")},
-        {"from": "helix", "to": "scribe", "label": "research", "live": on("scribe")},
-        {"from": "helix", "to": "adze", "label": "critique", "live": on("adze")},
-        {"from": "helix", "to": "unraid", "label": "peer", "live": "unraid" in peer_names},
-        {"from": "helix", "to": "umbrel", "label": "peer", "live": "umbrel" in peer_names},
+        {"from": "discord", "to": "helix", "label": "gateway", "live": gw_running, "weight": src.get("discord", 0)},
+        {"from": "bluebubbles", "to": "helix", "label": "gateway", "live": gw_running, "weight": src.get("bluebubbles", 0)},
+        {"from": "helix", "to": "prefect", "label": "align", "live": installed("prefect")},
+        {"from": "helix", "to": "foreman", "label": "kanban", "live": installed("foreman")},
+        {"from": "helix", "to": "canon", "label": "docs", "live": installed("canon")},
+        {"from": "helix", "to": "scribe", "label": "research", "live": installed("scribe")},
+        {"from": "helix", "to": "adze", "label": "critique", "live": installed("adze")},
+        {"from": "helix", "to": "ecc", "label": "harness", "live": ecc_ok},
+        {"from": "prefect", "to": "foreman", "label": "jobs", "live": installed("prefect") and installed("foreman")},
+        {"from": "canon", "to": "scribe", "label": "cite", "live": installed("canon") and installed("scribe")},
+        {"from": "helix", "to": "unraid", "label": "peer", "live": unraid_ok},
+        {"from": "helix", "to": "umbrel", "label": "peer", "live": umbrel_ok},
         {"from": "helix", "to": "honcho", "label": "memory", "live": honcho_ok},
         {"from": "unraid", "to": "honcho", "label": "api", "live": honcho_ok},
     ]
@@ -1449,6 +1465,7 @@ def agents_now() -> dict:
         ("canon", "Canon", "mac", os.path.expanduser("~/.hermes/profiles/canon/state.db"), "bot", "docs · silent"),
         ("scribe", "Scribe", "mac", os.path.expanduser("~/.hermes/profiles/scribe/state.db"), "bot", "research · silent"),
         ("adze", "ADZE", "mac", os.path.expanduser("~/.hermes/profiles/adze/state.db"), "bot", "openai critic · silent"),
+        ("ecc", "ECC", "mac", os.path.expanduser("~/.hermes/profiles/ecc/state.db"), "bot", "harness · silent"),
     ]
     agents = []
     for aid, label, host, db, kind, role in specs:
@@ -1458,14 +1475,19 @@ def agents_now() -> dict:
             status = "busy"
         elif age is not None and age < 3600:
             status = "idle"
+        elif kind == "bot" and (os.path.exists(db) or os.path.isdir(os.path.expanduser(f"~/.hermes/profiles/{aid}"))):
+            status = "silent"
         elif os.path.exists(db):
-            status = "dark"
+            status = "idle"
         else:
             status = "dark"
         thinking = row["thinking"] or ("thinking…" if status == "busy" else "no live thought")
         doing = row["doing"] or role
+        if status == "silent" and not row["title"]:
+            thinking = "silent · no Telegram face"
+            doing = role
         if status == "dark" and not row["title"]:
-            thinking = "silent · no session"
+            thinking = "missing profile"
             doing = role
         agents.append(
             {
@@ -1500,22 +1522,97 @@ def agents_now() -> dict:
             "age_s": None,
         }
     )
-    agents.append(
+    unraid_rtt = ping_ms(UNRAID)
+    umbrel_rtt = ping_ms(UMBREL)
+    gw = http_code("http://127.0.0.1:8642/", 0.8)
+    gw_ok = gw.get("status") not in (None, 0)
+    extras = [
         {
             "id": "unraid",
             "label": "Unraid peer",
             "host": "unraid",
             "kind": "peer",
             "role": "web/peer only · no Telegram",
-            "status": "idle",
-            "online": False,
-            "thinking": "no local thought stream",
-            "doing": "standing by",
+            "status": "idle" if unraid_rtt is not None else "dark",
+            "online": unraid_rtt is not None,
+            "thinking": f"ping {unraid_rtt:.0f} ms" if unraid_rtt is not None else "host unreachable",
+            "doing": "standing by" if unraid_rtt is not None else "offline",
             "title": "",
             "source": "",
             "age_s": None,
-        }
-    )
+        },
+        {
+            "id": "umbrel",
+            "label": "Umbrel peer",
+            "host": "umbrel",
+            "kind": "peer",
+            "role": "silent peer",
+            "status": "idle" if umbrel_rtt is not None else "dark",
+            "online": umbrel_rtt is not None,
+            "thinking": f"ping {umbrel_rtt:.0f} ms" if umbrel_rtt is not None else "host unreachable",
+            "doing": "standing by" if umbrel_rtt is not None else "offline",
+            "title": "",
+            "source": "",
+            "age_s": None,
+        },
+        {
+            "id": "telegram",
+            "label": "Telegram",
+            "host": "mac",
+            "kind": "channel",
+            "role": "Helix face",
+            "status": "idle" if gw_ok else "dark",
+            "online": gw_ok,
+            "thinking": "gateway up" if gw_ok else "gateway down",
+            "doing": "polling",
+            "title": "",
+            "source": "telegram",
+            "age_s": None,
+        },
+        {
+            "id": "discord",
+            "label": "Discord",
+            "host": "mac",
+            "kind": "channel",
+            "role": "skynet",
+            "status": "idle" if gw_ok else "dark",
+            "online": gw_ok,
+            "thinking": "gateway up" if gw_ok else "gateway down",
+            "doing": "home channel",
+            "title": "",
+            "source": "discord",
+            "age_s": None,
+        },
+        {
+            "id": "bluebubbles",
+            "label": "BlueBubbles",
+            "host": "mac",
+            "kind": "channel",
+            "role": "iMessage bridge",
+            "status": "idle" if gw_ok else "dark",
+            "online": gw_ok,
+            "thinking": "gateway up" if gw_ok else "gateway down",
+            "doing": "local API",
+            "title": "",
+            "source": "bluebubbles",
+            "age_s": None,
+        },
+        {
+            "id": "user",
+            "label": "You",
+            "host": "lan",
+            "kind": "human",
+            "role": "operator",
+            "status": "idle",
+            "online": True,
+            "thinking": "",
+            "doing": "command",
+            "title": "",
+            "source": "",
+            "age_s": None,
+        },
+    ]
+    agents.extend(extras)
     data = {"agents": agents, "t": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     _AGENTS_CACHE["t"] = now
     _AGENTS_CACHE["data"] = data
@@ -2766,6 +2863,26 @@ class Handler(BaseHTTPRequestHandler):
             "/helix-control.js": ("helix-control.js", "application/javascript; charset=utf-8"),
             "/helix-medic.css": ("helix-medic.css", "text/css; charset=utf-8"),
             "/helix-medic.js": ("helix-medic.js", "application/javascript; charset=utf-8"),
+            "/helix-ecc.css": ("helix-ecc.css", "text/css; charset=utf-8"),
+            "/helix-ecc.js": ("helix-ecc.js", "application/javascript; charset=utf-8"),
+            "/helix-comms.css": ("helix-comms.css", "text/css; charset=utf-8"),
+            "/helix-comms.js": ("helix-comms.js", "application/javascript; charset=utf-8"),
+            "/helix-discord.css": ("helix-discord.css", "text/css; charset=utf-8"),
+            "/helix-discord.js": ("helix-discord.js", "application/javascript; charset=utf-8"),
+            "/helix-media.css": ("helix-media.css", "text/css; charset=utf-8"),
+            "/helix-media.js": ("helix-media.js", "application/javascript; charset=utf-8"),
+            "/helix-community.css": ("helix-community.css", "text/css; charset=utf-8"),
+            "/helix-community.js": ("helix-community.js", "application/javascript; charset=utf-8"),
+            "/helix-brains.css": ("helix-brains.css", "text/css; charset=utf-8"),
+            "/helix-brains.js": ("helix-brains.js", "application/javascript; charset=utf-8"),
+            "/helix-brains-sim.js": ("helix-brains-sim.js", "application/javascript; charset=utf-8"),
+            "/helix-approvals.js": ("helix-approvals.js", "application/javascript; charset=utf-8"),
+            "/helix-neon-ops.css": ("helix-neon-ops.css", "text/css; charset=utf-8"),
+            "/helix-neon-ops.js": ("helix-neon-ops.js", "application/javascript; charset=utf-8"),
+            "/helix-avatar.css": ("helix-avatar.css", "text/css; charset=utf-8"),
+            "/helix-avatar.js": ("helix-avatar.js", "application/javascript; charset=utf-8"),
+            "/helix-avatar-pixels.js": ("helix-avatar-pixels.js", "application/javascript; charset=utf-8"),
+            "/helix-avatar-base.jpg": ("helix-avatar-base.jpg", "image/jpeg"),
             "/helix-hermes.js": ("helix-hermes.js", "application/javascript; charset=utf-8"),
             "/helix-tablet.css": ("helix-tablet.css", "text/css; charset=utf-8"),
             "/helix-sw.js": ("helix-sw.js", "application/javascript; charset=utf-8"),
@@ -3048,6 +3165,42 @@ class Handler(BaseHTTPRequestHandler):
             import helix_sentinel
             self._send(200, json.dumps(helix_sentinel.snapshot(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
             return
+        if path == "/api/ecc":
+            import helix_ecc
+            self._send(200, json.dumps(helix_ecc.snapshot(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/comms":
+            import helix_comms
+            self._send(200, json.dumps(helix_comms.snapshot(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/discord":
+            import helix_discord
+            self._send(200, json.dumps(helix_discord.snapshot(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/media":
+            import helix_media
+            self._send(200, json.dumps(helix_media.snapshot(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/media/search":
+            import helix_media
+            q = (qs.get("q") or [""])[0].strip()
+            if not q:
+                self._send(400, json.dumps({"ok": False, "error": "empty_query"}).encode(), "application/json; charset=utf-8")
+                return
+            self._send(200, json.dumps(helix_media.search(q), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/community":
+            import helix_community
+            self._send(200, json.dumps(helix_community.snapshot(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/brains":
+            import helix_brains
+            self._send(200, json.dumps(helix_brains.snapshot(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/approvals":
+            import helix_approvals
+            self._send(200, json.dumps(helix_approvals.list_queue(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
         if path == "/health":
             self._send(200, b'{"ok":true}', "application/json")
             return
@@ -3108,6 +3261,48 @@ class Handler(BaseHTTPRequestHandler):
                 code = 400
             self._send(code, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
             return
+        if path == "/api/ecc":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 4000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            import helix_ecc
+            act = str(data.get("action") or "")
+            if act == "consult":
+                out = helix_ecc.consult(str(data.get("query") or data.get("message") or ""))
+            elif act == "chat":
+                out = helix_ecc.dispatch(str(data.get("message") or data.get("query") or ""))
+            else:
+                out = helix_ecc.snapshot()
+            self._send(200, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/approvals":
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 4000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            import helix_approvals
+            if data.get("approve_all") is True:
+                if type(data.get("allow")) is not bool:
+                    self._send(400, b'{"error":"allow must be an explicit boolean"}', "application/json")
+                    return
+                out = helix_approvals.decide_all(data["allow"])
+            else:
+                if type(data.get("allow")) is not bool:
+                    self._send(400, b'{"error":"allow must be an explicit boolean"}', "application/json")
+                    return
+                out = helix_approvals.decide(str(data.get("id") or ""), data["allow"])
+            code = 200 if out.get("ok") else 400
+            self._send(code, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
         if path == "/api/flight":
             n = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(max(0, min(n, 8000)))
@@ -3137,6 +3332,10 @@ class Handler(BaseHTTPRequestHandler):
             with PROMPT_LOG.open("a") as f:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             self._send(200, json.dumps({"ok": True, "item": rec}, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/brains":
+            import helix_brains
+            self._send(403, json.dumps(helix_brains.refuse_mutate(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
             return
         if path == "/api/docker":
             n = int(self.headers.get("Content-Length") or 0)

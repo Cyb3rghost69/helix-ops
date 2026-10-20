@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>HELIX // FENCE PROTO (SIM)</title>
+<style>
+  body { background:#0b120b; color:#7CFF7A; font-family: ui-monospace, monospace; padding:16px; }
+  h1 { letter-spacing:.14em; font-size:16px; }
+  .banner { background:#3a1a00; color:#ffb000; padding:8px; margin:8px 0; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px; }
+  .card { border:1px solid #3a5a3a; padding:8px; }
+  b { display:block; color:#c8ffc4; }
+  table { width:100%; border-collapse:collapse; margin-top:12px; font-size:12px; }
+  td,th { border-bottom:1px solid #3a5a3a; padding:4px; text-align:left; }
+</style>
+</head>
+<body>
+<h1>HELIX // GATEWAY FENCE PROTO</h1>
+<div class="banner">SIMULATION ONLY · LOOPBACK ARTIFACT · NO PRODUCTION CONTROL · AUTO FAILOVER OFF</div>
+<p>Open this file locally. It does not call Helix Ops, Hermes, Unraid, or any gateway.</p>
+<div class="grid">
+  <div class="card">LEADER <b>alpha (sim)</b></div>
+  <div class="card">STANDBY <b>bravo (sim)</b></div>
+  <div class="card">LEASE <b>60s TTL · epoch N</b></div>
+  <div class="card">FENCE <b>required before promote</b></div>
+  <div class="card">WITNESS <b>sim node · not Umbrel</b></div>
+  <div class="card">QUORUM <b>2 of 3 + fence</b></div>
+  <div class="card">GATEWAY <b>one owner</b></div>
+  <div class="card">SPLIT-BRAIN <b>naive 2-of-3 FAIL / proto PASS</b></div>
+</div>
+<table>
+  <tr><th>Test</th><th>Result</th></tr>
+  <tr><td>22 unittest scenarios in test_ha_controller.py</td><td>PASS (see report)</td></tr>
+  <tr><td>Timeout / expired lease auto-promote</td><td>REFUSED</td></tr>
+  <tr><td>Stale epoch / stale fence token</td><td>REJECTED</td></tr>
+  <tr><td>Failback without approval</td><td>REFUSED</td></tr>
+</table>
+<p>Source: ~/.hermes/reports/ha-fence-proto/ — dummy creds only.</p>
+</body>
+</html>

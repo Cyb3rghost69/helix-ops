@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>HELIX // RECOVERY (SIM)</title>
+<style>
+ body{background:#0b120b;color:#7CFF7A;font-family:ui-monospace,monospace;padding:16px}
+ .banner{background:#3a1a00;color:#ffb000;padding:8px}
+ .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:12px}
+ .card{border:1px solid #3a5a3a;padding:8px}
+ b{display:block}
+ .miss{color:#c44}
+</style>
+</head>
+<body>
+<h1>HELIX // MANUAL RECOVERY BOARD (SIM)</h1>
+<div class="banner">SIMULATION · CONTROLS DISABLED · NOT GATEWAY-GATEWAY · AUTO FAILOVER OFF</div>
+<div class="grid">
+ <div class="card">GATEWAY OWNER <b>alpha (live, not this page)</b></div>
+ <div class="card">ACTIVE BACKEND <b>alpha native adapters</b></div>
+ <div class="card">STANDBY <b>bravo worker — no tokens</b></div>
+ <div class="card">RELAY READINESS <b class="miss">MISSING (connector repo 404)</b></div>
+ <div class="card">FENCING <b class="miss">SIM ONLY</b></div>
+ <div class="card">HONCHO <b>Unraid :8000 — backups on UNAS</b></div>
+ <div class="card">BACKUP <b>see Phase 4E/cron</b></div>
+ <div class="card">PREREQUISITES <b>fence before any second poller</b></div>
+</div>
+<p>Manual steps live in helix-ha-v2-phase5e.md. This file does not call production APIs.</p>
+</body>
+</html>

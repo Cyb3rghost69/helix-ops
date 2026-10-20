@@ -1,0 +1,23 @@
+# Helix OS source backup — never commit secrets
+.env
+.env.*
+!.env.example
+ops.env
+unifi.env
+*.pem
+*.key
+id_*
+auth.json
+honcho.json
+*.dump
+*.sqlite
+*.db
+*.db-wal
+*.db-shm
+state.json
+events.jsonl
+comms-hist.json
+**/secrets/
+bitcoin*
+wallet*
+seed*

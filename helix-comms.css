@@ -1,0 +1,15 @@
+.hxc { border: var(--hx-line-width, 1px) solid var(--hx-border, #3a5a3a); background: var(--hx-surface, #0b120b); padding: 10px; }
+.hxc-head { display: flex; justify-content: space-between; gap: 8px; letter-spacing: 0.16em; color: var(--hx-warning, #c8ff00); flex-wrap: wrap; }
+.hxc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 10px 0; }
+.hxc-card { border: 1px solid var(--hx-border, #3a5a3a); padding: 8px; min-height: 64px; }
+.hxc-card b { display: block; color: var(--hx-primary, #7cff6b); font-size: 18px; letter-spacing: 0.08em; }
+.hxc-topo { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+.hxc-node { border: 1px solid var(--hx-border, #3a5a3a); padding: 8px 10px; min-width: 110px; letter-spacing: 0.12em; font-size: 11px; }
+.hxc-node.on { box-shadow: inset 0 0 0 1px var(--hx-primary, #7cff6b); }
+.hxc-node.off { opacity: 0.55; }
+.hxc canvas { width: 100%; height: 72px; image-rendering: pixelated; background: #050805; border: 1px solid var(--hx-border, #3a5a3a); }
+.hxc-err { color: var(--hx-warning, #c8ff00); min-height: 1.2em; font-size: 12px; }
+@media (min-width: 768px) and (max-width: 1366px) {
+  .hxc-grid { grid-template-columns: repeat(2, 1fr); }
+  .hxc-card b { font-size: 16px; }
+}

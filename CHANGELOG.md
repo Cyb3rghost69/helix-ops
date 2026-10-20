@@ -1,8 +1,16 @@
+- **hos0520** lighting settings persist across Helix ops restart (room brightness/colour/power/scene + last commanded desired on bulbs).
+- **hos0519** bot mesh: silent vs offline, extra nodes (ecc/discord/bluebubbles/umbrel), denser dual-ring NOC + FLOOR mesh.
 # Changelog
 
 ## Unreleased
 
+- ECC tab `[13]` (`/api/ecc`) — silent `ecc` profile status, consult, bounded ecc chat. No secrets.
+- Approval queue (`/api/approvals`) — approve/deny COMPUTE jobs waiting approval from ATTN bus + ECC pane. Gateway `/approve` still Telegram. ATTN bus clears when the queue is empty.
+- NEON OPS ARCADE theme + `[00] FLOOR` command room. CLI `neon` / `floor`.
+- Main AI pixel avatar (layered expressions, live chat/voice/approval mapping). Preview mode. Backup `ops-dashboard-backup-hos0515.tgz`.
+
 ### Added
+- HELIX/89 visual system (`helix-theme.*`) — `--hx-*` tokens, six identities + custom, motion OFF/REDUCED/STANDARD/ENHANCED.
 
 - HELIX/89 visual system (`helix-theme.*`) — `--hx-*` tokens, five identities + custom, motion OFF/REDUCED/STANDARD/ENHANCED.
 - Graph engine, Cognitive Load, Priority Engine, Attention Bus (real telemetry only).

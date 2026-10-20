@@ -1,0 +1,8 @@
+.hecc { border: var(--hx-line-width) solid var(--hx-border); background: var(--hx-surface); padding: 10px; }
+.hecc-head { display: flex; justify-content: space-between; letter-spacing: 0.16em; color: var(--hx-warning); }
+.hecc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 10px 0; }
+.hecc-card { border: 1px solid var(--hx-border); padding: 8px; min-height: 64px; }
+.hecc-card b { display: block; color: var(--hx-primary); font-size: 22px; letter-spacing: 0.08em; }
+.hecc-out { white-space: pre-wrap; font: 11px/1.4 var(--hx-font-data); color: var(--hx-text); min-height: 80px; border: 1px solid var(--hx-border); padding: 8px; }
+.hecc .vx-type { width: 100%; background: var(--hx-bg); color: var(--hx-text); border: 1px solid var(--hx-border); min-height: 40px; padding: 6px 8px; }
+.hecc-bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }

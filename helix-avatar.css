@@ -1,0 +1,54 @@
+/* Main AI avatar — exact reference portrait + expression overlays. */
+.hx-av {
+  border: var(--hx-line-width, 1px) solid var(--hx-border);
+  background: var(--hx-surface);
+  padding: 8px;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hx-av[hidden] { display: none !important; }
+.hx-av-stage {
+  position: relative;
+  width: 100%;
+  min-height: 260px;
+  background: #000033;
+  overflow: hidden;
+}
+.hx-av-stage canvas {
+  width: 100%;
+  height: 260px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: block;
+  cursor: pointer;
+}
+.hx-av-meta { font-size: 11px; letter-spacing: 0.08em; }
+.hx-av-meta b { color: var(--hx-primary); }
+.hx-av-err { color: var(--hx-critical); font-size: 11px; min-height: 1.2em; }
+.hx-av-bar { display: flex; flex-wrap: wrap; gap: 6px; }
+.hx-av-bar button, .hx-av-bar select, .hx-av-bar label {
+  min-height: 44px;
+  font-size: 11px;
+}
+.hx-av-mini {
+  width: 40px; height: 40px; padding: 0; border: 1px solid var(--hx-border);
+  background: #000033; flex: 0 0 40px; overflow: hidden;
+}
+.hx-av-mini canvas { width: 40px; height: 40px; image-rendering: auto; display: block; }
+.term-bar { display: flex; align-items: center; gap: 8px; }
+.hx-av-portrait {
+  position: fixed; z-index: 45; inset: 0; background: rgba(0,0,0,.72);
+  display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+}
+.hx-av-portrait[hidden] { display: none !important; }
+.hx-av-portrait canvas { width: min(90vw, 420px); height: min(90vw, 420px); image-rendering: auto; background: #000033; }
+body.hx-av-compact .hx-av { min-height: 72px; }
+body.hx-av-compact .hx-av-stage { min-height: 64px; }
+body.hx-av-compact .hx-av-stage canvas { height: 64px; }
+body.hx-av-off .hx-av, body.hx-av-off .hx-av-mini { display: none !important; }
+@media (max-width: 767px) {
+  .hx-av { min-height: 200px; }
+  .hx-av-stage canvas { height: 200px; }
+}

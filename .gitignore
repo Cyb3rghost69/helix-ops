@@ -32,6 +32,8 @@ protect-events.db
 helix-remote.json
 helix-lights.json
 helix-lights.json.tmp
+helix-home-prefs.json
+helix-home-prefs.json.tmp
 helix-voice.jsonl
 helix-compute.json
 helix-compute.json.tmp
@@ -55,3 +57,5 @@ verify-*.png
 *.orig
 *.swp
 *~
+
+comms-hist.json

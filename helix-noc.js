@@ -1,8 +1,9 @@
 /* HELIX OPS — network control canvas. Real APIs only. */
 (function (global) {
   const ST = {
-    busy: { fill: "#efe6c9", label: "BUSY" },
+    "busy": { fill: "#efe6c9", label: "BUSY" },
     idle: { fill: "#d4a017", label: "IDLE" },
+    silent: { fill: "#8866aa", label: "SILENT" },
     online: { fill: "#6adf64", label: "ONLINE" },
     degraded: { fill: "#e09030", label: "DEGRADED" },
     dark: { fill: "#5a4038", label: "OFFLINE" },
@@ -22,8 +23,10 @@
     if (agent) {
       if (agent.status === "busy") return "busy";
       if (agent.status === "idle") return "idle";
+      if (agent.status === "silent") return "silent";
       if (agent.status === "dark") return n.online ? "idle" : "dark";
     }
+    if (n.kind === "bot" && n.online === false && n.installed) return "silent";
     if (n.online) return "online";
     return "dark";
   }
@@ -69,12 +72,20 @@
   function posMap(nodes, w, h) {
     const cx = w / 2, cy = h / 2;
     const pos = {};
-    const others = nodes.filter((n) => n.id !== "helix");
+    const innerIds = ["user", "telegram", "honcho", "ecc"];
+    const outer = nodes.filter((n) => n.id !== "helix" && innerIds.indexOf(n.id) < 0);
+    const inner = nodes.filter((n) => innerIds.indexOf(n.id) >= 0);
     pos.helix = { x: cx, y: cy };
-    others.forEach((n, i) => {
-      const a = (i / Math.max(others.length, 1)) * Math.PI * 2 - Math.PI / 2;
-      const rx = Math.min(w, h) * 0.38;
-      const ry = Math.min(w, h) * 0.32;
+    inner.forEach((n, i) => {
+      const a = (i / Math.max(inner.length, 1)) * Math.PI * 2 - Math.PI / 2;
+      const rx = Math.min(w, h) * 0.22;
+      const ry = Math.min(w, h) * 0.18;
+      pos[n.id] = { x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry };
+    });
+    outer.forEach((n, i) => {
+      const a = (i / Math.max(outer.length, 1)) * Math.PI * 2 - Math.PI / 3;
+      const rx = Math.min(w, h) * 0.42;
+      const ry = Math.min(w, h) * 0.36;
       pos[n.id] = { x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry };
     });
     return pos;
@@ -264,7 +275,7 @@
     const nodes = merge();
     const on = nodes.filter((n) => n.st !== "dark").length;
     const busy = nodes.filter((n) => n.st === "busy").length;
-    const idle = nodes.filter((n) => n.st === "idle").length;
+    const idle = nodes.filter((n) => n.st === "idle" || n.st === "silent").length;
     const off = nodes.filter((n) => n.st === "dark").length;
     const c = state.compute || {};
     const h = state.hermes || {};

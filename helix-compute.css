@@ -1,0 +1,35 @@
+/* HELIX COMPUTE — CRT phosphor cards. Not a redesign. */
+.hc { color: var(--ok); }
+.hc-head {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  gap: 12px; padding: 8px 2px 10px; border-bottom: 1px solid var(--line);
+}
+.hc-head small { display: block; color: var(--dim); letter-spacing: 0.16em; font-size: 10px; }
+.hc-active {
+  letter-spacing: 0.22em; font-size: 16px; margin: 12px 0 8px;
+  color: var(--ok); text-shadow: 0 0 8px rgba(124,255,122,.25);
+}
+.hc-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 8px 0;
+}
+.hc-card {
+  border: 1px solid var(--line); background: #070b07; padding: 8px 10px;
+}
+.hc-card .ident { color: var(--gold); letter-spacing: 0.14em; font-size: 10px; }
+.hc-card b { color: var(--ok); }
+.hc-card .dim { color: var(--dim); font-size: 11px; }
+.hc-bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.hc-bar button {
+  min-height: 44px; padding: 6px 12px; letter-spacing: 0.12em; font-size: 11px;
+  background: #070b07; color: var(--ok); border: 1px solid var(--line);
+}
+.hc-bar button.on { border-color: var(--ok); color: #39ff14; }
+.hc-jobs { font-size: 11px; color: #9cba90; max-height: 180px; overflow: auto; }
+.hc-jobs div { border-bottom: 1px dotted #243024; padding: 4px 0; }
+.hc-err { color: var(--bad); min-height: 1.2em; font-size: 11px; }
+@media (max-width: 767px) {
+  .hc-grid { grid-template-columns: 1fr; }
+}
+@media (min-width: 768px) and (max-width: 1366px) {
+  .hc-grid { grid-template-columns: repeat(2, 1fr); }
+}

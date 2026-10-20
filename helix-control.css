@@ -1,0 +1,33 @@
+/* HELIX CONTROL — CRT phosphor rooms. Not a redesign. */
+.hx { color: var(--ok); }
+.hx-head {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  gap: 12px; padding: 8px 2px 10px; border-bottom: 1px solid var(--line);
+}
+.hx-head small { display: block; color: var(--dim); letter-spacing: 0.16em; font-size: 10px; }
+.hx-state {
+  letter-spacing: 0.22em; font-size: 16px; margin: 12px 0 8px;
+  color: var(--ok); text-shadow: 0 0 8px rgba(124,255,122,.25);
+}
+.hx-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 8px 0;
+}
+.hx-card {
+  border: 1px solid var(--line); background: #070b07; padding: 8px 10px;
+}
+.hx-card .ident { color: var(--gold); letter-spacing: 0.14em; font-size: 10px; }
+.hx-card b { color: var(--ok); }
+.hx-bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+.hx-bar button, .hx-bar select {
+  min-height: 44px; padding: 6px 12px; letter-spacing: 0.12em; font-size: 11px;
+  background: #070b07; color: var(--ok); border: 1px solid var(--line);
+}
+.hx-err { color: var(--bad); min-height: 1.2em; font-size: 11px; }
+#hx-prefs .hx-card .dim { letter-spacing: 0.12em; }
+#hx-prefs button[data-forget] { color: var(--bad); }
+@media (max-width: 767px) {
+  .hx-grid { grid-template-columns: 1fr; }
+}
+@media (min-width: 768px) and (max-width: 1366px) {
+  .hx-grid { grid-template-columns: repeat(2, 1fr); }
+}

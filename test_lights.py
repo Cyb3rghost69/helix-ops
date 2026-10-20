@@ -36,6 +36,16 @@ class PilotParse(unittest.TestCase):
     def test_provider_id(self):
         self.assertEqual(WizProvider().id, "wiz")
 
+    def test_desired_survives_merge(self):
+        from helix_lights import _merge_device
+        st = {"devices": {}, "groups": [{"id": "bedroom", "name": "Bedroom", "lights": []}]}
+        _merge_device(st, {"mac": "aabbccddeeff", "ip": "192.168.1.10", "online": True, "group": "bedroom"})
+        did = "aabbccddeeff"
+        st["devices"][did]["desired"] = {"brightness": 30, "power": True}
+        _merge_device(st, {"mac": "aabbccddeeff", "ip": "192.168.1.10", "online": True, "brightness": 80})
+        self.assertEqual(st["devices"][did]["desired"]["brightness"], 30)
+        self.assertEqual(st["devices"][did]["group"], "bedroom")
+
 
 if __name__ == "__main__":
     unittest.main()

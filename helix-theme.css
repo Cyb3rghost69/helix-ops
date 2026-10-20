@@ -223,6 +223,87 @@ body.hx-hel-mono #hel-01, body.hx-hel-mono #hel-01-desk { color: #d0d0d0; }
 body.hx-hel-amber #hel-01, body.hx-hel-amber #hel-01-desk { color: #ffb000; }
 body.hx-hel-aero #hel-01, body.hx-hel-aero #hel-01-desk { color: #1a1c18; }
 body.hx-hel-night #hel-01, body.hx-hel-night #hel-01-desk { color: #4a7a5a; }
+body.hx-hel-arcade #hel-01, body.hx-hel-arcade #hel-01-desk { color: #ff2bd6; text-shadow: 0 0 12px #00e5ff; }
+
+body[data-hx-theme="arcade"] {
+  --hx-font-display: ui-monospace, Menlo, "MS Gothic", monospace;
+  image-rendering: pixelated;
+}
+body[data-hx-theme="arcade"] #hx-env-grid {
+  background-size: 12px 12px;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,43,214,0.12) 1px, transparent 1px);
+}
+body[data-hx-theme="arcade"] #hx-env-scan {
+  background: repeating-linear-gradient(180deg, rgba(255,43,214,.14) 0 2px, transparent 2px 4px);
+}
+body[data-hx-theme="arcade"] #hx-env-sweep {
+  background: linear-gradient(180deg, transparent, rgba(0,229,255,.35), transparent);
+  animation-duration: calc(4s / var(--hx-animation-speed, 1));
+}
+body[data-hx-theme="arcade"] .tabs button,
+body[data-hx-theme="arcade"] .hx-fkey button,
+body[data-hx-theme="arcade"] button {
+  border: 2px solid var(--hx-primary);
+  background: linear-gradient(#2a0a44, #120020);
+  color: var(--hx-primary-bright);
+  box-shadow: 0 3px 0 #6a0a5a, 0 0 12px rgba(255,43,214,.35);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border-radius: 0;
+}
+body[data-hx-theme="arcade"] button:hover,
+body[data-hx-theme="arcade"] .tabs button.on {
+  background: #ff2bd6;
+  color: #0a0014;
+  box-shadow: 0 0 18px #00e5ff;
+}
+body[data-hx-theme="arcade"] button:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #6a0a5a;
+}
+body[data-hx-theme="arcade"] .hx-mod,
+body[data-hx-theme="arcade"] .hc,
+body[data-hx-theme="arcade"] .hecc,
+body[data-hx-theme="arcade"] .hx-attn {
+  box-shadow: inset 0 0 0 2px #00e5ff, 0 0 24px rgba(255,43,214,.25);
+}
+body[data-hx-theme="arcade"] .ident {
+  color: #ffe600;
+  text-shadow: 2px 0 #ff2bd6, -2px 0 #00e5ff;
+}
+body[data-hx-theme="arcade"] #helix-ops-mark,
+body[data-hx-theme="arcade"] .hx-ops-wordmark {
+  filter: hue-rotate(280deg) saturate(1.8) contrast(1.15);
+  animation: hx-arcade-logo calc(2.4s / var(--hx-animation-speed, 1)) steps(4) infinite;
+}
+@keyframes hx-arcade-logo {
+  0%, 70% { filter: hue-rotate(280deg) saturate(1.8); }
+  80% { filter: hue-rotate(160deg) saturate(2); }
+  100% { filter: hue-rotate(280deg) saturate(1.8); }
+}
+body[data-hx-motion="off"][data-hx-theme="arcade"] #helix-ops-mark,
+body[data-hx-motion="off"][data-hx-theme="arcade"] .hx-ops-wordmark {
+  animation: none;
+}
+body[data-hx-theme="arcade"] #hx-reconfig {
+  background: repeating-linear-gradient(0deg, #0a0014 0 8px, #1a0030 8px 16px);
+  color: #ffe600;
+  font-size: 14px;
+  letter-spacing: 0.28em;
+}
+body[data-hx-theme="arcade"] #hx-reconfig::after {
+  content: " INSERT COIN ";
+}
+body[data-hx-theme="arcade"] .hx-appr-row button {
+  min-height: 40px;
+}
+.hx-appr-row {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  margin: 4px 0; font-size: 11px; letter-spacing: 0.08em;
+}
+.hx-appr-row button { min-height: 36px; }
 
 @media (prefers-reduced-motion: reduce) {
   .hx-mod { transition: none; }

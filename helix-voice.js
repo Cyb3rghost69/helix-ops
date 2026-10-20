@@ -21,6 +21,7 @@
       el.textContent = "◉ " + s;
       el.className = "vx-state" + (s === "LISTENING" || s === "READY" ? " listen" : s === "ERROR" ? " err" : "");
     }
+    document.dispatchEvent(new CustomEvent("helix-voice", { detail: { state: s } }));
   }
   function drawWave(level) {
     const cv = document.getElementById("vx-wave");
@@ -100,6 +101,12 @@
       return r.json();
     }).then((d) => {
       last = d;
+      if (d.route === "hermes" && typeof window.sendToHermes === "function") {
+        const t = d.transcript || body.text || userT;
+        userT = t;
+        show();
+        return window.sendToHermes(t);
+      }
       helixT = d.speak || "";
       if (body.text) userT = body.text;
       pendingConfirm = d.need_confirm ? (body.text || userT) : null;
@@ -149,6 +156,40 @@
     }
     unlockAudio();
     try { speechSynthesis.cancel(); } catch (e) {}
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SR && typeof window.sendToHermes === "function") {
+      try {
+        const rec = new SR();
+        rec.lang = cfg.stt_language || "en-AU";
+        rec.interimResults = false;
+        rec.maxAlternatives = 1;
+        rec.onresult = (e) => {
+          listening = false;
+          const t = (e.results && e.results[0] && e.results[0][0] && e.results[0][0].transcript) || "";
+          if (t.trim()) {
+            userT = t.trim();
+            show();
+            window.sendToHermes(t.trim());
+          } else {
+            setState("ERROR");
+            helixT = "No speech captured.";
+            show();
+          }
+        };
+        rec.onerror = () => {
+          listening = false;
+          setState("ERROR");
+          helixT = "Speech recognition failed. Type below.";
+          show();
+        };
+        rec.onend = () => { listening = false; };
+        rec.start();
+        listening = true;
+        startListen._rec = rec;
+        setState("LISTENING");
+        return;
+      } catch (e) {}
+    }
     navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
       chunks = [];
       const mime = recMime();
@@ -185,6 +226,7 @@
   }
   function stopListen() {
     listening = false;
+    try { if (startListen._rec) { startListen._rec.stop(); startListen._rec = null; } } catch (e) {}
     try { if (mediaRec && mediaRec.state !== "inactive") mediaRec.stop(); } catch (e) {}
     cancelAnimationFrame(raf);
   }
@@ -261,6 +303,7 @@
     });
   }
   globalThis.HelixVoice = {
+    speak,
     mount() {
       bind();
       loadHist();

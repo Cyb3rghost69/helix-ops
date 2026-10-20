@@ -1,5 +1,5 @@
 /* HELIX/OPS service worker — static assets only. Never cache /api or live data. */
-const VER = "hos0512";
+const VER = "hos0532";
 const CACHE = "helix-ops-" + VER;
 
 self.addEventListener("install", (e) => {

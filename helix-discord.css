@@ -1,0 +1,5 @@
+.hxd { border: var(--hx-line-width, 1px) solid var(--hx-border, #3a5a3a); background: var(--hx-surface, #0b120b); padding: 10px; }
+.hxd-head { display: flex; justify-content: space-between; letter-spacing: 0.16em; color: var(--hx-warning, #c8ff00); }
+.hxd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 10px 0; }
+.hxd-card { border: 1px solid var(--hx-border, #3a5a3a); padding: 8px; min-height: 56px; }
+.hxd-card b { display: block; color: var(--hx-primary, #7cff6b); font-size: 16px; }
