@@ -123,6 +123,13 @@
 </div>
 
 <div class="dk-grid">
+  <section class="dk-pn dk-s12 dk-chart" aria-label="Fleet compute">
+    <div class="dk-hd"><span>FLEET // COMPUTE</span><small id="dk-fleet-sub">since page load</small></div>
+    <div class="dk-bd" id="dk-fleet"><div class="dk-empty">sampling_</div></div>
+  </section>
+</div>
+
+<div class="dk-grid">
   <section class="dk-pn dk-s8" aria-label="Botmesh topology">
     <div class="dk-hd"><span>BOTMESH // NETWORK CONTROL</span><small>live topology · 接続網</small></div>
     <div class="dk-topo">
@@ -146,41 +153,43 @@
 </div>
 
 <div class="dk-grid">
-  <section class="dk-pn dk-s8 dk-chart" aria-label="Fleet compute">
-    <div class="dk-hd"><span>FLEET COMPUTE</span><small id="dk-fleet-sub">since page load · share of fleet CPU</small></div>
-    <div class="dk-bd" id="dk-fleet"><div class="dk-empty">sampling_</div></div>
-  </section>
   <section class="dk-pn dk-s4 alert" aria-label="Needs you">
     <div class="dk-hd"><span>NEEDS YOU</span><small>要対応</small></div>
     <div class="dk-needs" id="dk-needs"><div class="dk-bd dk-empty">scanning_</div></div>
   </section>
+  <section class="dk-pn dk-s4" aria-label="Agent cognitive trace">
+    <div class="dk-hd"><span>AGENT COGNITIVE TRACE</span><small>observable events only</small></div>
+    <div class="dk-bd" id="dk-trace"><div class="dk-empty">scanning trace_</div></div>
+  </section>
+  <section class="dk-pn dk-s4" aria-label="Hardening findings">
+    <div class="dk-hd"><span>hardening.py</span><small>security.findings</small></div>
+    <div class="dk-bd" id="dk-hardpy"><div class="dk-empty">scanning_</div></div>
+  </section>
 </div>
 
 <div class="dk-grid">
-  <section class="dk-pn dk-s6" aria-label="Agent cognitive trace">
-    <div class="dk-hd"><span>AGENT COGNITIVE TRACE</span><small>思考追跡 · observable events only</small></div>
-    <div class="dk-bd" id="dk-trace"><div class="dk-empty">scanning trace_</div></div>
-  </section>
-  <section class="dk-pn dk-s6" aria-label="Service matrix">
+  <section class="dk-pn dk-s7" aria-label="Service matrix">
     <div class="dk-hd"><span>SERVICE MATRIX // DOCKER</span><small id="dk-dock-sub">unraid</small></div>
     <div id="dk-dock"><div class="dk-bd dk-empty">scanning docker_</div></div>
   </section>
+  <section class="dk-pn dk-s5" aria-label="Remote matrix">
+    <div class="dk-hd"><span>REMOTE MATRIX // RUSTDESK</span><small>遠隔端末 · OSS</small></div>
+    <div class="dk-bd" id="dk-remote"><div class="dk-empty">scanning remote_</div></div>
+  </section>
 </div>
 
 <div class="dk-grid">
-  <section class="dk-pn dk-s5" aria-label="LAN clients">
+  <section class="dk-pn dk-s6" aria-label="LAN clients">
     <div class="dk-hd"><span>NETWORK PULSE // LAN</span><small id="dk-lan-sub">clients by owner</small></div>
     <div class="dk-bd" id="dk-lan"><div class="dk-empty">scanning LAN_</div></div>
-  </section>
-  <section class="dk-pn dk-s4" aria-label="Remote matrix">
-    <div class="dk-hd"><span>REMOTE MATRIX // RUSTDESK</span><small>遠隔端末 · OSS</small></div>
-    <div class="dk-bd" id="dk-remote"><div class="dk-empty">scanning remote_</div></div>
   </section>
   <div class="dk-col dk-s3">
     <section class="dk-pn" aria-label="Source control">
       <div class="dk-hd"><span>SOURCE CONTROL</span><small>git</small></div>
       <div class="dk-bd" id="dk-git"><div class="dk-empty">scanning git_</div></div>
     </section>
+  </div>
+  <div class="dk-col dk-s3">
     <section class="dk-pn" aria-label="Memory matrix">
       <div class="dk-hd"><span>MEMORY MATRIX</span><small>記憶演算</small></div>
       <div class="dk-bd" id="dk-mem-banks"><div class="dk-empty">scanning memory_</div></div>
@@ -300,6 +309,34 @@
   }
 
   /* ───────────── hermes + adze ───────────── */
+  function pipeChips() {
+    const stages = ((S.trace || {}).stages) || {};
+    const order = ["REQUEST", "INTERPRET", "PLAN", "TOOL", "OBSERVATION", "DECISION", "RESPONSE"];
+    const keys = Object.keys(stages);
+    const lastLit = [...order].reverse().find((k) => stages[k] || stages[k.toLowerCase()]);
+    return `<div class="dk-pipe" role="img" aria-label="pipeline">${order.map((k) => {
+      const on = !!(stages[k] || stages[k.toLowerCase()]);
+      const cur = k === lastLit;
+      return `<span class="${on ? "lit" : ""}${cur ? " cur" : ""}">${k}</span>`;
+    }).join("")}${keys.length ? "" : ""}</div>`;
+  }
+  function renderHardPy() {
+    const box = $("dk-hardpy");
+    if (!box) return;
+    const sec = (S.stats || {}).security;
+    if (!sec) { box.innerHTML = `<div class="dk-empty">${NT}</div>`; return; }
+    const snake = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "check";
+    const rows = (sec.findings || []).map((f) => {
+      const lv = String(f.level || "").toLowerCase();
+      let val = "LOW", cls = "low";
+      if (lv === "ok") { val = "PASS"; cls = "ok"; }
+      else if (lv === "med" || lv === "warn") { val = "MED ✗"; cls = "med"; }
+      else if (lv === "high") { val = "HIGH ✗"; cls = "high"; }
+      return `<div class="row ${cls}"><span>${esc(snake(f.title))}</span><span>${val}</span></div>`;
+    }).join("");
+    const sc = num(sec.score);
+    box.innerHTML = `<div class="dk-py"><div>score = ${sc != null ? sc : "—"} / 100</div><div>checks = {</div>${rows || `<div class="dk-empty">${NT}</div>`}<div>}</div></div>`;
+  }
   function renderHermes() {
     const box = $("dk-hermes");
     if (!box) return;
@@ -331,6 +368,7 @@
         <div><div class="dk-k">MEMORY</div><div class="dk-v">${esc(h.memory || "—")}</div></div>
         <div><div class="dk-k">CRON</div><div class="dk-v">${esc(h.cron_jobs ?? "—")} jobs</div></div>
       </div>
+      ${pipeChips()}
       <div class="dk-k" style="margin-bottom:4px">KANBAN</div>${kbar}
       <div class="dk-feed" style="margin-top:10px">${feed}</div>`;
   }
@@ -387,6 +425,32 @@
     }).join("");
     const grid = [0.25, 0.5, 0.75].map((f) => `<line x1="0" x2="${W}" y1="${(Ht * f).toFixed(0)}" y2="${(Ht * f).toFixed(0)}" stroke="${C.track}" vector-effect="non-scaling-stroke"/>`).join("");
     const lastP = H[n - 1];
+    if (isArcade()) {
+      const W = 640, Ht = 160;
+      const top = Math.max(25, Math.ceil(Math.max(...H.map((p) => p.used || 0), 1) / 25) * 25);
+      const x = (i) => (i * W / Math.max(1, n - 1)).toFixed(1);
+      const y = (v) => (Ht - clamp((v || 0) / top, 0, 1) * Ht).toFixed(1);
+      const line = H.map((p, i) => `${i ? "L" : "M"}${x(i)} ${y(p.used)}`).join(" ");
+      const area = `${line} L${x(n - 1)} ${Ht} L0 ${Ht} Z`;
+      const c = S.compute || {};
+      const hosts = (c.hosts || []).filter((h) => h.online);
+      const peakT = S.peak != null ? H.reduce((a, p) => (p.used === S.peak ? p : a), H[0]) : null;
+      let peakAt = "—";
+      try { if (peakT) peakAt = new Date(peakT.t).toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false }); } catch (e) {}
+      const hostBars = hosts.map((h, k) => {
+        const pct = num(h.used_pct) != null ? h.used_pct : (num(h.load1) != null && c.total_cpus ? 100 * h.load1 / c.total_cpus : null);
+        const col = hostColors()[k % hostColors().length];
+        return `<div class="dk-sub"><span style="color:${col}">■</span> ${esc((h.name || h.id || "").toUpperCase())} <b class="dk-v">${pct != null ? pct.toFixed(1) + "%" : "—"}</b>
+          <div class="dk-meter"><i style="width:${pct != null ? Math.min(100, pct) : 0}%;background:${col}"></i></div></div>`;
+      }).join("");
+      if ($("dk-fleet-sub")) $("dk-fleet-sub").textContent = `last ${Math.max(1, Math.round((lastP.t - H[0].t) / 60000))} min · real samples`;
+      box.innerHTML = `<div class="dk-fleet-split">
+        <svg viewBox="0 0 ${W} ${Ht}" preserveAspectRatio="none" role="img" aria-label="Fleet CPU line with up and down bars">${volBars(H, W, Ht)}<path d="${area}" fill="${C.ok}" fill-opacity=".18"/><path d="${line}" fill="none" stroke="${C.ok}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
+        <div><div class="dk-fleet-read">${lastP.used != null ? Math.round(lastP.used) + "%" : "—"}</div>
+          <div class="dk-sub">peak ${S.peak != null ? Math.round(S.peak) + "%" : "—"} at ${esc(peakAt)} · ${hosts.length} hosts · ${esc(c.total_cpus ?? "—")} cpu</div>
+          ${hostBars || `<div class="dk-empty">${NT}</div>`}</div></div>`;
+      return;
+    }
     const legend = ids.map((id, k) => `<span><span style="color:${hostColors()[k % hostColors().length]}">■</span> ${esc(String(names[id] || id).toUpperCase())} <b class="dk-v">${(lastP.share[id] || 0).toFixed(1)}%</b></span>`).join("");
     const mins = Math.max(1, Math.round((lastP.t - H[0].t) / 60000));
     if ($("dk-fleet-sub")) $("dk-fleet-sub").textContent = `last ${mins} min · share of fleet CPU · scale 0–${top}%`;
@@ -628,6 +692,7 @@
     const ns = ((d.bot_mesh || {}).nodes) || [];
     if (ns.length) { S.nodesHist.push(ns.filter((n) => n.online).length); if (S.nodesHist.length > 60) S.nodesHist.shift(); }
     renderTiles(); renderTopo(); renderHermes(); renderNeeds(); renderBadges(); renderFocus();
+    renderHardPy();
     emit();
   }
   function ingestCompute(d) {
@@ -743,6 +808,7 @@
     applyPalette();
     renderTiles(); renderTopo(); renderHermes(); renderAdze(); renderNeeds(); renderFleet();
     renderTrace(); renderDocker(); renderLan(); renderRemote(); renderGit(); renderBanks(); renderFocus();
+    renderHardPy();
     emit();
   }
   function select(id) { S.sel = id; S.picked = true; renderTopo(); emit(); }

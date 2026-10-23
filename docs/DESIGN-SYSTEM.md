@@ -37,6 +37,10 @@ Particle state machine in `helix-ops-wordmark.js`: ACQUIRE → MAP → CORE_FORM
 
 ≤767px is Field Terminal (own IA), not a scaled desktop. First viewport: status, Hermes, CPU/MEM, net, Botmesh, Remote, alerts.
 
+## ARCADE (default)
+
+Default theme (`helix.theme` unset or `arcade`; honour `crt` and `?theme=crt`). Palette: bg `#0d0b12`, panel `#14111b`, line `#2a2533`, text `#e9e4f2`, dim `#a19bb0`, pink `#ff4fa3`, green `#39e58c`, blue `#3b82f6`, orange `#f59e0b`, red `#ff4d6d`, cyan `#22d3ee`. Headings Arial Black 900; body ui-monospace. Panels radius 10px. 10px pink viewport frame (5px mobile). CRT remains the alternate (THEME toggle). Real telemetry only.
+
 ## Avoid
 
 generic SaaS cards · glassmorphism · purple neon cyberpunk · huge gradients · Material rounded UI · Matrix rain · excessive glow · OMARCHY branding on the mark · fake telemetry

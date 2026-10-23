@@ -27,7 +27,7 @@ body.deck-on #need-you { display: none !important; }
 
 .dk-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
 .dk-s2 { grid-column: span 2; } .dk-s3 { grid-column: span 3; } .dk-s4 { grid-column: span 4; }
-.dk-s5 { grid-column: span 5; } .dk-s6 { grid-column: span 6; } .dk-s8 { grid-column: span 8; }
+.dk-s5 { grid-column: span 5; } .dk-s6 { grid-column: span 6; } .dk-s7 { grid-column: span 7; } .dk-s8 { grid-column: span 8; } .dk-s12 { grid-column: span 12; }
 .dk-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 @media (max-width: 1180px) {
   .dk-s2 { grid-column: span 4; }

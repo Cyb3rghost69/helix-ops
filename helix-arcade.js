@@ -300,6 +300,7 @@
   function update(S) {
     if (!document.body.classList.contains("theme-arcade")) return;
     renderRoster(S);
+    paintHeader();
     const now = Date.now();
     if (now - lastFloor > 2500) { lastFloor = now; renderFloor(S); }
     else if (!floorTimer) floorTimer = setTimeout(() => { floorTimer = null; lastFloor = Date.now(); renderFloor(global.HelixDeck.state); }, 2600 - (now - lastFloor));
@@ -312,7 +313,48 @@
     if (b) { b.textContent = "THEME: " + (arcade ? "ARCADE" : "CRT"); b.setAttribute("aria-pressed", arcade ? "true" : "false"); }
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = arcade ? "#ff4fa3" : "#060705";
+    const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
+    const v = "hos0494";
+    const ico = document.querySelector('link[rel="icon"]');
+    const touch = document.querySelector('link[rel="apple-touch-icon"]');
+    if (arcade) {
+      if (ico) ico.href = p + "/helix-arcade-mark.svg?v=" + v;
+      if (touch) touch.href = p + "/helix-arcade-mark.svg?v=" + v;
+    } else {
+      if (ico) ico.href = p + "/helix-core-mark.svg?v=" + v;
+    }
+    paintHeader();
+    if (!arcade) {
+      const slot = document.querySelector(".fetch-find");
+      if (slot && $("q") && $("q").parentNode !== slot) slot.appendChild($("q"));
+    } else if ($("ar-find") && $("q") && $("q").parentNode !== $("ar-find")) {
+      $("ar-find").appendChild($("q"));
+    }
     if (global.HelixDeck) { global.HelixDeck.rerender(); if (arcade) { lastFloor = 0; update(global.HelixDeck.state); } }
+  }
+
+  function paintHeader() {
+    const hdr = $("ar-hdr");
+    if (!document.body.classList.contains("theme-arcade")) return;
+    if (!hdr) return;
+    const S = (global.HelixDeck && global.HelixDeck.state) || {};
+    const st = S.stats || {};
+    const h = st.hermes || {};
+    const ad = S.adze || {};
+    const ts = st.tailscale || {};
+    const up = ts.state === "Running" || ts.BackendState === "Running" || ts.online === true;
+    const auth = st.auth_open ? "BYPASSED" : "ON";
+    const chip = (ok, lab, extra) => `<span class="ar-chip"><i style="background:${ok ? "#39e58c" : "#ff4d6d"}"></i>${esc(lab)}${extra ? " " + esc(extra) : ""}</span>`;
+    const chips = $("ar-chips");
+    if (chips) chips.innerHTML = chip(up, "UPLINK") + chip(!!h.gateway_running, "GATEWAY") + chip(!!ad.online, "ADZE") + `<span class="ar-chip"><i style="background:${st.auth_open ? "#f59e0b" : "#39e58c"}"></i>AUTH ${esc(auth)}</span>`;
+    const clk = $("ar-clock");
+    if (clk) {
+      try { clk.textContent = new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false }) + " JST"; } catch (e) { clk.textContent = "--:--"; }
+    }
+    const dt = $("ar-date");
+    if (dt) {
+      try { dt.textContent = new Date().toLocaleDateString("en-GB", { timeZone: "Asia/Tokyo", weekday: "short", day: "2-digit", month: "short" }).toUpperCase(); } catch (e) {}
+    }
   }
 
   function mount() {
@@ -323,6 +365,18 @@
     const roster = document.createElement("section"); roster.id = "ar-roster"; roster.setAttribute("aria-label", "Agent roster");
     const floor = document.createElement("section"); floor.id = "ar-floor"; floor.setAttribute("aria-label", "Office floor");
     document.body.appendChild(roster); document.body.appendChild(floor);
+    if (!$("ar-hdr")) {
+      const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
+      const hdr = document.createElement("div");
+      hdr.id = "ar-hdr";
+      hdr.innerHTML = `<div class="ar-hdr-l"><img src="${p}/helix-arcade-mark.svg?v=hos0494" width="48" height="48" alt="HELIX/OPS"><div><div class="ar-word">HELIX<span>/</span>OPS</div><div class="ar-sub">HERMES COMMAND FLOOR · TOKYO-06 · 統合管制</div></div></div>
+        <div class="ar-chips" id="ar-chips"></div>
+        <div class="ar-hdr-r"><div class="ar-find" id="ar-find"></div><div class="ar-date" id="ar-date"></div><div class="ar-clock" id="ar-clock" aria-label="Japan time">--:-- JST</div></div>`;
+      const logo = document.querySelector("header.logo");
+      if (logo && logo.parentNode) logo.parentNode.insertBefore(hdr, logo);
+      const q = $("q");
+      if (q && $("ar-find")) $("ar-find").appendChild(q);
+    }
     place();
     matchMedia("(max-width: 767px)").addEventListener("change", () => setTimeout(place, 0));
 
@@ -344,13 +398,20 @@
       if (anchor && anchor.parentNode === bar) bar.insertBefore(b, anchor); else bar.appendChild(b);
     }
     global.HelixDeck.onUpdate(update);
-    setInterval(() => { if (document.body.classList.contains("theme-arcade") && !document.hidden) { lastFloor = 0; renderFloor(global.HelixDeck.state); } }, 30000);
+    setInterval(() => { if (document.body.classList.contains("theme-arcade") && !document.hidden) { lastFloor = 0; renderFloor(global.HelixDeck.state); paintHeader(); } }, 30000);
 
-    let want = "crt";
-    try { want = localStorage.getItem("helix.theme") || "crt"; } catch (e) {}
+    let want = "arcade";
+    try { want = localStorage.getItem("helix.theme") || "arcade"; } catch (e) {}
     const q = new URLSearchParams(location.search).get("theme");
     if (q === "arcade" || q === "crt") want = q;
     setTheme(want === "arcade");
+    document.addEventListener("keydown", (e) => {
+      if (["INPUT", "TEXTAREA", "SELECT"].includes((e.target.tagName || ""))) return;
+      const i = "1234567".indexOf(e.key);
+      if (i < 0) return;
+      const tabs = document.querySelectorAll("#tabs [data-tab]");
+      if (tabs[i]) tabs[i].click();
+    });
   }
 
   global.HelixArcade = { mount, setTheme };

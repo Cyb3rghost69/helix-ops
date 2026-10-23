@@ -546,7 +546,7 @@
 </section>
 <button type="button" id="nav-toggle" class="nav-toggle" aria-expanded="false" aria-controls="tabs">☰ MODULES</button>
 <nav class="tabs" id="tabs">
-  <button type="button" data-tab="ops" class="on">[01] OPERATIONS</button>
+  <button type="button" data-tab="ops" class="on">[01] FLOOR</button>
   <button type="button" data-tab="net">[02] NETWORK</button>
   <button type="button" data-tab="sec">[03] SYSTEM</button>
   <button type="button" data-tab="dock">[04] ARCHIVE</button>
@@ -1792,7 +1792,7 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0493";
+    const ASSET_V = "hos0494";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;

@@ -5,9 +5,11 @@ Served from this directory by `python3 server.py`.
 Desktop ≥768: CRT command centre (plaque, NOC, cockpit).  
 Mobile ≤767: Field Terminal first viewport, MODULES for the rest.
 
-Tabs: `[01] OPERATIONS` `[02] NETWORK` `[03] SYSTEM` `[04] ARCHIVE` `[05] TRACE` `[06] REMOTE`.
+Tabs: `[01] FLOOR` `[02] NETWORK` `[03] SYSTEM` `[04] ARCHIVE` `[05] TRACE` `[06] REMOTE` `[07] MEMORY`. Keys 1–7 switch tabs.
 
-Static extras must be listed in `server.py` and loaded with the `/ops` prefix plus cache query `hos0493` (bump when shipping UI).
+Static extras must be listed in `server.py` and loaded with the `/ops` prefix plus cache query `hos0494` (bump when shipping UI).
+
+Default theme is **ARCADE** (`helix-arcade.css` / `helix-arcade.js`). CRT is `THEME` or `?theme=crt`. Arcade header uses `helix-arcade-mark.svg`. `/api/stats.auth_open` drives the AUTH chip (BYPASSED when login is off).
 
 ## Command deck (`helix-deck.css` / `helix-deck.js`)
 

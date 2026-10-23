@@ -173,3 +173,57 @@ body.theme-arcade #hel-01, body.theme-arcade #hel-01-line, body.theme-arcade .he
   #ar-floor .bob, #ar-floor .blink { animation: none; }
   #ar-floor .walk { transition: none; }
 }
+
+/* arcade command header */
+#ar-hdr { display: none; }
+body.theme-arcade #ar-hdr {
+  display: grid; grid-template-columns: minmax(220px,1.2fr) minmax(180px,1fr) minmax(220px,1fr);
+  gap: 12px; align-items: center; background: #14111b; border: 1px solid #2a2533; border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 12px;
+}
+body.theme-arcade header.logo { display: none; }
+.ar-hdr-l { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ar-hdr-l img { width: 48px; height: 48px; image-rendering: pixelated; flex: none; }
+.ar-word { font: 900 28px/1 "Arial Black", "Helvetica Neue", system-ui, sans-serif; color: #fff; letter-spacing: .01em; }
+.ar-word span { color: #ff4fa3; }
+.ar-sub { color: #a19bb0; font: 11px/1.3 ui-monospace, Menlo, monospace; margin-top: 4px; }
+.ar-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.ar-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #2a2533; border-radius: 999px; padding: 4px 10px; font: 10px ui-monospace, Menlo, monospace; letter-spacing: .08em; color: #e9e4f2; }
+.ar-chip i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+.ar-hdr-r { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.ar-find input { min-width: 100px; background: transparent; color: #fff; border: 0; border-bottom: 2px solid #ff4fa3; font: 12px ui-monospace, Menlo, monospace; outline: none; }
+.ar-date { color: #a19bb0; font: 11px ui-monospace, Menlo, monospace; }
+.ar-clock { border: 2px solid #ff4fa3; color: #fff; font: 900 24px/1 "Arial Black", "Helvetica Neue", system-ui, sans-serif; padding: 6px 10px; min-width: 7ch; text-align: center; }
+body.theme-arcade .tabs button { border-radius: 8px; }
+body.theme-arcade .tabs button:focus-visible, body.theme-arcade button:focus-visible, body.theme-arcade #ar-hdr *:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+body.theme-arcade #ar-tog[aria-pressed="true"] { background: #ff4fa3; color: #fff; box-shadow: 0 0 12px rgba(255,79,163,.45); }
+body.theme-arcade.deck-on #pane-ops > .cockpit > *:not(.term) { display: none; }
+body.theme-arcade.deck-on #noc, body.theme-arcade.deck-on #need-you { display: none; }
+body.theme-arcade.deck-on #pane-ops .term { border-radius: 10px; margin-top: 12px; }
+body.theme-arcade.deck-on #pane-ops .term .term-bar { font-family: "Arial Black", "Helvetica Neue", system-ui, sans-serif; }
+body.theme-arcade .dk-s12 { grid-column: span 12; }
+body.theme-arcade .dk-s7 { grid-column: span 7; }
+body.theme-arcade .dk-fleet-split { display: grid; grid-template-columns: 1fr 220px; gap: 12px; align-items: stretch; }
+body.theme-arcade .dk-fleet-read { font: 900 44px/1 "Arial Black", "Helvetica Neue", system-ui, sans-serif; color: #39e58c; }
+body.theme-arcade .dk-py { font: 12px/1.45 ui-monospace, Menlo, monospace; }
+body.theme-arcade .dk-py .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 4px 6px; border-bottom: 1px solid #2a2533; }
+body.theme-arcade .dk-py .row.med { background: rgba(245,158,11,.12); }
+body.theme-arcade .dk-py .row.high { background: rgba(255,77,109,.14); }
+body.theme-arcade .dk-pipe { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+body.theme-arcade .dk-pipe span { border: 1px dashed #3a3346; border-radius: 4px; padding: 2px 6px; font-size: 9px; letter-spacing: .06em; color: #a19bb0; }
+body.theme-arcade .dk-pipe span.lit { border-style: solid; border-color: #39e58c; color: #39e58c; }
+body.theme-arcade .dk-pipe span.cur { border-color: #ff4fa3; color: #ff4fa3; background: rgba(255,79,163,.12); }
+@media (max-width: 767px) {
+  body.theme-arcade #ar-hdr { grid-template-columns: 1fr auto; padding: 8px; }
+  body.theme-arcade #ar-hdr .ar-chips { display: none; }
+  body.theme-arcade #ar-hdr .ar-word { font-size: 18px; }
+  body.theme-arcade #ar-hdr img { width: 40px; height: 40px; }
+  body.theme-arcade .ar-clock { font-size: 16px; padding: 4px 6px; }
+  body.theme-arcade.field-term #ar-roster .ar-card { flex: 0 0 150px; }
+  body.theme-arcade.field-term .ft-strip button { min-height: 54px; }
+  body.theme-arcade.field-term .nav-toggle, body.theme-arcade.field-term .tabs button { min-height: 48px; }
+}
+@media (max-width: 1180px) {
+  body.theme-arcade .dk-fleet-split { grid-template-columns: 1fr; }
+}
+

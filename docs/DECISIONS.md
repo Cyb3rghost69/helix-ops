@@ -40,3 +40,9 @@
 **REASON:** Operator asked for a retro arcade look with more visual elements.
 **ALTERNATIVES:** Replace CRT outright.
 **CONSEQUENCES:** CRT stays the default and the rules in DESIGN-SYSTEM.md still govern it. ARCADE is opt-in (sysbar THEME button or `?theme=arcade`), scoped to `body.theme-arcade`, and still shows real telemetry only. Idle sprite bob/LED blink are decoration and stop under reduced motion.
+
+## 2026-10-23 — ARCADE as default command floor
+**DECISION:** ARCADE is the default theme; CRT remains a THEME toggle (`?theme=crt`). Tab `[01] FLOOR` (`data-tab=ops`). Header uses `helix-arcade-mark.svg`.
+**REASON:** Operator asked for the arcade command floor as the primary view.
+**ALTERNATIVES:** Keep CRT default.
+**CONSEQUENCES:** Unset `helix.theme` loads arcade. CRT chrome (particle wordmark, plaque) is hidden in arcade, not deleted. `/api/stats` exposes `auth_open`.
