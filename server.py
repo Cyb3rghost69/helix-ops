@@ -2705,6 +2705,124 @@ def collect() -> dict:
     }
 
 
+# ───────────── HELIX chat bridge ─────────────
+# The dashboard terminal talks to Helix through one of (first configured wins, values from ops.env or env):
+#   HELIX_CHAT_URL  OpenAI-compatible chat completions URL (e.g. Hermes' API server …/v1/chat/completions)
+#                   + HELIX_CHAT_KEY (bearer, optional) + HELIX_CHAT_MODEL (default "hermes")
+#   HELIX_CHAT_CMD  one-shot CLI, the user text is passed as the last argument or replaces {text}
+#                   (e.g. "~/.hermes/hermes-agent/venv/bin/hermes chat -q {text}")
+# Keys never leave the server. Replies are streamed to the browser as Server-Sent Events.
+CHAT_LOCK = threading.Semaphore(2)
+
+
+def _chat_cfg() -> dict:
+    try:
+        env = _ops_env()
+    except OSError:
+        env = {}
+    g = lambda k, d="": (env.get(k) or os.environ.get(k) or d).strip()
+    url, cmd = g("HELIX_CHAT_URL"), g("HELIX_CHAT_CMD")
+    mode = "api" if url else ("cli" if cmd else None)
+    return {"mode": mode, "url": url, "key": g("HELIX_CHAT_KEY"), "model": g("HELIX_CHAT_MODEL", "hermes"), "cmd": cmd,
+            "timeout": float(g("HELIX_CHAT_TIMEOUT", "180") or 180), "session": g("HELIX_CHAT_SESSION", "helix-ops-dashboard")}
+
+
+def chat_status() -> dict:
+    c = _chat_cfg()
+    out = {"configured": bool(c["mode"]), "mode": c["mode"], "model": c["model"] if c["mode"] == "api" else None}
+    if c["mode"] == "api":
+        m = re.match(r"^(https?://[^/]+)", c["url"])
+        out["endpoint"] = m.group(1) if m else "configured"
+    return out
+
+
+def _clean_messages(raw) -> list[dict]:
+    msgs = []
+    for m in (raw if isinstance(raw, list) else [])[-24:]:
+        if not isinstance(m, dict):
+            continue
+        role = m.get("role") if m.get("role") in ("user", "assistant") else None
+        text = str(m.get("content") or "")[:4000]
+        if role and text.strip():
+            msgs.append({"role": role, "content": text})
+    return msgs
+
+
+def chat_stream(messages: list[dict], emit) -> None:
+    """Send the conversation to Helix; call emit(kind, data) with 'delta', 'error', 'done'."""
+    c = _chat_cfg()
+    if not c["mode"]:
+        emit("error", {"error": "not_configured", "detail": "Set HELIX_CHAT_URL or HELIX_CHAT_CMD in ops.env"})
+        return
+    if c["mode"] == "api":
+        body = json.dumps({"model": c["model"], "messages": messages, "stream": True, "user": c["session"]}).encode()
+        headers = {"Content-Type": "application/json", "Accept": "text/event-stream", "X-Hermes-Session-Id": c["session"]}
+        if c["key"]:
+            headers["Authorization"] = "Bearer " + c["key"]
+        req = Request(c["url"], data=body, headers=headers, method="POST")
+        try:
+            with urlopen(req, timeout=c["timeout"]) as resp:
+                ctype = resp.headers.get("Content-Type") or ""
+                if "text/event-stream" not in ctype:
+                    data = json.loads(resp.read().decode("utf-8", "replace") or "{}")
+                    text = (((data.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
+                    if text:
+                        emit("delta", {"text": text})
+                    emit("done", {})
+                    return
+                for raw in resp:
+                    line = raw.decode("utf-8", "replace").strip()
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        ch = (json.loads(payload).get("choices") or [{}])[0]
+                    except json.JSONDecodeError:
+                        continue
+                    piece = (ch.get("delta") or {}).get("content") or (ch.get("message") or {}).get("content") or ""
+                    if piece:
+                        emit("delta", {"text": piece})
+            emit("done", {})
+        except HTTPError as e:
+            emit("error", {"error": f"helix api http {e.code}", "detail": "check HELIX_CHAT_URL / HELIX_CHAT_KEY"})
+        except (URLError, TimeoutError, OSError) as e:
+            emit("error", {"error": "helix api unreachable", "detail": type(e).__name__})
+        return
+    # CLI one-shot: include a short transcript so Helix keeps context
+    hist = messages[:-1][-6:]
+    last = messages[-1]["content"] if messages else ""
+    prompt = last if not hist else "Recent dashboard chat:\n" + "\n".join(f"{m['role']}: {m['content'][:500]}" for m in hist) + "\n\nuser: " + last
+    try:
+        parts = shlex.split(os.path.expanduser(c["cmd"]))
+    except ValueError:
+        emit("error", {"error": "HELIX_CHAT_CMD has unbalanced quotes"})
+        return
+    argv = [p.replace("{text}", prompt) for p in parts] if any("{text}" in p for p in parts) else parts + [prompt]
+    try:
+        proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env={**os.environ, "TERM": "dumb", "NO_COLOR": "1"})
+    except (FileNotFoundError, PermissionError) as e:
+        emit("error", {"error": "helix cli not found", "detail": type(e).__name__})
+        return
+    t_end = time.time() + c["timeout"]
+    try:
+        for line in proc.stdout:
+            emit("delta", {"text": re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", line)})
+            if time.time() > t_end:
+                proc.kill()
+                emit("error", {"error": "timeout"})
+                return
+        proc.wait(timeout=5)
+        if proc.returncode not in (0, None):
+            emit("error", {"error": f"helix cli exit {proc.returncode}", "detail": _snip((proc.stderr.read() or ""), 200)})
+            return
+        emit("done", {})
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+
+
 # ───────────── BOTMESH event bus ─────────────
 # One stream of real, observable events from every Hermes agent database:
 #   user message  → origin (Telegram / You / another agent named in the session source) → agent
@@ -3125,11 +3243,15 @@ class Handler(BaseHTTPRequestHandler):
             "/app/arcade.css": ("app/arcade.css", "text/css; charset=utf-8"),
             "/app/core.js": ("app/core.js", "application/javascript; charset=utf-8"),
             "/app/mesh.js": ("app/mesh.js", "application/javascript; charset=utf-8"),
+            "/app/avatar.js": ("app/avatar.js", "application/javascript; charset=utf-8"),
             "/app/pages.js": ("app/pages.js", "application/javascript; charset=utf-8"),
         }
         if path in static:
             name, ctype = static[path]
             self._send(200, (ROOT / name).read_bytes(), ctype)
+            return
+        if path == "/api/chat":
+            self._send(200, json.dumps(chat_status()).encode(), "application/json; charset=utf-8")
             return
         if path == "/api/mesh":
             MESH.ensure()
@@ -3367,6 +3489,39 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/mindscape/seed":
             body = json.dumps(seed_ms_graph(force=True), ensure_ascii=False).encode()
             self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path == "/api/chat":
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                data = json.loads(self.rfile.read(max(0, min(n, 120000))).decode() or "{}")
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                data = {}
+            msgs = _clean_messages(data.get("messages"))
+            if not msgs or msgs[-1]["role"] != "user":
+                self._send(400, b'{"error":"no message"}', "application/json")
+                return
+            if not CHAT_LOCK.acquire(timeout=1):
+                self._send(429, b'{"error":"busy"}', "application/json")
+                return
+            try:
+                with PROMPT_LOG.open("a") as f:
+                    f.write(json.dumps({"t": time.strftime("%Y-%m-%dT%H:%M:%S"), "text": _snip(msgs[-1]["content"], 400), "via": "chat"}, ensure_ascii=False) + "\n")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache, no-transform")
+                self.send_header("X-Accel-Buffering", "no")
+                self.end_headers()
+
+                def emit(kind: str, payload: dict) -> None:
+                    self.wfile.write(f"event: {kind}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n".encode())
+                    self.wfile.flush()
+                try:
+                    emit("start", chat_status())
+                    chat_stream(msgs, emit)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+            finally:
+                CHAT_LOCK.release()
             return
         if path == "/api/prompt":
             n = int(self.headers.get("Content-Length") or 0)

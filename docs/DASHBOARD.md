@@ -16,6 +16,7 @@ The previous dashboard is still available at `/legacy` (also linked as CLASSIC i
 | Route | Content |
 |---|---|
 | `#/` HOME | Helix status line, agent roster, live mini-mesh, Needs You, KPI tiles, fleet chart, latest comms |
+| `#/helix` HELIX | Animated pixel avatar of Helix (mood follows real state) with a chat terminal under it |
 | `#/mesh` MESH | Animated botmesh, comms log (ALL / BOTS / HELIX), inspector, busiest links, agent list |
 | `#/agents`, `#/agents/<id>` | Crew grid; per-agent status, conversation, and for Helix the pipeline + terminal (`/api/prompt`); ADZE analysis core |
 | `#/trace` | Latest request, pipeline, swimlanes, timeline |
@@ -58,3 +59,19 @@ Boot screen: pixel logo assembles, then real checks (`/health`, compute, agents,
 Silkscreen, VT323 and IBM Plex Mono are bundled in `app/fonts/` (subset WOFF, OFL licences alongside) — no Google Fonts requests.
 
 Bump `V` in `index.html` and `VERSION` in `sw.js` when shipping UI changes.
+
+## HELIX — avatar + chat
+
+`app/avatar.js` draws Helix as a live 40×64 cross-stitch pixel portrait (sunburst rays, long pale-blue hair fading to purple drips, star eyes). Mood comes from real state, highest first: **asleep** (gateway down and no chat link), **talking** (reply streaming — mouth moves with each chunk), **thinking** (waiting for her reply, or a live trace), **listening** (you're typing), **happy** (6 s after a reply), **alert** (a HIGH item in Needs You), **calm**. She blinks, her hair shimmers and drips, the rays turn faster when she's busy. A small live badge of her sits on HOME.
+
+The terminal under the avatar talks to Helix through `POST /api/chat` (streamed back as Server-Sent Events). The server forwards the conversation (last 20 turns) to, in order:
+
+| ops.env key | Meaning |
+|---|---|
+| `HELIX_CHAT_URL` | OpenAI-compatible chat completions URL — Hermes' API server, e.g. `http://127.0.0.1:8642/v1/chat/completions` (streamed) |
+| `HELIX_CHAT_KEY` | Bearer key for that API (kept server-side, never sent to the browser) |
+| `HELIX_CHAT_MODEL` | Model name the API expects (default `hermes`) |
+| `HELIX_CHAT_CMD` | Fallback one-shot CLI; the message is appended as the last argument or replaces `{text}` |
+| `HELIX_CHAT_TIMEOUT` | Seconds (default 180) |
+
+No quotes around values in ops.env. `GET /api/chat` reports whether chat is connected. `/clear` in the terminal resets the dashboard transcript (Helix keeps her own memory).
