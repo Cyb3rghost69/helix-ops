@@ -34,3 +34,9 @@
 **REASON:** GitHub is project memory, not a backup of runtime.  
 **ALTERNATIVES:** Encrypted git-crypt.  
 **CONSEQUENCES:** `.env.example` has names only.
+
+## 2026-10-23 — ARCADE theme (opt-in)
+**DECISION:** Add an ARCADE theme (hot-pink cabinet frame, colour-coded agent roster with original pixel mascots, office-floor scene) alongside CRT.
+**REASON:** Operator asked for a retro arcade look with more visual elements.
+**ALTERNATIVES:** Replace CRT outright.
+**CONSEQUENCES:** CRT stays the default and the rules in DESIGN-SYSTEM.md still govern it. ARCADE is opt-in (sysbar THEME button or `?theme=arcade`), scoped to `body.theme-arcade`, and still shows real telemetry only. Idle sprite bob/LED blink are decoration and stop under reduced motion.

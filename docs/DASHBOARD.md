@@ -7,7 +7,7 @@ Mobile ≤767: Field Terminal first viewport, MODULES for the rest.
 
 Tabs: `[01] OPERATIONS` `[02] NETWORK` `[03] SYSTEM` `[04] ARCHIVE` `[05] TRACE` `[06] REMOTE`.
 
-Static extras must be listed in `server.py` and loaded with the `/ops` prefix plus cache query `hos0492` (bump when shipping UI).
+Static extras must be listed in `server.py` and loaded with the `/ops` prefix plus cache query `hos0493` (bump when shipping UI).
 
 ## Command deck (`helix-deck.css` / `helix-deck.js`)
 
@@ -24,3 +24,8 @@ Rules: real API fields only; missing values render NO TELEMETRY. Sparklines and 
 Mobile Field Terminal gets a focus card under the metric strip: tap CPU/MEM/NET/AI/NODES to switch the big value + sparkline; top two Needs You items sit beneath it.
 
 Server additions: `network.ifaces[].rx_bytes/tx_bytes` (throughput deltas) and `git.days` (commits per day, 14 days).
+
+## ARCADE theme (`helix-arcade.css` / `helix-arcade.js`)
+
+Toggle with `THEME: CRT/ARCADE` in the sysbar (remembered per browser) or open `/?theme=arcade`.
+Adds above the deck: an AGENT ROSTER (one card per Botmesh node — role, online tag, a real metric, last line) and an OFFICE FLOOR scene: wall screen = fleet CPU, tape wall = recent CPU moves, NEEDS YOU board, JST clock, Helix at the head desk with its latest trace event in a speech bubble, worker agents at desks (offline = greyed, "z z"), server rack LEDs = Unraid containers, radar = RustDesk hbbs/hbbr. Clicking a card or sprite selects that node in the topology. On mobile the roster is a swipe carousel and the floor scrolls sideways.

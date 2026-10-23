@@ -2719,6 +2719,8 @@ class Handler(BaseHTTPRequestHandler):
             "/helix-matrix.js": ("helix-matrix.js", "application/javascript; charset=utf-8"),
             "/helix-deck.css": ("helix-deck.css", "text/css; charset=utf-8"),
             "/helix-deck.js": ("helix-deck.js", "application/javascript; charset=utf-8"),
+            "/helix-arcade.css": ("helix-arcade.css", "text/css; charset=utf-8"),
+            "/helix-arcade.js": ("helix-arcade.js", "application/javascript; charset=utf-8"),
         }
         if path in static:
             name, ctype = static[path]

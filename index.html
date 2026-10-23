@@ -1792,11 +1792,11 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0492";
+    const ASSET_V = "hos0493";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;
-    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-deck.css"].forEach((href) => {
+    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-deck.css", "helix-arcade.css"].forEach((href) => {
       const css = document.createElement("link");
       css.rel = "stylesheet";
       css.href = p + "/" + href + "?v=" + ASSET_V;
@@ -1834,7 +1834,13 @@ async function loadClients() {
     document.body.appendChild(mjs);
     const djs = document.createElement("script");
     djs.src = p + "/helix-deck.js?v=" + ASSET_V;
-    djs.onload = function () { HelixDeck.mount(); };
+    djs.onload = function () {
+      HelixDeck.mount();
+      const xjs = document.createElement("script");
+      xjs.src = p + "/helix-arcade.js?v=" + ASSET_V;
+      xjs.onload = function () { HelixArcade.mount(); };
+      document.body.appendChild(xjs);
+    };
     document.body.appendChild(djs);
 
     (function fieldTerm() {

@@ -15,8 +15,17 @@
   const num = (v) => (typeof v === "number" && isFinite(v)) ? v : null;
   const NT = '<span class="dk-dimt">NO TELEMETRY</span>';
 
-  const C = { ok: "#7CFF7A", soft: "#B8FFB0", bright: "#E8FFE2", gold: "#d4a017", bad: "#e86a5a", dim: "#9aa391", idle: "#4d6b4c", deep: "#3f9a46", cream: "#d6d4c8", cyan: "#6aa8a8" };
-  const HOST_COLORS = [C.ok, C.deep, C.cream, C.cyan, C.soft, "#7d8574"];
+  // Two palettes: CRT (default, docs/DESIGN-SYSTEM.md) and ARCADE (opt-in theme, helix-arcade.*).
+  const CRT = { ok: "#7CFF7A", soft: "#B8FFB0", bright: "#E8FFE2", gold: "#d4a017", bad: "#e86a5a", dim: "#9aa391", idle: "#4d6b4c", deep: "#3f9a46", cream: "#d6d4c8", cyan: "#6aa8a8", track: "#1a241a", wire: "#2a3a2a", void: "#060705" };
+  const ARC = { ok: "#39e58c", soft: "#8ff5c0", bright: "#ffffff", gold: "#f59e0b", bad: "#ff4d6d", dim: "#a19bb0", idle: "#3a3446", deep: "#3b82f6", cream: "#e9e4f2", cyan: "#22d3ee", track: "#241f2e", wire: "#2e2839", void: "#0d0b12" };
+  const C = Object.assign({}, CRT);
+  const HOST_CRT = [CRT.ok, CRT.deep, CRT.cream, CRT.cyan, CRT.soft, "#7d8574"];
+  const HOST_ARC = ["#39e58c", "#3b82f6", "#ff4fa3", "#f59e0b", "#22d3ee", "#ef4444"];
+  const isArcade = () => document.body.classList.contains("theme-arcade");
+  const hostColors = () => (isArcade() ? HOST_ARC : HOST_CRT);
+  function applyPalette() { Object.assign(C, isArcade() ? ARC : CRT); }
+  const listeners = [];
+  function emit() { listeners.forEach((f) => { try { f(S); } catch (e) {} }); }
   const SEV_RANK = { high: 0, med: 1, warn: 2, low: 3 };
 
   const S = {
@@ -35,7 +44,7 @@
     const dash = p == null ? 0 : clamp(p, 0, 100) / 100 * circ;
     const txt = p == null ? "—" : Math.round(p) + "%";
     return `<svg width="76" height="76" viewBox="0 0 76 76" role="img" aria-label="${esc(label)} ${esc(txt)}">
-      <circle cx="38" cy="38" r="${r}" fill="none" stroke="#1a241a" stroke-width="6"/>
+      <circle cx="38" cy="38" r="${r}" fill="none" stroke="${C.track}" stroke-width="6"/>
       <circle cx="38" cy="38" r="${r}" fill="none" stroke="${color}" stroke-width="6" stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 38 38)"/>
       <text x="38" y="43" text-anchor="middle" fill="${C.bright}" font-size="15" font-family="ui-monospace, Menlo, monospace">${txt}</text>
     </svg>`;
@@ -226,7 +235,7 @@
     const parts = [["high", C.bad], ["med", C.gold], ["warn", C.gold], ["low", C.idle]].map(([k, col]) => ({ k, col, n: cnt(k) })).filter((p) => p.n);
     if ($("dk-alerts")) $("dk-alerts").innerHTML =
       `<span class="dk-k dk-bad">NEEDS YOU</span><div class="dk-big">${S.stats ? items.length : "—"}<small> open</small></div>
-       <div class="dk-split" aria-hidden="true">${parts.map((p) => `<i style="flex:${p.n};background:${p.col}"></i>`).join("") || `<i style="flex:1;background:#1a241a"></i>`}</div>
+       <div class="dk-split" aria-hidden="true">${parts.map((p) => `<i style="flex:${p.n};background:${p.col}"></i>`).join("") || `<i style="flex:1;background:${C.track}"></i>`}</div>
        <div class="dk-sub">${parts.map((p) => `${p.n} ${p.k}`).join(" · ") || (S.stats ? "all clear" : "")}</div>`;
   }
 
@@ -263,7 +272,7 @@
     const lines = edges.filter((e) => pos[e.from] && pos[e.to]).map((e) => {
       const [x1, y1] = pos[e.from], [x2, y2] = pos[e.to];
       const hot = S.picked && (e.from === S.sel || e.to === S.sel);
-      const col = hot ? C.gold : (e.live ? C.deep : "#2a3a2a");
+      const col = hot ? C.gold : (e.live ? C.deep : C.wire);
       const dash = e.live ? "" : ` stroke-dasharray="4 4"`;
       return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="${hot ? 1.6 : 1}"${dash}/>`;
     }).join("");
@@ -273,7 +282,7 @@
       const col = n.online ? C.ok : C.bad;
       const sel = S.picked && n.id === S.sel;
       return `<g>${sel ? `<rect x="${x - big / 2 - 5}" y="${y - big / 2 - 5}" width="${big + 10}" height="${big + 10}" fill="none" stroke="${C.gold}"/>` : ""}
-        <rect x="${x - big / 2}" y="${y - big / 2}" width="${big}" height="${big}" fill="${n.online ? col : "#060705"}" stroke="${col}" stroke-width="1.2"/>
+        <rect x="${x - big / 2}" y="${y - big / 2}" width="${big}" height="${big}" fill="${n.online ? col : C.void}" stroke="${col}" stroke-width="1.2"/>
         <text x="${x}" y="${y + big / 2 + 14}" text-anchor="middle" fill="${sel ? C.bright : (n.online ? C.soft : C.dim)}" font-size="10" letter-spacing="1" font-family="ui-monospace, Menlo, monospace">${esc(String(n.label || n.id).toUpperCase())}</text></g>`;
     }).join("");
     const on = nodes.filter((n) => n.online).length;
@@ -373,17 +382,28 @@
       const topPts = upper.map((v, i) => `${i ? "L" : "M"}${x(i)} ${y(v)}`).join(" ");
       const botPts = lower.map((v, i) => [i, v]).reverse().map(([i, v]) => `L${x(i)} ${y(v)}`).join(" ");
       lower = upper;
-      const col = HOST_COLORS[k % HOST_COLORS.length];
+      const col = hostColors()[k % hostColors().length];
       return `<path d="${topPts} ${botPts} Z" fill="${col}" fill-opacity=".45" stroke="${col}" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
     }).join("");
-    const grid = [0.25, 0.5, 0.75].map((f) => `<line x1="0" x2="${W}" y1="${(Ht * f).toFixed(0)}" y2="${(Ht * f).toFixed(0)}" stroke="#1a241a" vector-effect="non-scaling-stroke"/>`).join("");
+    const grid = [0.25, 0.5, 0.75].map((f) => `<line x1="0" x2="${W}" y1="${(Ht * f).toFixed(0)}" y2="${(Ht * f).toFixed(0)}" stroke="${C.track}" vector-effect="non-scaling-stroke"/>`).join("");
     const lastP = H[n - 1];
-    const legend = ids.map((id, k) => `<span><span style="color:${HOST_COLORS[k % HOST_COLORS.length]}">■</span> ${esc(String(names[id] || id).toUpperCase())} <b class="dk-v">${(lastP.share[id] || 0).toFixed(1)}%</b></span>`).join("");
+    const legend = ids.map((id, k) => `<span><span style="color:${hostColors()[k % hostColors().length]}">■</span> ${esc(String(names[id] || id).toUpperCase())} <b class="dk-v">${(lastP.share[id] || 0).toFixed(1)}%</b></span>`).join("");
     const mins = Math.max(1, Math.round((lastP.t - H[0].t) / 60000));
     if ($("dk-fleet-sub")) $("dk-fleet-sub").textContent = `last ${mins} min · share of fleet CPU · scale 0–${top}%`;
     box.innerHTML = `<div class="dk-legend" style="font-size:11px;color:${C.cream};margin-bottom:8px">${legend}<span style="margin-left:auto">FLEET <b class="dk-v">${(lastP.used ?? 0).toFixed(1)}%</b></span></div>
-      <svg viewBox="0 0 ${W} ${Ht}" preserveAspectRatio="none" role="img" aria-label="Stacked CPU share per host, last ${mins} minutes">${grid}${bands}</svg>
+      <svg viewBox="0 0 ${W} ${Ht}" preserveAspectRatio="none" role="img" aria-label="Stacked CPU share per host, last ${mins} minutes">${grid}${bands}${isArcade() ? volBars(H, W, Ht) : ""}</svg>
       <div class="dk-axis"><span>−${mins}m</span><span>NOW</span></div>`;
+  }
+
+  // ARCADE: per-sample fleet CPU as bars along the floor (green = rising, pink = falling vs the previous sample)
+  function volBars(H, W, Ht) {
+    const n = H.length, bw = Math.min(8, Math.max(1, W / n - 2)), maxU = Math.max(1, ...H.map((p) => p.used || 0));
+    return H.map((p, i) => {
+      const prev = i ? (H[i - 1].used || 0) : (p.used || 0);
+      const h = 4 + (p.used || 0) / maxU * Ht * 0.22;
+      const col = (p.used || 0) >= prev ? C.ok : "#ff4fa3";
+      return `<rect x="${(i * W / Math.max(1, n - 1) - bw / 2).toFixed(1)}" y="${(Ht - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${col}" fill-opacity=".55"/>`;
+    }).join("");
   }
 
   /* ───────────── needs you ───────────── */
@@ -608,6 +628,7 @@
     const ns = ((d.bot_mesh || {}).nodes) || [];
     if (ns.length) { S.nodesHist.push(ns.filter((n) => n.online).length); if (S.nodesHist.length > 60) S.nodesHist.shift(); }
     renderTiles(); renderTopo(); renderHermes(); renderNeeds(); renderBadges(); renderFocus();
+    emit();
   }
   function ingestCompute(d) {
     if (!d) return;
@@ -615,6 +636,7 @@
     pushCompute(d);
     if (active()) { renderTiles(); renderFleet(); }
     renderFocus();
+    emit();
   }
 
   /* ───────────── own pollers (only while the deck is visible) ───────────── */
@@ -623,6 +645,7 @@
       if (!always && !active()) return;
       try { S[key] = await getJSON(path); } catch (e) { if (!S[key]) S[key] = { ok: false, error: "SCAN FAIL: " + e.message }; }
       try { after(); renderBadges(); } catch (e) {}
+      emit();
     };
     go();
     setInterval(go, every);
@@ -643,6 +666,7 @@
   function mount() {
     if (S.mounted) return;
     S.mounted = true;
+    applyPalette();
     const pane = $("pane-ops");
     if (pane) {
       const deck = document.createElement("section");
@@ -715,5 +739,13 @@
   }
   let dockerNow = () => {};
 
-  global.HelixDeck = { mount, ingestStats, ingestCompute, state: S };
+  function rerender() {
+    applyPalette();
+    renderTiles(); renderTopo(); renderHermes(); renderAdze(); renderNeeds(); renderFleet();
+    renderTrace(); renderDocker(); renderLan(); renderRemote(); renderGit(); renderBanks(); renderFocus();
+    emit();
+  }
+  function select(id) { S.sel = id; S.picked = true; renderTopo(); emit(); }
+
+  global.HelixDeck = { mount, ingestStats, ingestCompute, state: S, needsList, onUpdate: (f) => listeners.push(f), rerender, select, active, palette: C };
 })(window);

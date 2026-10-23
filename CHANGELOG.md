@@ -5,6 +5,7 @@
 ### Added
 
 - COMMAND DECK for desktop OPERATIONS (`helix-deck.css`, `helix-deck.js`): instrument tiles, Botmesh topology + inspector, Hermes/ADZE cards, fleet compute chart, Needs You queue, trace swimlanes, docker tiles, LAN owner grid, remote peers, git commit strip, memory banks. `DECK: OFF` restores legacy NOC.
+- ARCADE theme (opt-in): pink cabinet frame, agent roster with pixel mascots, office floor scene from live data.
 - Field Terminal focus card with per-metric sparkline.
 - Tab count badges.
 - `/api/stats` network byte counters; `/api/git` 14-day commit counts.
