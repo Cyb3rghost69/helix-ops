@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.helix.ops-dashboard</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/matflaherty/.hermes/reports/ops-dashboard/helix-ops-launchd.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/matflaherty/.hermes/reports/ops-dashboard</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/Users/matflaherty/.local/bin</string>
+        <key>HOME</key>
+        <string>/Users/matflaherty</string>
+    </dict>
+    <key>LimitLoadToSessionType</key>
+    <array>
+        <string>Aqua</string>
+        <string>Background</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>ExitTimeOut</key>
+    <integer>15</integer>
+    <key>StandardOutPath</key>
+    <string>/Users/matflaherty/.hermes/logs/helix-ops.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/matflaherty/.hermes/logs/helix-ops.err.log</string>
+</dict>
+</plist>
