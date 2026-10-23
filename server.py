@@ -8,6 +8,7 @@ import json
 import os
 import re
 import secrets
+import shlex
 import shutil
 import sqlite3
 import socket
@@ -2704,6 +2705,221 @@ def collect() -> dict:
     }
 
 
+# ───────────── BOTMESH event bus ─────────────
+# One stream of real, observable events from every Hermes agent database:
+#   user message  → origin (Telegram / You / another agent named in the session source) → agent
+#   tool call     → agent → target (another agent, web, tools, unraid, honcho …)
+#   tool result   → target → agent
+#   reply         → agent → origin
+# plus the Unraid Hermes worker (read over SSH, or locally when running on Unraid).
+# Served incrementally at /api/mesh?since=<seq> and pushed live at /api/stream (Server-Sent Events).
+MESH_AGENTS = ("helix", "prefect", "foreman", "canon", "scribe", "adze", "worker")
+WORKER_DB = os.environ.get("HELIX_WORKER_DB") or "/mnt/cache/appdata/hermes-agent/state.db"
+WORKER_MODE = (os.environ.get("HELIX_WORKER") or "auto").lower()      # auto | off
+MESH_SQL = (
+    "SELECT m.id AS id, m.session_id AS sid, m.role AS role, substr(IFNULL(m.content,''),1,700) AS content, "
+    "substr(IFNULL(m.tool_calls,''),1,4000) AS tool_calls, m.tool_name AS tool_name, m.timestamp AS ts, "
+    "IFNULL(s.source,'') AS source, IFNULL(s.title,'') AS title "
+    "FROM messages m JOIN sessions s ON s.id = m.session_id "
+    "WHERE IFNULL(m.active,1)=1 AND m.id > {last} ORDER BY m.id {order} LIMIT {limit}"
+)
+
+
+def mesh_target(name: str, args: str = "") -> str:
+    n = (name or "").lower()
+    a = (args or "").lower()
+    for b in ("prefect", "foreman", "canon", "scribe", "adze"):
+        if b in n:
+            return b
+    if n in ("delegate_task", "send_to_agent", "ask_agent", "agent_message", "peer_message") or "delegate" in n or "peer" in n:
+        for b in ("prefect", "foreman", "canon", "scribe", "adze", "worker", "unraid"):
+            if b in a:
+                return "worker" if b == "unraid" else b
+        return "worker" if "peer" in n else "prefect"
+    if re.search(r"web|browser|search|fetch|extract|http", n):
+        return "web"
+    if re.search(r"docker|unraid|array|container", n):
+        return "unraid"
+    if re.search(r"honcho|memory|recall|remember", n):
+        return "honcho"
+    if "umbrel" in n:
+        return "umbrel"
+    if re.search(r"telegram|send_message|discord|imessage", n):
+        return "telegram"
+    return "tools"
+
+
+def _mesh_origin(agent: str, source: str) -> str:
+    s = (source or "").lower()
+    for other in MESH_AGENTS:
+        if other != agent and other in s:
+            return other
+    if "telegram" in s:
+        return "telegram"
+    if agent == "worker":
+        return "helix" if any(k in s for k in ("peer", "api", "hermes", "mesh")) else "user"
+    if agent != "helix":
+        return "helix"          # silent profiles are driven by Helix
+    return "user"
+
+
+def _mesh_events(agent: str, rows: list, memo: dict | None = None) -> list[dict]:
+    """memo remembers where each tool call went, so its result comes back from the same place."""
+    out: list[dict] = []
+    memo = memo if memo is not None else {}
+    for r in rows:
+        try:
+            ts = float(r.get("ts") or 0)
+        except (TypeError, ValueError):
+            ts = 0.0
+        role = r.get("role") or ""
+        origin = _mesh_origin(agent, r.get("source") or "")
+        base = {"t": ts, "agent": agent, "sid": r.get("sid"), "title": _snip(r.get("title") or "", 70)}
+        mid = f"{agent}:{r.get('id')}"
+        if role == "user":
+            text = _cli_text(r.get("content") or "", 220)
+            if text:
+                out.append({**base, "id": mid, "from": origin, "to": agent, "kind": "ask" if origin in MESH_AGENTS else "request", "text": text})
+        elif role == "assistant":
+            calls = []
+            try:
+                arr = json.loads(r.get("tool_calls") or "[]")
+                arr = [arr] if isinstance(arr, dict) else (arr or [])
+                for tc in arr:
+                    fn = tc.get("function") if isinstance(tc, dict) and isinstance(tc.get("function"), dict) else {}
+                    calls.append((str(fn.get("name") or tc.get("name") or "tool"), str(fn.get("arguments") or "")))
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                calls = []
+            for i, (name, args) in enumerate(calls[:6]):
+                tgt = mesh_target(name, args)
+                if tgt == agent:
+                    tgt = "tools"
+                memo[(agent, r.get("sid"), name)] = tgt
+                out.append({**base, "id": f"{mid}:{i}", "from": agent, "to": tgt, "kind": "tool", "text": "▸ " + name})
+            text = _cli_text(r.get("content") or "", 220)
+            if text and not calls:
+                out.append({**base, "id": mid, "from": agent, "to": origin, "kind": "reply" if origin not in MESH_AGENTS else "talk", "text": text})
+        elif role == "tool":
+            name = r.get("tool_name") or "tool"
+            tgt = memo.get((agent, r.get("sid"), name)) or mesh_target(name)
+            if tgt == agent:
+                tgt = "tools"
+            out.append({**base, "id": mid, "from": tgt, "to": agent, "kind": "result", "text": f"{name} // {_cli_text(r.get('content') or '', 140)}"})
+    return out
+
+
+class MeshBus:
+    def __init__(self) -> None:
+        self.cv = threading.Condition()
+        self.events: list[dict] = []
+        self.seq = 0
+        self.last: dict[str, int] = {}
+        self.sources: dict[str, str] = {}
+        self.started = False
+        self.worker_t = 0.0
+        self.wanted = 0.0
+        self.memo: dict = {}
+
+    def ensure(self) -> None:
+        self.wanted = time.time()
+        with self.cv:
+            if self.started:
+                return
+            self.started = True
+        threading.Thread(target=self._loop, daemon=True).start()
+
+    def _push(self, evs: list[dict]) -> None:
+        if not evs:
+            return
+        evs.sort(key=lambda e: e.get("t") or 0)
+        with self.cv:
+            for e in evs:
+                self.seq += 1
+                e["seq"] = self.seq
+                self.events.append(e)
+            if len(self.events) > 900:
+                del self.events[: len(self.events) - 900]
+            self.cv.notify_all()
+
+    def _rows_local(self, path: Path, last: int | None) -> list[dict]:
+        con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=1.5)
+        con.row_factory = sqlite3.Row
+        try:
+            if last is None:
+                rows = con.execute(MESH_SQL.format(last=0, order="DESC", limit=160)).fetchall()[::-1]
+            else:
+                rows = con.execute(MESH_SQL.format(last=int(last), order="ASC", limit=400)).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            con.close()
+
+    def _rows_worker(self, last: int | None) -> list[dict]:
+        q = MESH_SQL.format(last=0 if last is None else int(last), order="DESC" if last is None else "ASC", limit=160 if last is None else 400)
+        if ON_UNRAID and os.path.isfile(WORKER_DB):
+            rows = self._rows_local(Path(WORKER_DB), last)
+            return rows
+        code, out = run(SSH_UNRAID + [f"timeout 8 sqlite3 -readonly -json {shlex.quote(WORKER_DB)} {shlex.quote(q)}"], 12)
+        if code != 0:
+            raise RuntimeError(("sqlite3 unavailable" if code == 127 else "worker db unreachable") + f" ({code})")
+        rows = json.loads(out or "[]") if out.strip().startswith("[") else []
+        return rows[::-1] if last is None else rows
+
+    def poll(self) -> None:
+        new: list[dict] = []
+        for agent, path in AGENT_DBS.items():
+            if not path.is_file():
+                self.sources[agent] = "no database"
+                continue
+            try:
+                rows = self._rows_local(path, self.last.get(agent))
+                if rows:
+                    self.last[agent] = max(int(r["id"]) for r in rows)
+                elif agent not in self.last:
+                    self.last[agent] = 0
+                new += _mesh_events(agent, rows, self.memo)
+                self.sources[agent] = "ok"
+            except sqlite3.Error as e:
+                self.sources[agent] = "error: " + type(e).__name__
+        if WORKER_MODE != "off" and time.time() - self.worker_t > 10:
+            self.worker_t = time.time()
+            try:
+                rows = self._rows_worker(self.last.get("worker"))
+                if rows:
+                    self.last["worker"] = max(int(r["id"]) for r in rows)
+                elif "worker" not in self.last:
+                    self.last["worker"] = 0
+                new += _mesh_events("worker", rows, self.memo)
+                self.sources["worker"] = "ok"
+            except (RuntimeError, ValueError, sqlite3.Error, json.JSONDecodeError) as e:
+                self.sources["worker"] = str(e)[:80]
+        if len(self.memo) > 4000:
+            self.memo.clear()
+        self._push(new)
+
+    def _loop(self) -> None:
+        while True:
+            try:
+                self.poll()
+            except Exception as e:                      # never let the bus thread die
+                self.sources["bus"] = "error: " + type(e).__name__
+            # poll briskly while someone is watching, gently otherwise
+            time.sleep(1.2 if time.time() - self.wanted < 90 else 8)
+
+    def since(self, seq: int, limit: int = 250) -> list[dict]:
+        with self.cv:
+            evs = [e for e in self.events if e["seq"] > seq]
+        return evs[-limit:]
+
+    def wait(self, seq: int, timeout: float) -> list[dict]:
+        with self.cv:
+            if not any(e["seq"] > seq for e in self.events[-50:]) and self.seq <= seq:
+                self.cv.wait(timeout)
+        return self.since(seq)
+
+
+MESH = MeshBus()
+
+
 # /api/stats is slow (SSH probes, Hermes CLI, UniFi). Collect it in the background and serve the
 # latest snapshot instantly; the first request after start-up waits for one collection.
 STATS_REFRESH_S = float(os.environ.get("HELIX_STATS_REFRESH_S") or 15)
@@ -2760,7 +2976,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        if not any(k.lower() == "cache-control" for k, _ in (extra or [])):
+            self.send_header("Cache-Control", "no-store")
         for k, v in extra or []:
             self.send_header(k, v)
         self.end_headers()
@@ -2810,7 +3027,9 @@ class Handler(BaseHTTPRequestHandler):
     def _need_auth(self, path: str, method: str) -> bool:
         if auth_open():
             return False
-        if path in ("/login", "/logout", "/health"):
+        if path in ("/login", "/logout", "/health", "/sw.js", "/manifest.webmanifest", "/helix-arcade-mark.svg"):
+            return False
+        if path.startswith(("/app/icons/", "/app/fonts/")):   # PWA install assets: no data, must load without a cookie
             return False
         if method == "POST" and path == "/api/protect/hook":
             return False
@@ -2857,6 +3076,21 @@ class Handler(BaseHTTPRequestHandler):
             html = (ROOT / "index.html").read_bytes()
             self._send(200, html, "text/html; charset=utf-8")
             return
+        if path == "/sw.js":
+            self._send(200, (ROOT / "sw.js").read_bytes(), "application/javascript; charset=utf-8", [("Service-Worker-Allowed", "/")])
+            return
+        if path in ("/manifest.webmanifest", "/app/manifest.webmanifest"):
+            self._send(200, (ROOT / "app" / "manifest.webmanifest").read_bytes(), "application/manifest+json; charset=utf-8")
+            return
+        m_asset = re.match(r"^/app/(fonts|icons)/([A-Za-z0-9_.-]+\.(woff2?|png|txt))$", path)
+        if m_asset:
+            f = ROOT / "app" / m_asset.group(1) / m_asset.group(2)
+            if f.is_file():
+                ctype = {"woff": "font/woff", "woff2": "font/woff2", "png": "image/png", "txt": "text/plain; charset=utf-8"}[m_asset.group(3)]
+                self._send(200, f.read_bytes(), ctype, [("Cache-Control", "public, max-age=604800")])
+            else:
+                self._send(404, b"", "text/plain")
+            return
         if path in ("/legacy", "/legacy.html", "/classic"):
             html = (ROOT / "legacy.html").read_bytes()
             self._send(200, html, "text/html; charset=utf-8")
@@ -2896,6 +3130,50 @@ class Handler(BaseHTTPRequestHandler):
         if path in static:
             name, ctype = static[path]
             self._send(200, (ROOT / name).read_bytes(), ctype)
+            return
+        if path == "/api/mesh":
+            MESH.ensure()
+            try:
+                since = int((qs.get("since") or ["-1"])[0])
+            except ValueError:
+                since = -1
+            if since < 0:
+                if not MESH.events:
+                    MESH.poll()
+                evs = MESH.since(0, 250)
+            else:
+                evs = MESH.since(since)
+            body = json.dumps({"seq": MESH.seq, "events": evs, "sources": MESH.sources, "agents": list(MESH_AGENTS)}, ensure_ascii=False).encode()
+            self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path == "/api/stream":
+            MESH.ensure()
+            try:
+                since = int((qs.get("since") or [str(MESH.seq)])[0])
+            except ValueError:
+                since = MESH.seq
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache, no-transform")
+            self.send_header("X-Accel-Buffering", "no")
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+            end = time.time() + 600            # clients reconnect every 10 min
+            try:
+                self.wfile.write(b"retry: 3000\n\n")
+                self.wfile.flush()
+                while time.time() < end:
+                    MESH.wanted = time.time()
+                    evs = MESH.wait(since, 15)
+                    if evs:
+                        since = evs[-1]["seq"]
+                        data = json.dumps({"seq": since, "events": evs}, ensure_ascii=False)
+                        self.wfile.write(f"id: {since}\nevent: mesh\ndata: {data}\n\n".encode())
+                    else:
+                        self.wfile.write(b": ping\n\n")
+                    self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass
             return
         if path.startswith("/api/stats"):
             try:

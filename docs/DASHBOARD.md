@@ -27,6 +27,13 @@ Desktop: sidebar + top bar. ≤900px: top bar + bottom nav (HOME · MESH · AGEN
 
 ## BOTMESH — what moves and why
 
+Two views (toggle on the MESH page, remembered): **ARENA** — agents on a ring, packets fly along glowing links; **FLOOR** — the office from the reference: agents sit at desks, channels/services are stations (Telegram booth, You door, Web window, Tools bench, Honcho cabinet, Unraid/Umbrel racks), and an agent physically walks to whoever it messages, says it, and walks back. The wall screen shows real fleet CPU and the JST clock.
+
+### Live feed (server)
+
+`server.py` runs a `MeshBus` thread that reads every Hermes agent database (Helix + Prefect/Foreman/Canon/Scribe/ADZE profiles) and the Unraid Hermes **worker** (`HELIX_WORKER_DB`, default `/mnt/cache/appdata/hermes-agent/state.db`, read over the existing Unraid SSH key with `sqlite3 -json`; `HELIX_WORKER=off` disables). Each message becomes an event: user → agent (origin = Telegram / You / another agent named in the session source), tool call → target (agent named in the tool/arguments, web, tools, unraid, honcho…), tool result back from the same target, reply → origin. Served at `/api/mesh?since=<seq>` and pushed instantly at `/api/stream` (Server-Sent Events, auto-reconnect; the app falls back to polling `/api/mesh` every 3s). Agents count as online if their gateway is up **or** they had traffic in the last 15 min (silent profiles are one-shot).
+
+
 Packets are real events, deduplicated by id:
 
 - `/api/talk` — every Helix ↔ silent-profile message (from, to, text, time).
@@ -42,4 +49,12 @@ All values come from existing endpoints; missing values show "—" or NO TELEMET
 
 Boot screen: pixel logo assembles, then real checks (`/health`, compute, agents, talk, trace, adze, stats) tick OK / WAIT / FAIL, then PRESS START (auto-continues). Later visits in the same session boot FAST; Settings can turn it off. Pages show pixel loaders and skeleton blocks until their data arrives.
 
-Bump `V` in `index.html` when shipping UI changes.
+## Install as an app
+
+`/manifest.webmanifest` + `/sw.js` make it installable (Safari → Share → Add to Home Screen; Chrome → Install). It opens full-screen with the pixel helix icon. The service worker only caches app files (network-first) so the shell opens offline; it never caches `/api`. Service workers need HTTPS — use the Tailscale `/ops` URL.
+
+## Fonts
+
+Silkscreen, VT323 and IBM Plex Mono are bundled in `app/fonts/` (subset WOFF, OFL licences alongside) — no Google Fonts requests.
+
+Bump `V` in `index.html` and `VERSION` in `sw.js` when shipping UI changes.

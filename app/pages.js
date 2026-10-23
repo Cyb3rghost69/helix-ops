@@ -30,7 +30,7 @@
       <span class="meta"><span>${esc(a.status.toUpperCase())}${a.age_s != null ? " · " + ago(a.age_s) + " ago" : ""}</span><span>${talkCount ? talkCount + " msgs" : ""}</span></span>
     </button>`;
   }
-  function talkCounts() { const c = {}; talkItems().forEach((m) => { c[m.from] = (c[m.from] || 0) + 1; c[m.to] = (c[m.to] || 0) + 1; }); return c; }
+  function talkCounts() { const c = {}; G.HelixMesh.collectEvents().forEach((m) => { c[m.from] = (c[m.from] || 0) + 1; c[m.to] = (c[m.to] || 0) + 1; }); return c; }
   function msgRow(e, isNew) {
     const a = meta(e.from), b = meta(e.to);
     return `<div class="msg ${isNew ? "new" : ""}" data-from="${esc(e.from)}" data-to="${esc(e.to)}">
@@ -123,7 +123,7 @@
     let filter = "all", sel = null;
     el.innerHTML = `
       <div class="pagehd"><div><div class="crumbs"><a href="#/">FLOOR</a> › MESH</div><h1>BOT<span>MESH</span></h1><p>Every message between your agents, live. Packets fly sender → receiver; links glow with traffic; tap an agent to inspect.</p></div>
-        <div class="row" style="flex-wrap:wrap"><button class="btn" id="m-replay">↺ REPLAY</button></div></div>
+        <div class="row" style="flex-wrap:wrap"><div class="seg" role="group" aria-label="View"><button data-view="arena">ARENA</button><button data-view="floor">FLOOR</button></div><button class="btn" id="m-replay">↺ REPLAY</button></div></div>
       <div class="grid" style="align-items:start">
         <section class="pn c8 glow">
           <div class="mesh-wrap"><canvas class="mesh-canvas" id="m-canvas" aria-label="Botmesh arena"></canvas>
@@ -132,20 +132,25 @@
         </section>
         <div class="c4 stack" style="gap:14px">
           <section class="pn" id="m-insp"><div class="hd"><h2><span class="dot"></span>INSPECT</h2><small>tap an agent</small></div><div class="empty">${sprite("helix", true, 40)}<br>SELECT AN AGENT ON THE ARENA</div></section>
-          <section class="pn"><div class="hd"><h2><span class="dot"></span>COMMS LOG</h2><div class="seg" role="group" aria-label="Filter"><button data-f="all" class="on">ALL</button><button data-f="talk">BOTS</button><button data-f="trace">HELIX</button></div></div><div class="comms" id="m-log">${loader("LISTENING")}</div></section>
+          <section class="pn"><div class="hd"><h2><span class="dot"></span>COMMS LOG</h2><div class="seg" role="group" aria-label="Filter"><button data-f="all" class="on">ALL</button><button data-f="talk">AGENTS</button><button data-f="trace">TOOLS</button><button data-f="chat">CHAT</button></div></div><div class="comms" id="m-log">${loader("LISTENING")}</div></section>
         </div>
       </div>
       <div class="grid">
         ${panel("m-links", "BUSIEST LINKS", "messages per pair", "c6")}
         ${panel("m-roster", "AGENTS ON THE MESH", "status", "c6")}
       </div>`;
-    const mesh = G.HelixMesh.Mesh($("#m-canvas", el));
+    let view = "arena"; try { view = localStorage.getItem("helix.meshView") || "arena"; } catch (e) {}
+    const mesh = G.HelixMesh.Mesh($("#m-canvas", el), { view });
+    const markView = () => $$("[data-view]", el).forEach((b) => b.classList.toggle("on", b.dataset.view === view));
+    markView();
     let lastKeys = new Set();
     mesh.on("mode", (m) => { const b = $("#m-mode", el); if (!b) return; b.className = "mode " + (m === "replay" ? "replay" : m === "live" ? "" : "wait"); b.textContent = m === "replay" ? "↺ REPLAY" : m === "live" ? "● LIVE" : "● LIVE · QUIET"; b.title = m === "replay" ? "Replaying recent real traffic" : m === "live" ? "Live traffic" : "Live — no messages in the last 25s"; });
     mesh.on("select", (id) => { sel = id; inspect(); renderLog(); if (id && matchMedia("(max-width: 900px)").matches) X.openSheet("insp", inspHTML()); });
     mesh.on("event", () => stats());
     $("#m-replay", el).addEventListener("click", () => mesh.replay(24));
     el.addEventListener("click", (e) => {
+      const v = e.target.closest("[data-view]");
+      if (v) { view = v.dataset.view; try { localStorage.setItem("helix.meshView", view); } catch (err) {} mesh.setView(view); markView(); const lg = $("#m-legend", el); if (lg) lg.textContent = view === "floor" ? "agents walk to whoever they message" : "■ live link ┄ idle link"; X.bleep(990, 0.05); }
       const f = e.target.closest("[data-f]"); if (f) { filter = f.dataset.f; $$("[data-f]", el).forEach((b) => b.classList.toggle("on", b === f)); renderLog(); }
       const m = e.target.closest(".msg"); if (m) { sel = m.dataset.from; mesh.select(sel); inspect(); }
     });
@@ -168,7 +173,10 @@
     function inspect() { const p = $("#m-insp", el); if (p) p.innerHTML = `<div class="hd"><h2><span class="dot"></span>INSPECT</h2><small>${sel ? `<button class="btn sm" id="m-clear">CLEAR</button>` : "tap an agent"}</small></div>${sel ? inspHTML() : `<div class="empty">${sprite("helix", true, 40)}<br>SELECT AN AGENT ON THE ARENA</div>`}`; const c = $("#m-clear", el); if (c) c.onclick = () => { sel = null; mesh.select(null); inspect(); renderLog(); }; }
     function renderLog() {
       let ev = mesh.events();
-      if (filter === "talk") ev = ev.filter((e) => e.kind === "talk"); else if (filter === "trace") ev = ev.filter((e) => e.kind !== "talk");
+      const AG = ["helix", "prefect", "foreman", "canon", "scribe", "adze", "worker"];
+      if (filter === "talk") ev = ev.filter((e) => AG.includes(e.from) && AG.includes(e.to));
+      else if (filter === "trace") ev = ev.filter((e) => e.kind === "tool" || e.kind === "result");
+      else if (filter === "chat") ev = ev.filter((e) => e.kind === "request" || e.kind === "reply");
       if (sel) ev = ev.filter((e) => e.from === sel || e.to === sel);
       const keys = new Set(ev.map((e) => e.key));
       $("#m-log", el).innerHTML = ev.length ? ev.slice(-80).reverse().map((e) => msgRow(e, lastKeys.size && !lastKeys.has(e.key))).join("") : `<div class="empty">NO MESSAGES${sel ? " FOR " + esc(meta(sel).name) : ""} YET</div>`;
@@ -185,7 +193,7 @@
     function upd(keys) {
       const st = D("stats"), al = agentList();
       if (al.length) mesh.setAgents(al, (st && st.bot_mesh || {}).edges);
-      if (!keys || keys.has("talk") || keys.has("trace")) { mesh.ingest(G.HelixMesh.collectEvents()); renderLog(); }
+      if (!keys || keys.has("talk") || keys.has("trace") || keys.has("mesh")) { mesh.ingest(G.HelixMesh.collectEvents()); renderLog(); }
       stats(); if (sel) inspect();
       const tc = talkCounts();
       $("#m-roster", el).innerHTML = `<div class="hd"><h2><span class="dot"></span>AGENTS ON THE MESH</h2><small>${al.filter((a) => a.online).length} online</small></div><div class="list">${al.filter((a) => !["web", "tools"].includes(a.id)).map((a) => `<button class="li" style="background:none;border:0;border-bottom:1px solid #1d1926;text-align:left;cursor:pointer;color:inherit;width:100%" data-sel="${esc(a.id)}">${sprite(a.id, a.online, 28)}<div class="grow"><div class="t1" style="color:${a.acc};font:11px var(--px)">${esc(a.name)}</div><div class="t2 ell">${esc(a.doing || a.thinking || a.role)}</div></div>${lamp(a.status)}<span class="muted" style="font:16px var(--vt);width:32px;text-align:right">${tc[a.id] || ""}</span></button>`).join("")}</div>`;
@@ -227,15 +235,16 @@
       const a = agentList().find((x) => x.id === id), st = D("stats") || {}, h = st.hermes || {};
       if (a) {
         const tk = talkItems().filter((x) => x.from === id || x.to === id);
+        const mev = G.HelixMesh.collectEvents().filter((x) => x.from === id || x.to === id || x.agent === id);
         $("#ad-status", el).innerHTML = `<div class="hd"><h2><span class="dot"></span>STATUS</h2><small>${lamp(a.status)} ${esc(a.status.toUpperCase())}</small></div><div class="bd stack">
           ${row2("ONLINE", a.online ? '<span class="ok">YES</span>' : '<span class="bad">NO</span>')}${row2("HOST", esc(a.host || "—"))}${row2("KIND", esc(a.kind || "—"))}
           ${a.age_s != null ? row2("LAST ACTIVE", ago(a.age_s) + " ago") : ""}${a.source ? row2("SOURCE", esc(a.source)) : ""}
           ${id === "helix" ? row2("MODEL", esc(h.model || "—")) + row2("PROVIDER", esc(h.provider || "—")) + row2("GATEWAY", h.gateway_running ? `<span class="ok">RUNNING</span> pid ${esc(h.gateway_pid || "")}` : '<span class="bad">DOWN</span>') + row2("VERSION", esc((h.version || "—") + (h.commits_behind ? ` · ${h.commits_behind} behind` : ""))) + row2("CRON", esc(h.cron_jobs ?? "—")) : ""}
-          ${row2("MESSAGES", tk.length)}
+          ${row2("MESSAGES", mev.length || tk.length)}
           ${a.title ? `<div><div class="k">CURRENT SESSION</div><div class="v" style="font-size:13px">${esc(a.title)}</div></div>` : ""}
           ${a.thinking || a.doing ? `<div><div class="k">DOING</div><div class="v" style="font-size:13px">${esc(a.doing || a.thinking)}</div></div>` : ""}</div>`;
-        const conv = id === "helix" ? talkItems().slice(-40) : tk.slice(-40);
-        $("#ad-talk", el).innerHTML = `<div class="hd"><h2><span class="dot"></span>CONVERSATION</h2><small>${conv.length} recent</small></div><div class="comms" style="max-height:440px">${conv.length ? conv.slice().reverse().map((x) => msgRow({ from: x.from, to: x.to, text: x.text, kind: "talk", t: x.t })).join("") : `<div class="empty">NO MESSAGES WITH ${esc(m.name)} YET</div>`}</div>`;
+        const conv = mev.length ? mev.slice(-50).map((x) => ({ from: x.from, to: x.to, text: x.text, t: x.t, kind: x.kind })) : (id === "helix" ? talkItems().slice(-40) : tk.slice(-40));
+        $("#ad-talk", el).innerHTML = `<div class="hd"><h2><span class="dot"></span>CONVERSATION</h2><small>${conv.length} recent</small></div><div class="comms" style="max-height:440px">${conv.length ? conv.slice().reverse().map((x) => msgRow({ from: x.from, to: x.to, text: x.text, kind: x.kind || "talk", t: x.t })).join("") : `<div class="empty">NO MESSAGES WITH ${esc(m.name)} YET</div>`}</div>`;
       }
       if (id === "helix") {
         const tr = D("trace");

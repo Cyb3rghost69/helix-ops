@@ -65,6 +65,7 @@
     canon:    { acc: "#39e58c", shape: "square", name: "CANON", role: "docs · writes it down" },
     scribe:   { acc: "#22d3ee", shape: "round2", name: "SCRIBE", role: "research · reads first" },
     adze:     { acc: "#ff4d6d", shape: "tri", name: "ADZE", role: "critic · openai · no tools" },
+    worker:   { acc: "#14b8a6", shape: "ghost", name: "WORKER", role: "unraid hermes · peer agent" },
     unraid:   { acc: "#facc15", shape: "box", name: "UNRAID", role: "peer · docker host" },
     umbrel:   { acc: "#fb923c", shape: "box", name: "UMBREL", role: "peer node" },
     honcho:   { acc: "#a3e635", shape: "hex", name: "HONCHO", role: "memory · peers & facts" },
@@ -73,7 +74,7 @@
     web:      { acc: "#a78bfa", shape: "globe", name: "WEB", role: "search · browse" },
     tools:    { acc: "#c9c3d6", shape: "wrench", name: "TOOLS", role: "terminal · code" },
   };
-  const ORDER = ["helix", "prefect", "foreman", "canon", "scribe", "adze", "honcho", "unraid", "umbrel", "telegram", "user", "web", "tools"];
+  const ORDER = ["helix", "prefect", "foreman", "canon", "scribe", "adze", "worker", "honcho", "unraid", "umbrel", "telegram", "user", "web", "tools"];
   const meta = (id) => META[id] || { acc: "#a7a1b6", shape: "round", name: String(id || "?").toUpperCase(), role: "" };
 
   const SHAPES = {
@@ -169,6 +170,53 @@
     thoughts: { path: "/api/thoughts", every: 3000, pages: ["agents"] },
     herdr: { path: "/api/herdr", every: 20000, pages: ["agents"] },
   };
+  /* ── live mesh feed: /api/mesh snapshot + /api/stream (SSE), polling fallback ── */
+  store.mesh = { seq: -1, events: [], sources: {}, mode: "connecting", unsupported: false, lastMsg: 0 };
+  function meshAdd(evs) {
+    if (!evs || !evs.length) return;
+    const M = store.mesh, have = new Set(M.events.slice(-400).map((e) => e.seq));
+    evs.forEach((e) => { if (!have.has(e.seq)) M.events.push(e); M.seq = Math.max(M.seq, e.seq || 0); });
+    if (M.events.length > 700) M.events.splice(0, M.events.length - 700);
+    M.lastMsg = Date.now();
+    emit("mesh");
+  }
+  let es = null, meshPoll = null;
+  async function meshSnapshot() {
+    try {
+      const d = await fetchJSON(store.mesh.seq >= 0 ? "/api/mesh?since=" + store.mesh.seq : "/api/mesh", 20000);
+      store.mesh.sources = d.sources || {};
+      if (store.mesh.seq < 0) store.mesh.seq = 0;
+      meshAdd(d.events || []);
+      if (!(d.events || []).length) emit("mesh");
+      return true;
+    } catch (e) {
+      if (/404/.test(e.message)) { store.mesh.unsupported = true; store.mesh.mode = "legacy"; emit("mesh"); }
+      return false;
+    }
+  }
+  function meshFallback() {
+    if (meshPoll) return;
+    store.mesh.mode = "poll"; emit("mesh");
+    meshPoll = setInterval(() => { if (!document.hidden) meshSnapshot(); }, 3000);
+  }
+  async function startMesh() {
+    const ok = await meshSnapshot();
+    if (!ok || store.mesh.unsupported) { if (!store.mesh.unsupported) meshFallback(); return; }
+    if (!("EventSource" in G)) { meshFallback(); return; }
+    let opened = false;
+    const open = () => {
+      try { es && es.close(); } catch (e) {}
+      es = new EventSource(api("/api/stream?since=" + Math.max(0, store.mesh.seq)), { withCredentials: true });
+      es.addEventListener("open", () => { opened = true; store.mesh.mode = "live"; if (meshPoll) { clearInterval(meshPoll); meshPoll = null; } emit("mesh"); });
+      es.addEventListener("mesh", (m) => { try { const d = JSON.parse(m.data); meshAdd(d.events || []); } catch (e) {} });
+      es.addEventListener("error", () => { if (store.mesh.mode === "live") { store.mesh.mode = "reconnecting"; emit("mesh"); } if (!opened) { es.close(); meshFallback(); } });
+    };
+    open();
+    setTimeout(() => { if (!opened) { try { es.close(); } catch (e) {} meshFallback(); } }, 12000);
+    setInterval(() => { if (store.mesh.mode === "live" && !document.hidden) meshSnapshot(); }, 60000);   // belt and braces
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && es && es.readyState === 2) open(); });
+  }
+
   let curPage = "home";
   const timers = {};
   async function fetchJSON(path, ms) {
@@ -225,6 +273,7 @@
     emitTimer = setTimeout(() => { emitTimer = null; const keys = new Set(dirty); dirty.clear(); store.subs.forEach((f) => { try { f(keys); } catch (e) { console.error(e); } }); }, 120);
   }
   function startPolling() {
+    startMesh();
     Object.keys(POLL).forEach((k) => { load(k, POLL[k].always); timers[k] = setInterval(() => load(k), POLL[k].every); });
     document.addEventListener("visibilitychange", () => { if (!document.hidden) Object.keys(POLL).forEach((k) => load(k)); });
   }
@@ -247,7 +296,8 @@
   function agentList() {
     const st = D("stats") || {}, mesh = st.bot_mesh || {}, ag = (D("agents") || {}).agents || [], adze = D("adze");
     const byA = {}; ag.forEach((a) => { byA[a.id] = a; });
-    const ids = new Set();
+    const ids = new Set(), lastAct = {}, nowS = Date.now() / 1000;
+    store.mesh.events.forEach((e) => { [e.agent, e.from].forEach((k) => { if (k && e.t) { const ag = nowS - e.t; if (lastAct[k] == null || ag < lastAct[k]) lastAct[k] = Math.max(0, ag); } }); });
     (mesh.nodes || []).forEach((n) => ids.add(n.id));
     ag.forEach((a) => ids.add(a.id));
     const out = [];
@@ -256,9 +306,18 @@
       let online = n.online != null ? !!n.online : !!a.online;
       if (id === "adze" && adze && typeof adze.online === "boolean") online = adze.online;
       if (id === "helix" && st.hermes) online = !!st.hermes.gateway_running;
-      const status = !online ? "dark" : (a.status === "busy" ? "busy" : "idle");
-      out.push({ id, name: m.name, label: n.label || a.label || m.name, acc: m.acc, role: m.role, kind: n.kind || a.kind || "", host: n.host || a.host || "", online, status, thinking: a.thinking || "", doing: a.doing || "", title: a.title || "", source: a.source || "", age_s: a.age_s });
+      // silent profiles run one-shot (no gateway): real recent traffic on the mesh also means alive
+      const act = lastAct[id];
+      if (act != null && act < 900) online = true;
+      const status = !online ? "dark" : (a.status === "busy" || (act != null && act < 120) ? "busy" : "idle");
+      out.push({ id, name: m.name, label: n.label || a.label || m.name, acc: m.acc, role: m.role, kind: n.kind || a.kind || "", host: n.host || a.host || "", online, status, thinking: a.thinking || "", doing: a.doing || "", title: a.title || "", source: a.source || "", age_s: a.age_s != null ? a.age_s : act });
     });
+    const ws = (store.mesh.sources || {}).worker, wEv = store.mesh.events.filter((e) => e.agent === "worker" || e.from === "worker" || e.to === "worker");
+    if ((ws && ws !== "no database") || wEv.length) {
+      const last = wEv[wEv.length - 1], m = meta("worker");
+      const age = last && last.t ? Date.now() / 1000 - last.t : null;
+      out.push({ id: "worker", name: m.name, label: "Unraid Hermes", acc: m.acc, role: m.role, kind: "peer-agent", host: "unraid", online: ws === "ok", status: ws !== "ok" ? "dark" : (age != null && age < 120 ? "busy" : "idle"), thinking: ws === "ok" ? "" : (ws || ""), doing: last && age != null && age < 120 ? last.text : "", title: last ? last.title : "", source: "", age_s: age });
+    }
     out.sort((x, y) => (ORDER.indexOf(x.id) + 1 || 99) - (ORDER.indexOf(y.id) + 1 || 99));
     return out;
   }
@@ -360,13 +419,15 @@
     chips.push(["GATEWAY", st ? (h.gateway_running ? "ok" : "bad") : "", st ? (h.gateway_running ? "UP" : "DOWN") : "…"]);
     chips.push(["ADZE", adze ? (adze.online ? "ok" : "bad") : "", adze ? (adze.online ? "ON" : "OFF") : "…"]);
     chips.push(["TAILNET", ts.state ? (/running/i.test(ts.state) ? "ok" : "warn") : "", ts.state ? String(ts.state).toUpperCase() : "—"]);
+    const lm = store.mesh.mode;
+    chips.push(["LINK", lm === "live" ? "ok" : lm === "poll" || lm === "reconnecting" ? "warn" : lm === "legacy" ? "warn" : "", lm === "live" ? "LIVE" : lm === "poll" ? "POLL" : lm === "legacy" ? "OLD API" : lm === "reconnecting" ? "RETRY" : "…"]);
     if (st && st.auth_open) chips.push(["AUTH", "warn", "OPEN"]);
     const c = $("#chips"); if (c) c.innerHTML = chips.map(([k, cls, v]) => `<span class="chip ${cls}"><i></i>${k} <b class="v">${esc(v)}</b></span>`).join("");
     const needs = needsList(), nb = $("#nb-home");
     if (nb && st) { nb.hidden = !needs.length; nb.textContent = needs.length; nb.classList.toggle("alert", needs.some((x) => x.sev === "high")); }
     const al = agentList(), nm = $("#nb-agents"); if (nm && al.length) { nm.hidden = false; nm.textContent = al.filter((a) => a.online && !["user", "telegram"].includes(a.id)).length + "/" + al.filter((a) => !["user", "telegram"].includes(a.id)).length; }
     const tr = D("trace"), nt = $("#nb-trace"); if (nt && tr) { nt.hidden = false; nt.textContent = tr.live ? "LIVE" : "IDLE"; nt.classList.toggle("alert", !!tr.live); }
-    const ms = $("#nb-mesh"); if (ms) { const n = talkItems().filter((m) => m.t && Date.now() / 1000 - m.t < 3600).length; ms.hidden = !n; ms.textContent = n; }
+    const ms = $("#nb-mesh"); if (ms) { const n = (store.mesh.unsupported ? talkItems() : store.mesh.events).filter((m) => m.t && Date.now() / 1000 - m.t < 3600).length; ms.hidden = !n; ms.textContent = n; }
     const f = $("#navfoot"); if (f) f.innerHTML = `<b>HOS://TKY-06</b><br>${st ? `scan ${esc(st.collect_ms)}ms · age ${esc(st.cache_age_s ?? 0)}s` : "connecting…"}<br>keys 1–7 switch pages`;
   }
   function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2200); }

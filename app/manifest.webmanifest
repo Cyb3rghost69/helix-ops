@@ -1,0 +1,22 @@
+{
+  "name": "HELIX/OPS · Hermes Command Floor",
+  "short_name": "HELIX/OPS",
+  "description": "Arcade command floor for Hermes and the helix agents.",
+  "id": "./",
+  "start_url": "./#/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0910",
+  "theme_color": "#0b0910",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    { "src": "app/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "app/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "app/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Botmesh", "url": "./#/mesh", "icons": [{ "src": "app/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Systems", "url": "./#/systems", "icons": [{ "src": "app/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

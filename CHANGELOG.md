@@ -4,6 +4,7 @@
 
 ### Added
 
+- BOTMESH v2: server-side MeshBus over every agent DB + Unraid worker (`/api/mesh`, live `/api/stream` SSE), bot↔bot and bot tool traffic, FLOOR view with walking agents, worker mascot, activity-based online status. Installable PWA (manifest, icons, service worker). Bundled pixel fonts.
 - **Arcade app** (`index.html` + `app/`): full rebuild — boot screen, pixel loaders, sidebar/bottom-nav shell, HOME, animated BOTMESH (real Helix↔bot messages and tool calls as flying packets, replay, inspector, comms log, link stats), AGENTS with per-agent pages and Helix terminal, TRACE, SYSTEMS (hosts, docker, network, remote, security), MEMORY (banks, files, skills), SETTINGS (animation, sound, boot). Old UI kept at `/legacy`.
 - Linux/Unraid support in server.py (platform detection, /proc-based host + network stats, local docker on Unraid, `HELIX_HERMES_HOME`/`HELIX_HERMES_BIN`), `helix-ops-unraid.sh` start/stop script, docs/UNRAID.md.
 - Arcade FLOOR clean-up: legacy duplicates hidden, MORE MODULES drawer, compact Hermes terminal, mobile Hermes card, severity Needs You banner.
