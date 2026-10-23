@@ -52,7 +52,9 @@
     nodes.sort((a, b) => (ORDER.indexOf(a.id) + 1 || 99) - (ORDER.indexOf(b.id) + 1 || 99));
     return nodes.map((n, i) => {
       const m = META[n.id] || { acc: FALLBACK[i % FALLBACK.length], shape: ["round", "hex", "square", "tri"][i % 4], role: n.kind || "" };
-      return Object.assign({ id: n.id, label: n.label || n.id, online: !!n.online, kind: n.kind, host: n.host }, m);
+      // ADZE is silent (no gateway of its own): it is "online" when its OpenAI key is configured
+      const online = n.id === "adze" && S.adze && typeof S.adze.online === "boolean" ? S.adze.online : !!n.online;
+      return Object.assign({ id: n.id, label: n.label || n.id, online, kind: n.kind, host: n.host }, m);
     });
   }
 

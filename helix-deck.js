@@ -225,7 +225,9 @@
        ${spark(rates.map((r) => r.rx + r.tx), 200, 34, "Network throughput history")}
        <div class="dk-sub">${last ? `↓ ${last.rx.toFixed(1)} · ↑ ${last.tx.toFixed(1)}` : "sampling between scans_"}</div>`;
 
-    const nodes = (((d.bot_mesh || {}).nodes) || []).filter((n) => n.kind !== "human");
+    const adzeOn = S.adze && typeof S.adze.online === "boolean" ? S.adze.online : null;
+    const nodes = (((d.bot_mesh || {}).nodes) || []).filter((n) => n.kind !== "human")
+      .map((n) => (n.id === "adze" && adzeOn !== null ? Object.assign({}, n, { online: adzeOn }) : n));
     const on = nodes.filter((n) => n.online).length;
     if ($("dk-mesh")) $("dk-mesh").innerHTML = nodes.length
       ? `<span class="dk-k">BOTMESH NODES</span><div class="dk-big">${on}<small> / ${nodes.length} online</small></div>
@@ -272,8 +274,9 @@
   }
   function renderTopo() {
     const mesh = (S.stats || {}).bot_mesh || {};
-    const nodes = mesh.nodes || [];
-    const edges = mesh.edges || [];
+    const adzeOn = S.adze && typeof S.adze.online === "boolean" ? S.adze.online : null;
+    const nodes = (mesh.nodes || []).map((n) => (n.id === "adze" && adzeOn !== null ? Object.assign({}, n, { online: adzeOn }) : n));
+    const edges = (mesh.edges || []).map((e) => ((e.to === "adze" || e.from === "adze") && adzeOn !== null ? Object.assign({}, e, { live: adzeOn }) : e));
     const map = $("dk-topo-map"), list = $("dk-nodes"), insp = $("dk-inspect");
     if (!map || !list || !insp) return;
     if (!nodes.length) { map.innerHTML = `<div class="dk-empty">${NT}</div>`; list.innerHTML = ""; insp.innerHTML = ""; return; }
@@ -794,7 +797,7 @@
     // first stats scan may have finished before this module loaded
     getJSON("/api/stats").then(ingestStats).catch(() => {});
     poll("/api/trace?agent=helix", "trace", 5000, () => { renderTrace(); renderHermes(); }, "field");
-    poll("/api/adze", "adze", 10000, renderAdze, "field");
+    poll("/api/adze", "adze", 10000, () => { renderAdze(); renderTiles(); renderTopo(); }, "field");
     poll("/api/git", "git", 30000, renderGit);
     poll("/api/matrix", "matrix", 30000, renderBanks, "field");
     poll("/api/remote", "remote", 15000, renderRemote, "field");
