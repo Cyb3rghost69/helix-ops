@@ -21,6 +21,7 @@
 
 ### Changed
 
+- /api/stats is collected in the background (every ~15s, `HELIX_STATS_REFRESH_S`) and served from the latest snapshot with `cache_age_s`, so the deck no longer waits ~20s per refresh. Docker tiles list stopped containers first.
 - Fixed: commit strip coloured zero-commit days; CRT pipeline chips / hardening.py unstyled; mobile header overlap and triple Needs You; agent counts included the human node; hard-coded asset version in helix-arcade.js.
 - Wordmark particles are amber/orange squares; DORMANT → DNA → HELIX/OPS → CRC OK ● ONLINE.
 - CRT chrome remains phosphor green.

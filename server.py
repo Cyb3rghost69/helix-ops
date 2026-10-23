@@ -2704,6 +2704,54 @@ def collect() -> dict:
     }
 
 
+# /api/stats is slow (SSH probes, Hermes CLI, UniFi). Collect it in the background and serve the
+# latest snapshot instantly; the first request after start-up waits for one collection.
+STATS_REFRESH_S = float(os.environ.get("HELIX_STATS_REFRESH_S") or 15)
+_STATS: dict = {"data": None, "t": 0.0, "busy": False}
+_STATS_LOCK = threading.Lock()
+
+
+def _refresh_stats() -> None:
+    try:
+        data = collect()
+        with _STATS_LOCK:
+            _STATS["data"], _STATS["t"] = data, time.time()
+    finally:
+        _STATS["busy"] = False
+
+
+def stats_cached() -> dict:
+    with _STATS_LOCK:
+        data, age = _STATS["data"], time.time() - _STATS["t"]
+        start = not _STATS["busy"] and (data is None or age >= STATS_REFRESH_S)
+        if start:
+            _STATS["busy"] = True
+    if data is None:
+        if start:
+            _refresh_stats()
+        else:
+            for _ in range(600):                       # another request is already collecting
+                time.sleep(0.1)
+                if _STATS["data"] is not None:
+                    break
+        with _STATS_LOCK:
+            data, age = _STATS["data"], time.time() - _STATS["t"]
+        if data is None:
+            raise RuntimeError("stats unavailable")
+    elif start:
+        threading.Thread(target=_refresh_stats, daemon=True).start()
+    return {**data, "cache_age_s": round(max(0.0, age), 1)}
+
+
+def _stats_loop() -> None:
+    while True:
+        t0 = time.time()
+        if not _STATS["busy"]:
+            _STATS["busy"] = True
+            _refresh_stats()
+        time.sleep(max(3.0, STATS_REFRESH_S - (time.time() - t0)))
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         return
@@ -2843,7 +2891,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path.startswith("/api/stats"):
             try:
-                data = collect()
+                data = stats_cached()
                 body = json.dumps(data, ensure_ascii=False).encode()
                 self._send(200, body, "application/json; charset=utf-8")
             except Exception as e:
@@ -3108,6 +3156,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     ensure_ops_auth()
+    threading.Thread(target=_stats_loop, daemon=True).start()
     httpd = ThreadingHTTPServer((HOST, PORT), Handler)
     httpd.serve_forever()
 

@@ -540,7 +540,8 @@
     const d = S.docker;
     if (!d) return;
     if (!d.ok) { box.innerHTML = `<div class="dk-bd dk-bad">${esc(d.error || "docker unavailable")}</div>`; if ($("dk-dock-sub")) $("dk-dock-sub").textContent = "unraid · NO TELEMETRY"; return; }
-    const cs = d.containers || [];
+    // stopped containers first so problems are visible without scrolling (Unraid can run 50+)
+    const cs = (d.containers || []).slice().sort((a, b) => (a.running - b.running) || String(a.name).localeCompare(String(b.name)));
     const up = cs.filter((c) => c.running).length;
     if ($("dk-dock-sub")) $("dk-dock-sub").textContent = `${d.host || "unraid"} · ${up} / ${cs.length} up`;
     box.innerHTML = `<div class="dk-dock">${cs.map((c) => `
