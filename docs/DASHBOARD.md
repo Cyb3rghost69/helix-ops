@@ -1,39 +1,45 @@
-# Dashboard
+# Dashboard — HELIX/OPS arcade app
 
-Served from this directory by `python3 server.py`.
+Served by `server.py` on `:8790` (Tailscale `/ops`). `index.html` boots a small single-page app from `app/`:
 
-Desktop ≥768: CRT command centre (plaque, NOC, cockpit).  
-Mobile ≤767: Field Terminal first viewport, MODULES for the rest.
+| File | What |
+|---|---|
+| `app/arcade.css` | Design system: pink cabinet frame, pixel fonts (Silkscreen / VT323 / IBM Plex Mono via Google Fonts, monospace fallback), panels, nav, boot + loaders, responsive rules |
+| `app/core.js` | Helpers, data store + polling, pixel mascots and logo, router, shell (top bar, sidebar, bottom nav, sheets), boot screen |
+| `app/mesh.js` | BOTMESH arena engine (canvas) |
+| `app/pages.js` | Pages |
 
-Tabs: `[01] FLOOR` `[02] NETWORK` `[03] SYSTEM` `[04] ARCHIVE` `[05] TRACE` `[06] REMOTE` `[07] MEMORY`. Keys 1–7 switch tabs.
+The previous dashboard is still available at `/legacy` (also linked as CLASSIC in the menu).
 
-Static extras must be listed in `server.py` and loaded with the `/ops` prefix plus cache query `hos0496` (bump when shipping UI).
+## Pages (hash routes)
 
-Default theme is **ARCADE** (`helix-arcade.css` / `helix-arcade.js`). CRT is `THEME` or `?theme=crt`. Arcade header uses `helix-arcade-mark.svg`. `/api/stats.auth_open` drives the AUTH chip (BYPASSED when login is off).
+| Route | Content |
+|---|---|
+| `#/` HOME | Helix status line, agent roster, live mini-mesh, Needs You, KPI tiles, fleet chart, latest comms |
+| `#/mesh` MESH | Animated botmesh, comms log (ALL / BOTS / HELIX), inspector, busiest links, agent list |
+| `#/agents`, `#/agents/<id>` | Crew grid; per-agent status, conversation, and for Helix the pipeline + terminal (`/api/prompt`); ADZE analysis core |
+| `#/trace` | Latest request, pipeline, swimlanes, timeline |
+| `#/systems/<hosts|docker|network|remote|security>` | Host cards + fleet chart, Docker (search/filter/start/stop), throughput + LAN clients, RustDesk, hardening.py + Needs You |
+| `#/memory/<banks|files|skills>` | Memory banks, SOUL/USER/MEMORY viewer, skills browser |
+| `#/settings` | Animation FULL/LITE/OFF, arcade sound, boot FULL/FAST/OFF, replay boot, about |
 
-## Command deck (`helix-deck.css` / `helix-deck.js`)
+Desktop: sidebar + top bar. ≤900px: top bar + bottom nav (HOME · MESH · AGENTS · SYSTEMS · MORE sheet). Keys 1–7 switch pages.
 
-Desktop `[01] OPERATIONS` opens on the COMMAND DECK, a 12-column instrument grid:
+## BOTMESH — what moves and why
 
-1. Instruments — fleet CPU ring, memory ring, network throughput + sparkline, Botmesh segments, hardening score, Needs You count.
-2. BOTMESH topology (from `bot_mesh.nodes/edges`) with node list + INSPECT · HERMES core card (gateway, model, kanban bar, last observable events) · ADZE strip (mode is read-only).
-3. FLEET COMPUTE stacked share-of-fleet chart · NEEDS YOU queue (`actions` + non-ok `security.findings`).
-4. TRACE swimlanes for the latest request (`/api/trace`) · SERVICE MATRIX docker tiles with START/STOP.
-5. NETWORK PULSE clients grouped by owner (`/api/clients`) · REMOTE MATRIX ports + peers · SOURCE CONTROL with 14-day commit strip · MEMORY MATRIX bank bars.
+Packets are real events, deduplicated by id:
 
-Rules: real API fields only; missing values render NO TELEMETRY. Sparklines and the fleet chart use history collected client-side since page load (nothing persisted). The deck's own polls pause while it is hidden. `DECK: ON/OFF` in the sysbar restores the legacy NOC and need-you modules (remembered per browser).
+- `/api/talk` — every Helix ↔ silent-profile message (from, to, text, time).
+- `/api/trace` (Helix) — REQUEST (Telegram/You → Helix), TOOL (Helix → target), RESULT (target → Helix), RESPONSE (Helix → Telegram/You). Tool names map to nodes: bot names → that bot, web/browser → WEB, docker/unraid → UNRAID, honcho/memory → HONCHO, everything else → TOOLS.
 
-Mobile Field Terminal gets a focus card under the metric strip: tap CPU/MEM/NET/AI/NODES to switch the big value + sparkline; top two Needs You items sit beneath it.
+On load the arena **replays** the most recent real messages (labelled REPLAY), then shows LIVE traffic as it arrives. With no traffic for 25s it shows LIVE · QUIET and online agents emit a slow heartbeat ring (offline agents don't). Busy agents (from `/api/agents`) show a dotted "thinking" bubble with what they're doing. Link thickness = message count; colour = the two agents' colours while hot.
 
-Server additions: `network.ifaces[].rx_bytes/tx_bytes` (throughput deltas) and `git.days` (commits per day, 14 days).
+## Data + polling
 
-## ARCADE theme (`helix-arcade.css` / `helix-arcade.js`)
+All values come from existing endpoints; missing values show "—" or NO TELEMETRY. Always polled: stats 10s (served from the background snapshot), compute 2s, agents 6s, talk 4s, trace 3s, adze 15s. Page-specific (only while that page is open): docker, remote, clients, git, matrix, memory, skills, thoughts, herdr. Polling pauses while the tab is hidden. Fleet and network history is collected in the browser since page load.
 
-Toggle with `THEME: CRT/ARCADE` in the sysbar (remembered per browser) or open `/?theme=arcade`.
-Adds above the deck: an AGENT ROSTER (one card per Botmesh node — role, online tag, a real metric, last line) and an OFFICE FLOOR scene: wall screen = fleet CPU, tape wall = recent CPU moves, NEEDS YOU board, JST clock, Helix at the head desk with its latest trace event in a speech bubble, worker agents at desks (offline = greyed, "z z"), server rack LEDs = Unraid containers, radar = RustDesk hbbs/hbbr. Clicking a card or sprite selects that node in the topology. On mobile the roster is a swipe carousel and the floor scrolls sideways.
+## Boot + loading
 
-### FLOOR clean-up (arcade)
-- Legacy OPERATIONS modules the deck duplicates (fleet load column, SYSTEM CORE bars, old hardening list, AGENT MATRIX/BOTMESH pair, INSTRUMENT BUS, old git box) are hidden in arcade with DECK: ON. TALK, HERDR, DATA VAULT, SKILLS, host cards and service links sit behind **MORE MODULES** (remembered per browser). Nothing is removed; CRT shows everything as before.
-- Agent counts exclude the "You" node everywhere (tile, ticker, roster, mobile NODES).
-- Mobile arcade: one-row header, single severity-coloured NEEDS YOU banner, metric strip → focus card → roster → floor → compact Hermes card; MODULES in the bottom nav opens the module menu. Trace/ADZE/remote/docker/memory polls also run on mobile arcade so the roster and Hermes card have data.
-- `window.HELIX_ASSET_V` (set from `ASSET_V` in index.html) is the single cache-version source.
+Boot screen: pixel logo assembles, then real checks (`/health`, compute, agents, talk, trace, adze, stats) tick OK / WAIT / FAIL, then PRESS START (auto-continues). Later visits in the same session boot FAST; Settings can turn it off. Pages show pixel loaders and skeleton blocks until their data arrives.
+
+Bump `V` in `index.html` when shipping UI changes.

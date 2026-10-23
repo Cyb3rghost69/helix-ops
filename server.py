@@ -2857,6 +2857,10 @@ class Handler(BaseHTTPRequestHandler):
             html = (ROOT / "index.html").read_bytes()
             self._send(200, html, "text/html; charset=utf-8")
             return
+        if path in ("/legacy", "/legacy.html", "/classic"):
+            html = (ROOT / "legacy.html").read_bytes()
+            self._send(200, html, "text/html; charset=utf-8")
+            return
         if path == "/mindscape.js":
             js = (ROOT / "mindscape.js").read_bytes()
             self._send(200, js, "application/javascript; charset=utf-8")
@@ -2884,6 +2888,10 @@ class Handler(BaseHTTPRequestHandler):
             "/helix-arcade.css": ("helix-arcade.css", "text/css; charset=utf-8"),
             "/helix-arcade.js": ("helix-arcade.js", "application/javascript; charset=utf-8"),
             "/helix-arcade-mark.svg": ("helix-arcade-mark.svg", "image/svg+xml"),
+            "/app/arcade.css": ("app/arcade.css", "text/css; charset=utf-8"),
+            "/app/core.js": ("app/core.js", "application/javascript; charset=utf-8"),
+            "/app/mesh.js": ("app/mesh.js", "application/javascript; charset=utf-8"),
+            "/app/pages.js": ("app/pages.js", "application/javascript; charset=utf-8"),
         }
         if path in static:
             name, ctype = static[path]
