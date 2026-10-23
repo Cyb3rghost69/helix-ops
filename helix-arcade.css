@@ -191,7 +191,11 @@ body.theme-arcade header.logo { display: none; }
 .ar-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #2a2533; border-radius: 999px; padding: 4px 10px; font: 10px ui-monospace, Menlo, monospace; letter-spacing: .08em; color: #e9e4f2; }
 .ar-chip i { width: 8px; height: 8px; border-radius: 50%; display: block; }
 .ar-hdr-r { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
-.ar-find input { min-width: 100px; background: transparent; color: #fff; border: 0; border-bottom: 2px solid #ff4fa3; font: 12px ui-monospace, Menlo, monospace; outline: none; }
+.ar-find { display: flex; align-items: center; gap: 8px; background: #100d16; border: 1px solid #3a3346; border-radius: 8px; padding: 0 10px; min-height: 36px; }
+.ar-find::before { content: "FIND"; color: #ff4fa3; font: 10px ui-monospace, Menlo, monospace; letter-spacing: .14em; }
+.ar-find::after { content: "/"; color: #a19bb0; border: 1px solid #3a3346; border-radius: 4px; padding: 0 5px; font-size: 10px; }
+.ar-find input { min-width: 0; width: 160px; background: transparent; color: #fff; border: 0; font: 12px ui-monospace, Menlo, monospace; outline: none; }
+body.theme-arcade #ar-hdr .ar-find:focus-within { border-color: #ff4fa3; }
 .ar-date { color: #a19bb0; font: 11px ui-monospace, Menlo, monospace; }
 .ar-clock { border: 2px solid #ff4fa3; color: #fff; font: 900 24px/1 "Arial Black", "Helvetica Neue", system-ui, sans-serif; padding: 6px 10px; min-width: 7ch; text-align: center; }
 body.theme-arcade .tabs button { border-radius: 8px; }
@@ -250,6 +254,56 @@ body.theme-arcade.field-term #ar-ft-nav button[aria-current="page"] {
   background: #ff4fa3; color: #fff; border-color: #ff4fa3;
 }
 body.theme-arcade.field-term { padding-bottom: 72px !important; }
-body.theme-arcade .dk-strip i { background: #ff4fa3; }
 
 
+
+
+/* ═══ v3 fix-up: one floor, no duplicates ═══ */
+/* desktop FLOOR: legacy modules the deck already covers are hidden; the rest live behind MORE MODULES */
+body.theme-arcade.deck-on .ar-legacy { display: none !important; }
+body.theme-arcade.deck-on .ar-more { display: none !important; }
+body.theme-arcade.deck-on.ar-more-open .ar-more { display: revert !important; }
+body.theme-arcade.deck-on.ar-more-open .pair.ar-more { display: grid !important; }
+#ar-more-tog { display: none; }
+body.theme-arcade.deck-on:not(.field-term) #ar-more-tog {
+  display: flex; align-items: center; justify-content: space-between; width: 100%; margin: 12px 0;
+  min-height: 44px; padding: 0 16px; border-radius: 10px; background: #14111b; border: 1px dashed #3a3346;
+  color: #fff; font: 900 12px "Arial Black", "Helvetica Neue", system-ui, sans-serif; letter-spacing: .08em; cursor: pointer;
+}
+body.theme-arcade #ar-more-tog small { font: 11px ui-monospace, Menlo, monospace; color: #a19bb0; letter-spacing: .04em; }
+body.theme-arcade #ar-more-tog:hover { border-color: #ff4fa3; }
+body.theme-arcade .dk-py .row { border-bottom-color: #221d2b; }
+
+/* mobile Field Terminal (arcade) */
+#ar-ft-hermes { display: none; }
+@media (max-width: 767px) {
+  body.theme-arcade #ar-hdr { grid-template-columns: auto 1fr auto; gap: 10px; }
+  body.theme-arcade #ar-hdr .ar-find, body.theme-arcade #ar-hdr .ar-date, body.theme-arcade #ar-hdr .ar-sub { display: none; }
+  body.theme-arcade #ar-hdr .ar-hdr-l { gap: 10px; }
+  body.theme-arcade #ar-hdr .ar-hdr-r { gap: 0; }
+  body.theme-arcade.field-term .ft-head, body.theme-arcade.field-term #hel-01-line, body.theme-arcade.field-term .ft-grid { display: none !important; }
+  body.theme-arcade.field-term #ar-need:not([hidden]) { display: flex; align-items: center; gap: 8px; }
+  body.theme-arcade.field-term #ar-need .sev { flex: none; font-size: 10px; letter-spacing: .1em; padding: 1px 6px; border-radius: 3px; background: rgba(13,11,18,.35); }
+  body.theme-arcade.field-term #ar-need .tt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.theme-arcade.field-term #ar-need .more { flex: none; opacity: .85; }
+  body.theme-arcade.field-term #ar-need.med { background: #b86e00; }
+  body.theme-arcade.field-term #ar-need.low { background: #2a2533; }
+  body.theme-arcade.field-term #ar-ft-hermes { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; background: #14111b; border: 1px solid #2a2533; border-radius: 10px; padding: 12px; font: 12px/1.4 ui-monospace, Menlo, monospace; color: #e9e4f2; }
+  #ar-ft-hermes .row { display: flex; justify-content: space-between; gap: 8px; }
+  #ar-ft-hermes .k { color: #a19bb0; font-size: 10px; letter-spacing: .14em; }
+  #ar-ft-hermes .ev { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #ar-ft-hermes .dk-pipe { margin: 0; }
+  body.theme-arcade.field-term .nav-toggle { display: none; }
+  body.theme-arcade.field-term.nav-open .nav-toggle, body.theme-arcade.field-term.nav-open .tabs { display: flex; }
+  body.theme-arcade.field-term #ar-floor .ar-floor-hd { position: static; transform: none; padding: 8px 12px 0; white-space: normal; }
+}
+
+/* desktop: terminal spans the row once the compute column is hidden, and stays compact */
+body.theme-arcade.deck-on:not(.field-term) #pane-ops .cockpit { grid-template-columns: 1fr; }
+body.theme-arcade.deck-on:not(.field-term) #pane-ops .cockpit .term { min-height: 0; }
+body.theme-arcade.deck-on:not(.field-term) #pane-ops #thoughts { min-height: 140px; max-height: 280px; }
+@media (max-width: 767px) {
+  body.theme-arcade.field-term #ar-roster .ar-card { padding-top: 26px; }
+  body.theme-arcade.field-term #ar-roster .ar-card .nm { font-size: 16px; }
+  body.theme-arcade.field-term #ar-roster .ar-card .tag { top: 7px; left: 12px; right: auto; }
+}

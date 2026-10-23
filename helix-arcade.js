@@ -289,7 +289,12 @@
     const field = document.body.classList.contains("field-term");
     if (field) {
       const after = $("ft-focus") || $("ft-strip");
-      if (after && after.parentNode) { after.parentNode.insertBefore(floor, after.nextSibling); after.parentNode.insertBefore(roster, after.nextSibling); }
+      const hc = $("ar-ft-hermes");
+      if (after && after.parentNode) {
+        if (hc) after.parentNode.insertBefore(hc, after.nextSibling);
+        after.parentNode.insertBefore(floor, after.nextSibling);
+        after.parentNode.insertBefore(roster, after.nextSibling);
+      }
     } else {
       const deck = $("deck");
       if (deck) { deck.insertBefore(floor, deck.firstChild); deck.insertBefore(roster, deck.firstChild); }
@@ -302,6 +307,7 @@
     renderRoster(S);
     paintHeader();
     paintNeed(S);
+    paintFtHermes(S);
     const now = Date.now();
     if (now - lastFloor > 2500) { lastFloor = now; renderFloor(S); }
     else if (!floorTimer) floorTimer = setTimeout(() => { floorTimer = null; lastFloor = Date.now(); renderFloor(global.HelixDeck.state); }, 2600 - (now - lastFloor));
@@ -311,17 +317,30 @@
     const ban = $("ar-need");
     if (!ban) return;
     const field = document.body.classList.contains("field-term") && document.body.classList.contains("theme-arcade");
-    const st = (S && S.stats) || {};
-    const items = [];
-    (st.actions || []).forEach((a) => items.push(a.title || a.kind || "action"));
-    ((st.security || {}).findings || []).forEach((f) => {
-      const lv = String(f.level || "").toLowerCase();
-      if (lv && lv !== "ok") items.push(f.title || "finding");
-    });
+    const items = (S && S.stats && global.HelixDeck) ? global.HelixDeck.needsList() : [];
     if (!field || !items.length) { ban.hidden = true; return; }
     ban.hidden = false;
-    const extra = items.length - 1;
-    ban.textContent = items[0] + (extra > 0 ? "  +" + extra : "");
+    const top = items[0];
+    const sev = top.sev === "high" ? "high" : (top.sev === "low" ? "low" : "med");
+    ban.className = sev;
+    ban.setAttribute("aria-label", `Needs you: ${items.length} open. Top: ${top.title}`);
+    ban.innerHTML = `<span class="sev">${esc(top.sev.toUpperCase())}</span><span class="tt">${esc(top.title)}</span>${items.length > 1 ? `<span class="more">+${items.length - 1}</span>` : ""}`;
+  }
+
+  /* compact Hermes card for the Field Terminal */
+  function paintFtHermes(S) {
+    const box = $("ar-ft-hermes");
+    if (!box || !document.body.classList.contains("field-term")) return;
+    const h = ((S.stats || {}).hermes) || null;
+    const tr = S.trace || {};
+    const stages = tr.stages || {};
+    const order = [["REQUEST", "REQ"], ["INTERPRET", "INTERP"], ["PLAN", "PLAN"], ["TOOL", "TOOL"], ["OBSERVATION", "OBS"], ["DECISION", "DECIDE"], ["RESPONSE", "RESP"]];
+    const lastLit = [...order].reverse().find(([k]) => stages[k]);
+    const tl = tr.timeline || [];
+    const ev = tl[tl.length - 1];
+    box.innerHTML = `<div class="row"><span class="k">HERMES</span><span style="color:${h ? (h.gateway_running ? "#39e58c" : "#ff4d6d") : "#a19bb0"}">${h ? (h.gateway_running ? "● RUNNING" : "● DOWN") : "NO TELEMETRY"}${h && h.model ? " · " + esc(h.model) : ""}</span></div>
+      <div class="dk-pipe" role="img" aria-label="Request pipeline">${order.map(([k, lab]) => `<span class="${stages[k] ? "lit" : ""}${lastLit && lastLit[0] === k ? " cur" : ""}">${lab}</span>`).join("")}</div>
+      <div class="ev">${ev ? `<span style="color:#a19bb0">${esc(ev.t || "")}</span> <span style="color:#f59e0b">${esc(ev.kind)}</span> ${esc(ev.summary || ev.label || "")}` : `<span style="color:#a19bb0">no observable events yet_</span>`}</div>`;
   }
 
   function setTheme(arcade) {
@@ -332,7 +351,7 @@
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = arcade ? "#ff4fa3" : "#060705";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
-    const v = "hos0495";
+    const v = global.HELIX_ASSET_V || "";
     const ico = document.querySelector('link[rel="icon"]');
     const touch = document.querySelector('link[rel="apple-touch-icon"]');
     if (arcade) {
@@ -375,6 +394,31 @@
     }
   }
 
+  /* Desktop FLOOR: tag legacy OPERATIONS modules. ar-legacy = duplicated by the deck (hidden in arcade);
+     ar-more = still useful, shown behind the MORE MODULES toggle. Nothing is moved or deleted, so CRT is untouched. */
+  function tagLegacy() {
+    const pane = $("pane-ops");
+    if (!pane || $("ar-more-tog")) return;
+    const legacy = [pane.querySelector(".cockpit .term.compute"), pane.querySelector(".btop"), $("hard"), $("inst-ridge"), $("git-box")];
+    const pairs = pane.querySelectorAll(":scope > .pair");
+    if (pairs[0]) legacy.push(pairs[0]);               // AGENT MATRIX + old BOTMESH
+    legacy.forEach((el) => el && el.classList.add("ar-legacy"));
+    const more = [pairs[1], pairs[2], $("alerts"), $("dock"), $("root")];   // TALK/HERDR, VAULT/SKILLS, alerts, links, host cards
+    more.forEach((el) => el && el.classList.add("ar-more"));
+    const tog = document.createElement("button");
+    tog.type = "button"; tog.id = "ar-more-tog"; tog.setAttribute("aria-expanded", "false");
+    tog.innerHTML = `<span>MORE MODULES ▾</span><small>talk · herdr · data vault · skills · hosts · links</small>`;
+    tog.addEventListener("click", () => {
+      const open = document.body.classList.toggle("ar-more-open");
+      tog.setAttribute("aria-expanded", open ? "true" : "false");
+      tog.querySelector("span").textContent = open ? "MORE MODULES ▴" : "MORE MODULES ▾";
+      try { localStorage.setItem("helix.more", open ? "1" : "0"); } catch (e) {}
+    });
+    const cockpit = pane.querySelector(".cockpit");
+    if (cockpit) cockpit.parentNode.insertBefore(tog, cockpit.nextSibling);
+    try { if (localStorage.getItem("helix.more") === "1") { document.body.classList.add("ar-more-open"); tog.setAttribute("aria-expanded", "true"); tog.querySelector("span").textContent = "MORE MODULES ▴"; } } catch (e) {}
+  }
+
   function mount() {
     if (!global.HelixDeck || !$("deck")) { setTimeout(mount, 150); return; }
     if ($("ar-roster")) return;
@@ -387,7 +431,7 @@
       const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
       const hdr = document.createElement("div");
       hdr.id = "ar-hdr";
-      hdr.innerHTML = `<div class="ar-hdr-l"><img src="${p}/helix-arcade-mark.svg?v=hos0495" width="48" height="48" alt="HELIX/OPS"><div><div class="ar-word">HELIX<span>/</span>OPS</div><div class="ar-sub">HERMES COMMAND FLOOR · TOKYO-06 · 統合管制</div></div></div>
+      hdr.innerHTML = `<div class="ar-hdr-l"><img src="${p}/helix-arcade-mark.svg?v=${global.HELIX_ASSET_V || ""}" width="48" height="48" alt="HELIX/OPS"><div><div class="ar-word">HELIX<span>/</span>OPS</div><div class="ar-sub">HERMES COMMAND FLOOR · TOKYO-06 · 統合管制</div></div></div>
         <div class="ar-chips" id="ar-chips"></div>
         <div class="ar-hdr-r"><div class="ar-find" id="ar-find"></div><div class="ar-date" id="ar-date"></div><div class="ar-clock" id="ar-clock" aria-label="Japan time">--:-- JST</div></div>`;
       const logo = document.querySelector("header.logo");
@@ -404,14 +448,31 @@
       if (field) field.insertBefore(ban, field.firstChild);
       else document.body.appendChild(ban);
     }
+    if (!$("ar-ft-hermes")) {
+      const hc = document.createElement("section");
+      hc.id = "ar-ft-hermes"; hc.setAttribute("aria-label", "Hermes");
+      document.body.appendChild(hc);
+    }
+    tagLegacy();
     if (!$("ar-ft-nav")) {
       const nav = document.createElement("nav");
       nav.id = "ar-ft-nav";
       nav.setAttribute("aria-label", "Field terminal");
-      [["ops", "FLOOR"], ["trace", "TRACE"], ["remote", "REMOTE"], ["net", "MODULES"]].forEach(([tab, lab]) => {
+      [["ops", "FLOOR"], ["trace", "TRACE"], ["remote", "REMOTE"], ["more", "MODULES"]].forEach(([tab, lab]) => {
         const b = document.createElement("button");
         b.type = "button"; b.textContent = lab; b.dataset.tab = tab;
-        b.addEventListener("click", () => document.querySelector(`#tabs [data-tab="${tab}"]`)?.click());
+        b.addEventListener("click", () => {
+          if (tab === "more") {
+            const open = document.body.classList.toggle("nav-open");
+            $("nav-toggle")?.setAttribute("aria-expanded", open ? "true" : "false");
+            b.setAttribute("aria-expanded", open ? "true" : "false");
+            if (open) $("tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            return;
+          }
+          document.body.classList.remove("nav-open");
+          document.querySelector(`#tabs [data-tab="${tab}"]`)?.click();
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
         nav.appendChild(b);
       });
       document.body.appendChild(nav);
@@ -455,7 +516,7 @@
       const on = document.querySelector("#tabs button.on");
       const tab = on && on.dataset.tab;
       document.querySelectorAll("#ar-ft-nav button").forEach((b) => {
-        b.classList.toggle("on", b.dataset.tab === tab || (b.dataset.tab === "net" && tab && !["ops", "trace", "remote"].includes(tab)));
+        b.classList.toggle("on", b.dataset.tab === tab || (b.dataset.tab === "more" && tab && !["ops", "trace", "remote"].includes(tab)));
       });
     });
   }

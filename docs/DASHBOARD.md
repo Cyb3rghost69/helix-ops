@@ -7,7 +7,7 @@ Mobile ≤767: Field Terminal first viewport, MODULES for the rest.
 
 Tabs: `[01] FLOOR` `[02] NETWORK` `[03] SYSTEM` `[04] ARCHIVE` `[05] TRACE` `[06] REMOTE` `[07] MEMORY`. Keys 1–7 switch tabs.
 
-Static extras must be listed in `server.py` and loaded with the `/ops` prefix plus cache query `hos0494` (bump when shipping UI).
+Static extras must be listed in `server.py` and loaded with the `/ops` prefix plus cache query `hos0496` (bump when shipping UI).
 
 Default theme is **ARCADE** (`helix-arcade.css` / `helix-arcade.js`). CRT is `THEME` or `?theme=crt`. Arcade header uses `helix-arcade-mark.svg`. `/api/stats.auth_open` drives the AUTH chip (BYPASSED when login is off).
 
@@ -31,3 +31,9 @@ Server additions: `network.ifaces[].rx_bytes/tx_bytes` (throughput deltas) and `
 
 Toggle with `THEME: CRT/ARCADE` in the sysbar (remembered per browser) or open `/?theme=arcade`.
 Adds above the deck: an AGENT ROSTER (one card per Botmesh node — role, online tag, a real metric, last line) and an OFFICE FLOOR scene: wall screen = fleet CPU, tape wall = recent CPU moves, NEEDS YOU board, JST clock, Helix at the head desk with its latest trace event in a speech bubble, worker agents at desks (offline = greyed, "z z"), server rack LEDs = Unraid containers, radar = RustDesk hbbs/hbbr. Clicking a card or sprite selects that node in the topology. On mobile the roster is a swipe carousel and the floor scrolls sideways.
+
+### FLOOR clean-up (arcade)
+- Legacy OPERATIONS modules the deck duplicates (fleet load column, SYSTEM CORE bars, old hardening list, AGENT MATRIX/BOTMESH pair, INSTRUMENT BUS, old git box) are hidden in arcade with DECK: ON. TALK, HERDR, DATA VAULT, SKILLS, host cards and service links sit behind **MORE MODULES** (remembered per browser). Nothing is removed; CRT shows everything as before.
+- Agent counts exclude the "You" node everywhere (tile, ticker, roster, mobile NODES).
+- Mobile arcade: one-row header, single severity-coloured NEEDS YOU banner, metric strip → focus card → roster → floor → compact Hermes card; MODULES in the bottom nav opens the module menu. Trace/ADZE/remote/docker/memory polls also run on mobile arcade so the roster and Hermes card have data.
+- `window.HELIX_ASSET_V` (set from `ASSET_V` in index.html) is the single cache-version source.

@@ -103,6 +103,8 @@
     const pane = $("pane-ops");
     return !!pane && !pane.hidden;
   }
+  // mobile arcade still needs agent data for the roster, floor and Hermes card
+  function fieldArcade() { return S.on && document.body.classList.contains("field-term") && document.body.classList.contains("theme-arcade"); }
   async function getJSON(p) {
     const r = await fetch(api(p), { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
@@ -223,7 +225,7 @@
        ${spark(rates.map((r) => r.rx + r.tx), 200, 34, "Network throughput history")}
        <div class="dk-sub">${last ? `↓ ${last.rx.toFixed(1)} · ↑ ${last.tx.toFixed(1)}` : "sampling between scans_"}</div>`;
 
-    const nodes = ((d.bot_mesh || {}).nodes) || [];
+    const nodes = (((d.bot_mesh || {}).nodes) || []).filter((n) => n.kind !== "human");
     const on = nodes.filter((n) => n.online).length;
     if ($("dk-mesh")) $("dk-mesh").innerHTML = nodes.length
       ? `<span class="dk-k">BOTMESH NODES</span><div class="dk-big">${on}<small> / ${nodes.length} online</small></div>
@@ -607,7 +609,7 @@
     box.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px"><span class="dk-v">⎇ ${esc(g.branch || "—")}</span><span class="${g.clean ? "dk-ok" : "dk-gold"}">${g.clean ? "● clean" : esc(g.dirty) + " modified"}</span></div>
       <div class="dk-sub" style="margin:4px 0">${esc((g.head || "").toLowerCase())} · ${esc(g.subject || "")}</div>
       <div class="dk-sub" style="margin-bottom:6px">sync <span class="${g.sync === "UP TO DATE" ? "dk-ok" : "dk-gold"}">${esc(g.sync || "—")}</span></div>
-      ${days.length ? `<div class="dk-strip" role="img" aria-label="Commits per day, last ${days.length} days">${days.map((n) => `<i style="${n ? `background:rgba(124,255,122,${(0.25 + 0.75 * n / mx).toFixed(2)})` : ""}" title="${n} commit${n === 1 ? "" : "s"}"></i>`).join("")}</div>
+      ${days.length ? `<div class="dk-strip" role="img" aria-label="Commits per day, last ${days.length} days">${days.map((n) => `<i style="background:${n ? (isArcade() ? "rgba(255,79,163," : "rgba(124,255,122,") + (0.25 + 0.75 * n / mx).toFixed(2) + ")" : C.track}" title="${n} commit${n === 1 ? "" : "s"}"></i>`).join("")}</div>
         <div class="dk-sub" style="font-size:10px;margin-top:3px">commits · last ${days.length} days</div>` : ""}`;
   }
   function renderBanks() {
@@ -662,8 +664,8 @@
     if (f === "mem") { k = "MEMORY"; big = c.mem_total_gb ? `${c.mem_used_gb} GB` : "—"; sub = c.mem_total_gb ? `of ${c.mem_total_gb} GB` : ""; vals = S.hist.map((p) => p.mem || 0); max = 100; }
     if (f === "net") { const r = S.net.rates; const l = r[r.length - 1]; k = "NETWORK"; big = l ? (l.rx + l.tx).toFixed(1) : "—"; sub = l ? `Mb/s · ↓${l.rx.toFixed(1)} ↑${l.tx.toFixed(1)}` : "sampling between scans_"; vals = r.map((x) => x.rx + x.tx); }
     if (f === "ai") { const h = (S.stats || {}).hermes || {}; k = "HERMES"; big = h.gateway_running ? "RUNNING" : (S.stats ? "DOWN" : "—"); sub = `${esc(h.model || "")} · procs ${esc(c.hermes_procs ?? "—")}`; vals = S.hist.map((p) => p.ai || 0); }
-    if (f === "nodes") { const ns = ((S.stats || {}).bot_mesh || {}).nodes || []; k = "BOTMESH"; big = ns.length ? `${ns.filter((n) => n.online).length}` : "—"; sub = ns.length ? `of ${ns.length} online` : ""; vals = S.nodesHist.slice(); }
-    const needs = S.stats ? needsList().slice(0, 2) : [];
+    if (f === "nodes") { const ns = (((S.stats || {}).bot_mesh || {}).nodes || []).filter((n) => n.kind !== "human"); k = "AGENTS"; big = ns.length ? `${ns.filter((n) => n.online).length}` : "—"; sub = ns.length ? `of ${ns.length} online` : ""; vals = S.nodesHist.slice(); }
+    const needs = S.stats && !isArcade() ? needsList().slice(0, 2) : [];
     box.innerHTML = `<div class="k">${esc(k)} · since page load</div>
       <div class="big">${esc(big)}<small>${esc(sub)}</small></div>
       ${spark(vals, 340, 56, k + " history", max)}
@@ -689,7 +691,7 @@
       }
       S.net.last = { name: nic.name, t: now, rx: nic.rx_bytes, tx: nic.tx_bytes };
     }
-    const ns = ((d.bot_mesh || {}).nodes) || [];
+    const ns = (((d.bot_mesh || {}).nodes) || []).filter((n) => n.kind !== "human");
     if (ns.length) { S.nodesHist.push(ns.filter((n) => n.online).length); if (S.nodesHist.length > 60) S.nodesHist.shift(); }
     renderTiles(); renderTopo(); renderHermes(); renderNeeds(); renderBadges(); renderFocus();
     renderHardPy();
@@ -707,7 +709,8 @@
   /* ───────────── own pollers (only while the deck is visible) ───────────── */
   function poll(path, key, every, after, always) {
     const go = async () => {
-      if (!always && !active()) return;
+      if (document.hidden) return;
+      if (!active() && !(always === "field" && fieldArcade())) return;
       try { S[key] = await getJSON(path); } catch (e) { if (!S[key]) S[key] = { ok: false, error: "SCAN FAIL: " + e.message }; }
       try { after(); renderBadges(); } catch (e) {}
       emit();
@@ -790,13 +793,13 @@
 
     // first stats scan may have finished before this module loaded
     getJSON("/api/stats").then(ingestStats).catch(() => {});
-    poll("/api/trace?agent=helix", "trace", 5000, () => { renderTrace(); renderHermes(); });
-    poll("/api/adze", "adze", 10000, renderAdze);
+    poll("/api/trace?agent=helix", "trace", 5000, () => { renderTrace(); renderHermes(); }, "field");
+    poll("/api/adze", "adze", 10000, renderAdze, "field");
     poll("/api/git", "git", 30000, renderGit);
-    poll("/api/matrix", "matrix", 30000, renderBanks);
-    poll("/api/remote", "remote", 15000, renderRemote);
+    poll("/api/matrix", "matrix", 30000, renderBanks, "field");
+    poll("/api/remote", "remote", 15000, renderRemote, "field");
     poll("/api/clients", "clients", 90000, renderLan);
-    dockerNow = poll("/api/docker", "docker", 60000, renderDocker);
+    dockerNow = poll("/api/docker", "docker", 60000, renderDocker, "field");
     document.addEventListener("visibilitychange", () => { if (!document.hidden) { renderFleet(); renderTiles(); } });
     document.getElementById("tabs")?.addEventListener("click", (e) => {
       if (e.target.closest('[data-tab="ops"]')) setTimeout(() => { renderFleet(); renderTiles(); renderTopo(); }, 0);

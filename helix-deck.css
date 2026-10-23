@@ -185,6 +185,20 @@ body.deck-on #need-you { display: none !important; }
 .dk-bank .bar i { display: block; height: 4px; background: var(--dk-ok); }
 .dk-bank .bar i.hot { background: var(--dk-gold); }
 
+/* pipeline chips (Hermes card) + hardening.py — base/CRT; arcade overrides in helix-arcade.css */
+.dk-pipe { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 10px; }
+.dk-pipe span { border: 1px dashed var(--dk-line); padding: 2px 6px; font-size: 9px; letter-spacing: .06em; color: var(--dk-dim); }
+.dk-pipe span.lit { border-style: solid; border-color: var(--dk-ok); color: var(--dk-ok); }
+.dk-pipe span.cur { border-color: var(--dk-gold); color: var(--dk-gold); }
+.dk-py { font: 12px/1.45 ui-monospace, Menlo, monospace; display: flex; flex-direction: column; gap: 2px; }
+.dk-py > div:not(.row) { color: var(--dk-dim); }
+.dk-py .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 3px 6px 3px 16px; border-bottom: 1px solid #121a12; color: var(--ink, #d6d4c8); }
+.dk-py .row span:last-child { text-align: right; }
+.dk-py .row.ok span:last-child { color: var(--dk-ok); }
+.dk-py .row.low span:last-child { color: var(--dk-dim); }
+.dk-py .row.med { background: rgba(212,160,23,.08); } .dk-py .row.med span:last-child { color: var(--dk-gold); }
+.dk-py .row.high { background: rgba(196,74,58,.12); } .dk-py .row.high span:last-child { color: var(--dk-bad); }
+
 /* tab badges (added to existing #tabs) */
 #tabs .dk-badge { margin-left: 6px; font-size: 10px; padding: 0 5px; border: 1px solid #1a241a; color: #9aa391; letter-spacing: .04em; }
 #tabs .dk-badge.alert { color: #e86a5a; border-color: #5a2a22; }

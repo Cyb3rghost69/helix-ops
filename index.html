@@ -1191,7 +1191,7 @@ function fillField(extra) {
   set("ft-hermes", h.gateway_running ? "ACTIVE" : "STANDBY");
   set("ft-model", "MODEL  " + (h.model || "NO TELEMETRY"));
   set("ft-hstate", "STATE  " + st);
-  const nodes = (mesh.nodes || []);
+  const nodes = (mesh.nodes || []).filter(n => n.kind !== "human");
   const on = nodes.filter(n => n.online).length;
   set("ft-nodes", nodes.length ? String(on).padStart(2, "0") : "—");
   set("ft-mesh", nodes.length ? on + " ONLINE" : "NO TELEMETRY");
@@ -1792,7 +1792,8 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0495";
+    const ASSET_V = "hos0496";
+    window.HELIX_ASSET_V = ASSET_V;
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;
