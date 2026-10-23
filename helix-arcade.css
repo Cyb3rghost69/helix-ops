@@ -226,4 +226,30 @@ body.theme-arcade .dk-pipe span.cur { border-color: #ff4fa3; color: #ff4fa3; bac
 @media (max-width: 1180px) {
   body.theme-arcade .dk-fleet-split { grid-template-columns: 1fr; }
 }
+body.theme-arcade.deck-on .cockpit .term:first-child .term-bar { font-size: 0; }
+body.theme-arcade.deck-on .cockpit .term:first-child .term-bar::before {
+  content: "HERMES // TERMINAL"; font-size: 11px; color: #fff; letter-spacing: .08em;
+}
+#ar-need, #ar-ft-nav { display: none; }
+body.theme-arcade.field-term #ar-need:not([hidden]) {
+  display: block; width: 100%; min-height: 44px; margin: 0 0 8px; padding: 10px 12px;
+  background: #ff4d6d; color: #fff; border: 0; border-radius: 8px; text-align: left;
+  font: 12px/1.3 ui-monospace, Menlo, monospace;
+}
+body.theme-arcade.field-term #ar-ft-nav {
+  display: flex; position: fixed; left: 5px; right: 5px; bottom: 5px; z-index: 20;
+  gap: 6px; background: #14111b; border: 1px solid #2a2533; border-radius: 10px; padding: 6px;
+}
+body.theme-arcade.field-term #ar-ft-nav button {
+  flex: 1; min-height: 48px; border-radius: 8px; font: 900 11px "Arial Black", system-ui, sans-serif;
+  color: #a19bb0; background: #100d16; border: 1px solid #2a2533;
+}
+body.theme-arcade.field-term #ar-ft-nav button.on,
+body.theme-arcade.field-term.tab-ops #ar-ft-nav [data-tab="ops"],
+body.theme-arcade.field-term #ar-ft-nav button[aria-current="page"] {
+  background: #ff4fa3; color: #fff; border-color: #ff4fa3;
+}
+body.theme-arcade.field-term { padding-bottom: 72px !important; }
+body.theme-arcade .dk-strip i { background: #ff4fa3; }
+
 

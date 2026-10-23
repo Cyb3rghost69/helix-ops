@@ -301,9 +301,27 @@
     if (!document.body.classList.contains("theme-arcade")) return;
     renderRoster(S);
     paintHeader();
+    paintNeed(S);
     const now = Date.now();
     if (now - lastFloor > 2500) { lastFloor = now; renderFloor(S); }
     else if (!floorTimer) floorTimer = setTimeout(() => { floorTimer = null; lastFloor = Date.now(); renderFloor(global.HelixDeck.state); }, 2600 - (now - lastFloor));
+  }
+
+  function paintNeed(S) {
+    const ban = $("ar-need");
+    if (!ban) return;
+    const field = document.body.classList.contains("field-term") && document.body.classList.contains("theme-arcade");
+    const st = (S && S.stats) || {};
+    const items = [];
+    (st.actions || []).forEach((a) => items.push(a.title || a.kind || "action"));
+    ((st.security || {}).findings || []).forEach((f) => {
+      const lv = String(f.level || "").toLowerCase();
+      if (lv && lv !== "ok") items.push(f.title || "finding");
+    });
+    if (!field || !items.length) { ban.hidden = true; return; }
+    ban.hidden = false;
+    const extra = items.length - 1;
+    ban.textContent = items[0] + (extra > 0 ? "  +" + extra : "");
   }
 
   function setTheme(arcade) {
@@ -314,7 +332,7 @@
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = arcade ? "#ff4fa3" : "#060705";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
-    const v = "hos0494";
+    const v = "hos0495";
     const ico = document.querySelector('link[rel="icon"]');
     const touch = document.querySelector('link[rel="apple-touch-icon"]');
     if (arcade) {
@@ -369,13 +387,34 @@
       const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
       const hdr = document.createElement("div");
       hdr.id = "ar-hdr";
-      hdr.innerHTML = `<div class="ar-hdr-l"><img src="${p}/helix-arcade-mark.svg?v=hos0494" width="48" height="48" alt="HELIX/OPS"><div><div class="ar-word">HELIX<span>/</span>OPS</div><div class="ar-sub">HERMES COMMAND FLOOR · TOKYO-06 · 統合管制</div></div></div>
+      hdr.innerHTML = `<div class="ar-hdr-l"><img src="${p}/helix-arcade-mark.svg?v=hos0495" width="48" height="48" alt="HELIX/OPS"><div><div class="ar-word">HELIX<span>/</span>OPS</div><div class="ar-sub">HERMES COMMAND FLOOR · TOKYO-06 · 統合管制</div></div></div>
         <div class="ar-chips" id="ar-chips"></div>
         <div class="ar-hdr-r"><div class="ar-find" id="ar-find"></div><div class="ar-date" id="ar-date"></div><div class="ar-clock" id="ar-clock" aria-label="Japan time">--:-- JST</div></div>`;
       const logo = document.querySelector("header.logo");
       if (logo && logo.parentNode) logo.parentNode.insertBefore(hdr, logo);
       const q = $("q");
       if (q && $("ar-find")) $("ar-find").appendChild(q);
+    }
+    if (!$("ar-need")) {
+      const ban = document.createElement("button");
+      ban.type = "button"; ban.id = "ar-need"; ban.hidden = true;
+      ban.setAttribute("aria-label", "Needs you");
+      ban.addEventListener("click", () => document.querySelector('#tabs [data-tab="ops"]')?.click());
+      const field = $("field");
+      if (field) field.insertBefore(ban, field.firstChild);
+      else document.body.appendChild(ban);
+    }
+    if (!$("ar-ft-nav")) {
+      const nav = document.createElement("nav");
+      nav.id = "ar-ft-nav";
+      nav.setAttribute("aria-label", "Field terminal");
+      [["ops", "FLOOR"], ["trace", "TRACE"], ["remote", "REMOTE"], ["net", "MODULES"]].forEach(([tab, lab]) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.textContent = lab; b.dataset.tab = tab;
+        b.addEventListener("click", () => document.querySelector(`#tabs [data-tab="${tab}"]`)?.click());
+        nav.appendChild(b);
+      });
+      document.body.appendChild(nav);
     }
     place();
     matchMedia("(max-width: 767px)").addEventListener("change", () => setTimeout(place, 0));
@@ -411,6 +450,13 @@
       if (i < 0) return;
       const tabs = document.querySelectorAll("#tabs [data-tab]");
       if (tabs[i]) tabs[i].click();
+    });
+    document.getElementById("tabs")?.addEventListener("click", () => {
+      const on = document.querySelector("#tabs button.on");
+      const tab = on && on.dataset.tab;
+      document.querySelectorAll("#ar-ft-nav button").forEach((b) => {
+        b.classList.toggle("on", b.dataset.tab === tab || (b.dataset.tab === "net" && tab && !["ops", "trace", "remote"].includes(tab)));
+      });
     });
   }
 
