@@ -8,9 +8,11 @@ import json
 import os
 import re
 import secrets
+import shutil
 import sqlite3
 import socket
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -27,8 +29,19 @@ import ssl
 HOST = "0.0.0.0"
 PORT = 8790
 ROOT = Path(__file__).resolve().parent
-HERMES = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/hermes")
-TS = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+# Platform: the deck was built on the Mac Mini but also runs on Linux (e.g. directly on Unraid).
+IS_MAC = sys.platform == "darwin"
+ON_UNRAID = os.path.exists("/etc/unraid-version") or os.environ.get("HELIX_ON_UNRAID") == "1"
+LOCAL_ID = "mac" if IS_MAC else ("unraid" if ON_UNRAID else "local")
+# Hermes data dir: defaults to ~/.hermes; set HELIX_HERMES_HOME when Hermes lives elsewhere (e.g. an appdata mount).
+HERMES_HOME = Path(os.environ.get("HELIX_HERMES_HOME") or (Path.home() / ".hermes")).expanduser()
+HERMES = os.environ.get("HELIX_HERMES_BIN") or (
+    str(HERMES_HOME / "hermes-agent" / "venv" / "bin" / "hermes")
+    if (HERMES_HOME / "hermes-agent" / "venv" / "bin" / "hermes").exists()
+    else (shutil.which("hermes") or str(HERMES_HOME / "hermes-agent" / "venv" / "bin" / "hermes"))
+)
+_TS_MAC = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+TS = _TS_MAC if os.path.exists(_TS_MAC) else (shutil.which("tailscale") or _TS_MAC)
 UNRAID = "192.168.1.84"
 UMBREL = "192.168.1.236"
 OMARCHY = "192.168.1.207"
@@ -37,23 +50,23 @@ UDM = "192.168.1.1"
 ILO = "192.168.1.82"
 HOME = str(Path.home())
 PAGE = 16384
-STATE_DB = os.path.expanduser("~/.hermes/state.db")
-SKILLS_ROOT = Path.home() / ".hermes" / "skills"
+STATE_DB = str(HERMES_HOME / "state.db")
+SKILLS_ROOT = HERMES_HOME / "skills"
 MEM_FILES = [
-    ("SOUL", Path.home() / ".hermes" / "SOUL.md"),
-    ("USER", Path.home() / ".hermes" / "memories" / "USER.md"),
-    ("MEMORY", Path.home() / ".hermes" / "memories" / "MEMORY.md"),
+    ("SOUL", HERMES_HOME / "SOUL.md"),
+    ("USER", HERMES_HOME / "memories" / "USER.md"),
+    ("MEMORY", HERMES_HOME / "memories" / "MEMORY.md"),
 ]
 BOT_DBS = [
-    ("prefect", Path.home() / ".hermes" / "profiles" / "prefect" / "state.db"),
-    ("foreman", Path.home() / ".hermes" / "profiles" / "foreman" / "state.db"),
-    ("canon", Path.home() / ".hermes" / "profiles" / "canon" / "state.db"),
-    ("scribe", Path.home() / ".hermes" / "profiles" / "scribe" / "state.db"),
-    ("adze", Path.home() / ".hermes" / "profiles" / "adze" / "state.db"),
+    ("prefect", HERMES_HOME / "profiles" / "prefect" / "state.db"),
+    ("foreman", HERMES_HOME / "profiles" / "foreman" / "state.db"),
+    ("canon", HERMES_HOME / "profiles" / "canon" / "state.db"),
+    ("scribe", HERMES_HOME / "profiles" / "scribe" / "state.db"),
+    ("adze", HERMES_HOME / "profiles" / "adze" / "state.db"),
 ]
 AGENT_DBS = {"helix": Path(STATE_DB), **{name: path for name, path in BOT_DBS}}
 _TRACE_CACHE: dict = {"t": 0.0, "key": "", "data": None}
-GRAPH_FILE = Path.home() / ".hermes" / "mindscape" / "graph.json"
+GRAPH_FILE = HERMES_HOME / "mindscape" / "graph.json"
 PROMPT_LOG = ROOT / "prompts.jsonl"
 HERDR = os.path.expanduser("~/.local/bin/herdr")
 AUTH_FILE = ROOT / "ops.env"
@@ -222,7 +235,7 @@ def http_code(url: str, timeout: float = 2.0) -> dict:
 
 
 def ping_ms(host: str) -> float | None:
-    code, out = run(["ping", "-c", "1", "-W", "1000", host], timeout=3)
+    code, out = run(["ping", "-c", "1", "-W", "1000" if IS_MAC else "1", host], timeout=3)
     m = re.search(r"time=([\d.]+)\s*ms", out)
     if m:
         return float(m.group(1))
@@ -353,6 +366,59 @@ def mac_host() -> dict:
     }
 
 
+def _fmt_uptime(sec: float) -> str:
+    d, rem = divmod(int(sec), 86400)
+    h, rem = divmod(rem, 3600)
+    return (f"{d} days, " if d else "") + f"{h}:{rem // 60:02d}"
+
+
+def linux_host() -> dict:
+    """Same shape as mac_host(), read from /proc and standard Linux tools."""
+    _, out = run(["sh", "-c", LINUX_STATS], 6)
+    info = parse_linux_stats(out)
+    uptime = None
+    try:
+        uptime = _fmt_uptime(float(Path("/proc/uptime").read_text().split()[0]))
+    except (OSError, ValueError, IndexError):
+        pass
+    disk = {}
+    for mount in ("/mnt/user", "/mnt/cache", "/"):      # Unraid's / is RAM; prefer the array/cache
+        if os.path.ismount(mount) or mount == "/":
+            try:
+                du = shutil.disk_usage(mount)
+                disk = {"mount": mount, "used_gb": round(du.used / 1073741824, 1), "avail_gb": round(du.free / 1073741824, 1),
+                        "pct": f"{round(100 * du.used / du.total)}%" if du.total else None}
+                break
+            except OSError:
+                continue
+    ips = []
+    _, ipo = run(["ip", "-4", "-o", "addr", "show", "scope", "global"], 2)
+    for ln in ipo.splitlines():
+        m = re.match(r"\d+:\s+(\S+)\s+inet\s+(\d+\.\d+\.\d+\.\d+)", ln)
+        if m and not m.group(1).startswith(("docker", "br-", "veth", "virbr")):
+            ips.append({"iface": m.group(1), "ip": m.group(2)})
+    name = info.get("hostname") or socket.gethostname()
+    return {
+        "id": LOCAL_ID,
+        "name": name,
+        "role": "Unraid / Helix host" if ON_UNRAID else "Helix host",
+        "online": True,
+        "host": ips[0]["ip"] if ips else None,
+        "ips": ips,
+        "cpus": info.get("cpus") or os.cpu_count(),
+        "mem_total_gb": info.get("mem_total_gb"),
+        "mem_used_gb": info.get("mem_used_gb"),
+        "disk": disk,
+        "load": info.get("load") or list(os.getloadavg()),
+        "uptime": uptime,
+        "hermes_procs": info.get("hermes_procs", 0),
+    }
+
+
+def local_host() -> dict:
+    return mac_host() if IS_MAC else linux_host()
+
+
 def _host_cpu_row(h: dict) -> dict:
     load = h.get("load") or []
     ncpu = int(h.get("cpus") or 0)
@@ -381,18 +447,20 @@ def compute_now() -> dict:
     ncpu = os.cpu_count() or 1
     load = list(os.getloadavg())
     mac = {
-        "id": "mac",
-        "name": "Mac",
+        "id": LOCAL_ID,
+        "name": "Mac" if IS_MAC else socket.gethostname(),
         "online": True,
         "cpus": ncpu,
         "load1": round(float(load[0]), 2),
         "pct": min(100.0, round(100.0 * float(load[0]) / ncpu, 1)),
     }
-    cached_mac = next((h for h in (_FLEET_CPU.get("hosts") or []) if h.get("id") == "mac"), {})
+    cached_mac = next((h for h in (_FLEET_CPU.get("hosts") or []) if h.get("id") == LOCAL_ID), {})
     for k in ("mem_used_gb", "mem_total_gb", "disk_pct", "hermes_procs"):
         if cached_mac.get(k) is not None:
             mac[k] = cached_mac.get(k)
-    others = [h for h in (_FLEET_CPU.get("hosts") or []) if h.get("id") != "mac"]
+    if cached_mac.get("name"):
+        mac["name"] = cached_mac["name"]
+    others = [h for h in (_FLEET_CPU.get("hosts") or []) if h.get("id") != LOCAL_ID]
     hosts = [mac, *others]
     online = [h for h in hosts if h.get("online") and (h.get("cpus") or 0) > 0]
     total_cpus = sum(int(h["cpus"]) for h in online)
@@ -815,6 +883,8 @@ SSH_UNRAID = [
     "ConnectTimeout=6",
     f"root@{UNRAID}",
 ]
+if ON_UNRAID and shutil.which("docker"):
+    SSH_UNRAID = ["sh", "-c"]   # same command strings, run locally
 DOCKER_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 DOCKER_WEBUI_FALLBACK = {
     "helix-command": f"http://{UNRAID}:8788/",
@@ -1043,6 +1113,12 @@ def ssh_linux(key: str, userhost: str) -> dict:
     info: dict = {"ssh_ok": code == 0}
     if code != 0:
         return info
+    info.update(parse_linux_stats(out))
+    return info
+
+
+def parse_linux_stats(out: str) -> dict:
+    info: dict = {}
     lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
     if lines:
         info["hostname"] = lines[0]
@@ -1084,7 +1160,43 @@ def tcp_open(host: str, port: int) -> bool:
             pass
 
 
+def linux_net_stats() -> dict:
+    gw = iface = None
+    try:
+        for ln in Path("/proc/net/route").read_text().splitlines()[1:]:
+            cols = ln.split()
+            if len(cols) > 2 and cols[1] == "00000000":
+                iface = cols[0]
+                g = int(cols[2], 16)
+                gw = ".".join(str((g >> (8 * i)) & 255) for i in range(4))
+                break
+    except (OSError, ValueError):
+        pass
+    ifaces = []
+    try:
+        rows = Path("/proc/net/dev").read_text().splitlines()[2:]
+    except OSError:
+        rows = []
+    for ln in rows:
+        name, _, rest = ln.partition(":")
+        name = name.strip()
+        role = "LAN" if name == iface else ("Tailscale" if name.startswith("tailscale") else None)
+        if not role:
+            continue
+        cols = rest.split()
+        try:
+            ib, ip_, ob, op_ = int(cols[0]), int(cols[1]), int(cols[8]), int(cols[9])
+        except (ValueError, IndexError):
+            continue
+        ifaces.append({"name": name, "role": role, "rx_gb": round(ib / 1073741824, 2), "tx_gb": round(ob / 1073741824, 2),
+                       "rx_pkts": ip_, "tx_pkts": op_, "rx_bytes": ib, "tx_bytes": ob})
+    ifaces.sort(key=lambda r: r["role"] != "LAN")
+    return {"ifaces": ifaces, "gateway": gw, "egress_iface": iface}
+
+
 def net_stats() -> dict:
+    if not IS_MAC:
+        return linux_net_stats()
     ifaces = []
     for name, role in (("en0", "LAN"), ("en1", "LAN-2"), ("utun0", "Tailscale")):
         _, ns = run(["/usr/sbin/netstat", "-I", name, "-b"], 2)
@@ -1203,6 +1315,7 @@ def lan_hosts() -> list[dict]:
             "host": ILO,
         },
     ]
+    specs = [sp for sp in specs if sp["id"] != LOCAL_ID]
     by_id: dict = {}
     with ThreadPoolExecutor(max_workers=6) as ex:
         futs = {ex.submit(probe_host, s): s["id"] for s in specs}
@@ -1461,11 +1574,11 @@ def agents_now() -> dict:
         return _AGENTS_CACHE["data"]
     specs = [
         ("helix", "Helix", "mac", STATE_DB, "orchestra", "Telegram + desktop brain"),
-        ("prefect", "Prefect", "mac", os.path.expanduser("~/.hermes/profiles/prefect/state.db"), "bot", "align · silent"),
-        ("foreman", "Foreman", "mac", os.path.expanduser("~/.hermes/profiles/foreman/state.db"), "bot", "kanban · silent"),
-        ("canon", "Canon", "mac", os.path.expanduser("~/.hermes/profiles/canon/state.db"), "bot", "docs · silent"),
-        ("scribe", "Scribe", "mac", os.path.expanduser("~/.hermes/profiles/scribe/state.db"), "bot", "research · silent"),
-        ("adze", "ADZE", "mac", os.path.expanduser("~/.hermes/profiles/adze/state.db"), "bot", "openai critic · silent"),
+        ("prefect", "Prefect", "mac", str(HERMES_HOME / "profiles" / "prefect" / "state.db"), "bot", "align · silent"),
+        ("foreman", "Foreman", "mac", str(HERMES_HOME / "profiles" / "foreman" / "state.db"), "bot", "kanban · silent"),
+        ("canon", "Canon", "mac", str(HERMES_HOME / "profiles" / "canon" / "state.db"), "bot", "docs · silent"),
+        ("scribe", "Scribe", "mac", str(HERMES_HOME / "profiles" / "scribe" / "state.db"), "bot", "research · silent"),
+        ("adze", "ADZE", "mac", str(HERMES_HOME / "profiles" / "adze" / "state.db"), "bot", "openai critic · silent"),
     ]
     agents = []
     for aid, label, host, db, kind, role in specs:
@@ -1925,7 +2038,7 @@ def tailscale() -> dict:
 
 
 def mindscape() -> dict:
-    plugin = Path.home() / ".hermes" / "plugins" / "mindscape"
+    plugin = HERMES_HOME / "plugins" / "mindscape"
     yaml_path = plugin / "plugin.yaml"
     version = None
     if yaml_path.exists():
@@ -2557,7 +2670,7 @@ def collect() -> dict:
     actions = action_queue(gw_running, kstats, cron_jobs, local_svcs)
     profiles = parse_profiles(plist)
     sess = parse_sessions_stats(sstats)
-    hosts = [mac_host(), *lan_hosts()]
+    hosts = [local_host(), *lan_hosts()]
     cache_fleet_cpu(hosts)
     ts = tailscale()
     return {

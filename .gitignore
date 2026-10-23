@@ -40,3 +40,7 @@ verify-*.png
 *.orig
 *.swp
 *~
+
+# Unraid runner
+.helix-ops.pid
+helix-ops.log

@@ -66,6 +66,7 @@ There is no frontend build. Assets are served as static files from `server.py`.
 ## DEPLOYMENT
 
 **IMPLEMENTED:** Mac Mini process, bind `0.0.0.0:8790`. Tailscale Serve path `/ops` (no Funnel).  
+**Unraid / Linux:** supported — see `docs/UNRAID.md` and `helix-ops-unraid.sh`.  
 **NOT** a Docker image in this repo. Unraid `:8788` is a separate command board — do not iframe it.
 
 ## ENVIRONMENT VARIABLES
