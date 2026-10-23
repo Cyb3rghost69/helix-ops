@@ -16,7 +16,7 @@ The previous dashboard is still available at `/legacy` (also linked as CLASSIC i
 | Route | Content |
 |---|---|
 | `#/` HOME | Helix status line, agent roster, live mini-mesh, Needs You, KPI tiles, fleet chart, latest comms |
-| `#/helix` HELIX | Animated pixel avatar of Helix (mood follows real state) with a chat terminal under it |
+| `#/helix` HELIX | Messenger-style chat window: live square pixel avatar of Helix (mood follows real state), chat bubbles, quick replies |
 | `#/mesh` MESH | Animated botmesh, comms log (ALL / BOTS / HELIX), inspector, busiest links, agent list |
 | `#/agents`, `#/agents/<id>` | Crew grid; per-agent status, conversation, and for Helix the pipeline + terminal (`/api/prompt`); ADZE analysis core |
 | `#/trace` | Latest request, pipeline, swimlanes, timeline |
@@ -62,9 +62,11 @@ Bump `V` in `index.html` and `VERSION` in `sw.js` when shipping UI changes.
 
 ## HELIX — avatar + chat
 
-`app/avatar.js` draws Helix as a live 40×64 cross-stitch pixel portrait (sunburst rays, long pale-blue hair fading to purple drips, star eyes). Mood comes from real state, highest first: **asleep** (gateway down and no chat link), **talking** (reply streaming — mouth moves with each chunk), **thinking** (waiting for her reply, or a live trace), **listening** (you're typing), **happy** (6 s after a reply), **alert** (a HIGH item in Needs You), **calm**. She blinks, her hair shimmers and drips, the rays turn faster when she's busy. A small live badge of her sits on HOME.
+`app/avatar.js` builds Helix entirely in code: no image files. She is a 48×48 pixel rig made of separate layers (back hair, shoulders, neck, face, eyes/brows/mouth, bangs, front locks), each with its own transform: breathing, head bob and tilt, hair sway with dripping purple ends, blinking, gaze, lip-sync, mood props (thinking dots, Zzz, alert “!”, sparkles). The **background is its own layer**: one scene per mood (SUNBURST, CIRCUIT, PULSE, EQ, SPARKLE, HAZARD, NIGHT) cross-fading as her mood changes, or pinned with the BACKDROP chips (saved per browser in `helix.avatarBg`). Mood comes from real state, highest first: **asleep** (gateway down and no chat link), **talking** (reply streaming — mouth moves with each chunk), **thinking** (waiting for her reply, or a live trace), **listening** (you're typing), **happy** (6 s after a reply), **alert** (a HIGH item in Needs You), **calm**. `HelixAvatar.face(mood)` renders the small head icons used in chat bubbles, and a square live badge of her sits on HOME.
 
-The terminal under the avatar talks to Helix through `POST /api/chat` (streamed back as Server-Sent Events). The server forwards the conversation (last 20 turns) to, in order:
+The page is laid out like a messaging client window (HELIX.MSG): contact pane with the live avatar, presence (online / thinking… / typing… / away) and what she's doing; chat thread with pixel bubbles, timestamps and ✓✓ read ticks; quick-reply chips; composer.
+
+The chat window talks to Helix through `POST /api/chat` (streamed back as Server-Sent Events). The server forwards the conversation (last 20 turns) to, in order:
 
 | ops.env key | Meaning |
 |---|---|

@@ -1,184 +1,277 @@
-/* HELIX/OPS — Helix's animated pixel avatar.
-   A 40×64 cross-stitch-style pixel portrait drawn live: pink sunburst rays on deep blue, long pale-blue
-   hair that darkens into dripping purple, star eyes, lilac lips. Expressions follow Helix's real mood:
-   calm · listening · thinking · talking · happy · alert · sleeping (blinks, hair shimmer, drips and
-   rotating rays are continuous; everything stops under animation OFF / reduced motion). */
+/* HELIX/OPS — Helix avatar rig (no image files).
+   A 48×48 pixel character built from code: separate layers for background, back hair, shoulders,
+   neck, face, features and front hair. Every part has its own transform, so the whole avatar can
+   animate: breathing, head bob/tilt, hair sway + drips, blinking, gaze, lip-sync, mood props.
+   The background is its own layer with a theme per mood, cross-faded on change.
+   API: mount(canvas, { getMood, crop, size }) → { destroy, setBackground(name|null), poke(kind) } */
 (function (G) {
   "use strict";
-  const GW = 40, GH = 64, CX = 20, HY = 18;
-  const P = {
-    bg: "#1d17a3", bg2: "#140f7c", ray: "#ff2f9e", ray2: "#ff63bb",
-    hair: "#9fe3ff", hairMid: "#63c3f0", hairDeep: "#3a98df", hairHi: "#d8f7ff",
-    face: "#cbf3ff", faceSh: "#9fd9f1", faceSh2: "#78bde3",
-    shadow: "#8b53d6", lip: "#6d34b8", lip2: "#9a5ad8", nose: "#7a46c8",
-    eye: "#ff3fa4", eyeHi: "#ffd6ec", lash: "#1a1478",
-    p1: "#7b50e2", p2: "#5c38cd", p3: "#3f28b2", p4: "#2a1c95", body: "#231888",
-    blush: "#ff8fcf", red: "#ff4d6d", orange: "#ff8a3d", white: "#ffffff", grid: "rgba(10,6,60,0.22)",
+  const N = 48, HX = 24, HY = 19;
+  const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  const C = {
+    hair: hex("#a6e6ff"), hairMid: hex("#6cc6f2"), hairDeep: hex("#3a96de"), hairHi: hex("#e2f9ff"), hairEdge: hex("#2f77c4"),
+    p1: hex("#8a5ae8"), p2: hex("#6640d4"), p3: hex("#452cb8"), p4: hex("#2e1f9a"),
+    face: hex("#d2f5ff"), faceSh: hex("#a5dcf3"), faceSh2: hex("#7cc0e6"), neck: hex("#8fcdeb"),
+    shadow: hex("#9a5ee0"), lip: hex("#7a3cc4"), lip2: hex("#a866e2"), mouthIn: hex("#2a1660"), nose: hex("#8a52d0"),
+    eye: hex("#ff3fa4"), eyeHi: hex("#ffe0f1"), lash: hex("#1b1470"), red: hex("#ff4d6d"), blush: hex("#ff9bd2"),
+    body: hex("#241a5e"), body2: hex("#33267a"), collar: hex("#ff4fa3"), white: hex("#ffffff"), sweat: hex("#7fe3ff"),
   };
   const h2 = (x, y) => { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); };
-  const colN = Array.from({ length: GW }, (_, x) => h2(x, 7));
+  const colN = Array.from({ length: N }, (_, x) => h2(x, 7));
+  const lerp = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
 
-  function grey(hex, k) {
-    const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255, l = (r + g + b) / 3;
-    const m = (v) => Math.round(v * (1 - k) + l * k * 0.75);
-    return "#" + [m(r), m(g), m(b)].map((v) => v.toString(16).padStart(2, "0")).join("");
+  /* ───────── background themes (each returns rgb for a pixel) ───────── */
+  const BG = {
+    calm(x, y, t) {            // slow sunburst behind her head, dashboard pinks on deep night
+      const dx = x + 0.5 - HX, dy = y + 0.5 - (HY - 2), d = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+      const base = lerp(hex("#1a1036"), hex("#0d0a1a"), Math.min(1, d / 34));
+      if (d > 12 && Math.floor(((a + Math.PI) / (2 * Math.PI)) * 24 + t * 0.25) % 2 === 0) return lerp(base, d > 22 ? hex("#ff4fa3") : hex("#c23d8f"), Math.max(0.18, 0.55 - d / 70));
+      return (x + y) % 6 === 0 ? lerp(base, hex("#2a1d4a"), 0.6) : base;
+    },
+    thinking(x, y, t) {        // circuit grid with packets orbiting her head
+      const base = (x % 6 === 0 || y % 6 === 0) ? hex("#1c1530") : hex("#110d1f");
+      for (let i = 0; i < 4; i++) {
+        const a = t * (0.9 + i * 0.25) + i * 1.6, r = 13 + i * 3;
+        const ox = Math.round(HX + Math.cos(a) * r), oy = Math.round(HY - 2 + Math.sin(a) * r * 0.8);
+        if (Math.abs(x - ox) <= 0 && Math.abs(y - oy) <= 0) return hex(i % 2 ? "#f59e0b" : "#ffd27a");
+        const tx = Math.round(HX + Math.cos(a - 0.15) * r), ty = Math.round(HY - 2 + Math.sin(a - 0.15) * r * 0.8);
+        if (x === tx && y === ty) return hex("#7a4d10");
+      }
+      if ((x % 6 === 0 || y % 6 === 0) && h2(x, y) > 0.9) return hex("#3a2a14");
+      return base;
+    },
+    talking(x, y, t, s) {      // rings pulsing out from her mouth while she speaks
+      const d = Math.hypot(x + 0.5 - HX, y + 0.5 - 24);
+      const base = hex("#160d24");
+      const k = (d - t * 9) % 7;
+      if (s.speaking && d > 8 && k > -0.5 && k < 0.6) return lerp(base, hex("#ff4fa3"), Math.max(0.15, 0.8 - d / 40));
+      return y % 3 === 0 ? hex("#1b1030") : base;
+    },
+    listening(x, y, t) {       // equaliser bars rising at the bottom
+      const base = lerp(hex("#140f2a"), hex("#0d0a18"), y / N);
+      const bar = Math.floor(x / 3), h = 4 + Math.floor((Math.sin(t * 6 + bar * 1.3) + 1) * 4 + h2(bar, Math.floor(t * 4)) * 5);
+      if (x % 3 !== 2 && y >= N - h) return lerp(hex("#a78bfa"), hex("#ff4fa3"), (N - y) / 18);
+      return base;
+    },
+    happy(x, y, t) {           // sparkles drifting up
+      const base = lerp(hex("#12221d"), hex("#0d0a18"), y / N);
+      for (let i = 0; i < 9; i++) {
+        const sx = Math.floor(h2(i, 3) * N), sy = Math.floor((h2(i, 9) * N - t * (5 + i)) % N + N) % N;
+        if (x === sx && y === sy) return hex(i % 3 === 0 ? "#39e58c" : i % 3 === 1 ? "#ff4fa3" : "#ffffff");
+        if ((x === sx && Math.abs(y - sy) === 1) || (y === sy && Math.abs(x - sx) === 1)) return hex(i % 2 ? "#1f6b4a" : "#7a2c58");
+      }
+      return base;
+    },
+    alert(x, y, t) {           // red hazard stripes scrolling, flashing
+      const on = Math.floor(t * 2.5) % 2 === 0;
+      const stripe = Math.floor((x + y + t * 8) / 4) % 2 === 0;
+      return stripe ? (on ? hex("#3a0d1c") : hex("#2a0a16")) : hex("#160812");
+    },
+    sleeping(x, y, t) {        // night sky, twinkling stars, pixel moon
+      const base = lerp(hex("#0b0d2a"), hex("#05060f"), y / N);
+      const mx = 38, my = 9, md = Math.hypot(x - mx, y - my);
+      if (md < 4.5 && Math.hypot(x - mx - 2, y - my + 1) > 3.6) return hex("#fff1b8");
+      if (h2(x, y) > 0.985) return Math.sin(t * 2 + x * y) > 0 ? hex("#ffffff") : hex("#6f6aa8");
+      return base;
+    },
+  };
+  BG.calm.label = "SUNBURST";
+
+  /* ───────── character layers (local coords, transforms applied by caller) ───────── */
+  function hairColor(x, y, t, depthFrom) {
+    const sx = Math.max(0, Math.min(N - 1, Math.round(x + Math.sin(y * 0.24 + colN[Math.max(0, Math.min(N - 1, x | 0))] * 6) * 1.1)));
+    const strand = h2(Math.floor(sx / 2) * 2 + (y > 30 ? 1 : 0), 3) * 0.6 + colN[sx] * 0.4;
+    const depth = (y - depthFrom) / 14;
+    if (depth > 0 && h2(x | 0, y | 0) < depth * 0.95) { const n = h2((x | 0) * 3, y | 0); return n > 0.66 ? C.p1 : n > 0.33 ? C.p2 : C.p3; }
+    const shimmer = ((Math.floor(y) + Math.floor(t * 5)) % 15 === Math.floor(strand * 15)) && strand > 0.4;
+    if (shimmer) return C.hairHi;
+    return strand > 0.74 ? C.hairHi : strand > 0.46 ? C.hair : strand > 0.2 ? C.hairMid : C.hairDeep;
+  }
+  function dripEnd(x, t, anim) { return 43 + Math.floor(colN[x] * 5) + (anim && colN[x] > 0.6 ? Math.floor((t * 1.5 + colN[x] * 9) % 4) : 0); }
+
+  /* head group: returns [rgb, depth] or null. depth: 1 back hair, 4 face, 5 features, 6 front hair */
+  function headPx(x, y, s, t) {
+    const fx = (x + 0.5 - HX) / 8.3, fy = (y + 0.5 - (HY + 0.3)) / 9.6, inFace = fx * fx + fy * fy <= 1;
+    const ax = Math.abs(x + 0.5 - HX);
+    const end = dripEnd(Math.max(0, Math.min(N - 1, x | 0)), t, s.anim);
+    // front hair: bangs + side locks hugging the face
+    const bangBottom = 12 + (h2(x | 0, 1) > 0.55 ? 1 : 0) + (ax < 1.5 ? -1 : 0) + (ax > 6 ? 1 : 0);
+    if (y >= 4 && y <= bangBottom && ax <= 9 && Math.hypot(x + 0.5 - HX, y + 0.5 - (HY - 2)) <= 13.6) return [hairColor(x, y, t, 34), 6];
+    if (y >= 13 && y <= end && ax >= 8.1 && ax <= 10.6 + Math.max(0, y - 27) * 0.14) {
+      const c = hairColor(x, y, t, 32);
+      return [ax < 8.8 && y < 28 ? C.hairEdge : c, 6];
+    }
+    // face + features
+    if (inFace && y >= 9) {
+      const e = fx * fx + fy * fy;
+      let c = e > 0.8 ? C.faceSh2 : e > 0.58 ? C.faceSh : C.face;
+      if (y >= 27) c = C.faceSh;
+      const f = feature(x | 0, y | 0, s, t);
+      if (f) return [f, 5];
+      return [c, 4];
+    }
+    // back hair: dome + long fall behind the shoulders
+    const dome = Math.hypot(x + 0.5 - HX, y + 0.5 - (HY - 2)) <= 13.8 && y <= HY;
+    const fall = y > HY - 1 && y <= end && ax <= 13.6 + (y - HY) * 0.13;
+    if (dome || fall) {
+      let c = hairColor(x, y, t, 30);
+      if (ax > 12.8 + Math.max(0, y - HY) * 0.13) c = y > 30 ? C.p3 : C.hairEdge;
+      if (y >= end - 1 && y > 30) c = C.p2;
+      return [c, 1];
+    }
+    return null;
+  }
+  function feature(x, y, s, t) {
+    const L = HX - 4, R = HX + 3, EY = HY;
+    const lx = s.look[0], ly = s.look[1];
+    // eyeshadow
+    if (y === EY - 3 && ((x >= L - 2 && x <= L + 1) || (x >= R - 1 && x <= R + 2))) return C.lash;
+    if (y === EY - 2 && ((x >= L - 3 && x <= L + 2) || (x >= R - 2 && x <= R + 3))) return C.shadow;
+    if (y === EY - 1 && (x === L - 3 || x === R + 3)) return C.shadow;
+    const mood = s.mood;
+    const eyeAt = (ex) => {
+      const cx = ex + lx, cy = EY + ly;
+      const dx = x - ex, dy = y - EY;
+      if (mood === "sleeping") return ((dy === 1 && Math.abs(dx) <= 1) || (dy === 0 && Math.abs(dx) === 2)) ? C.lash : null;
+      if (s.blink) return (dy === 0 && Math.abs(dx) <= 2) ? C.lash : null;
+      if (mood === "happy") return ((dy === 0 && Math.abs(dx) === 2) || (dy === -1 && Math.abs(dx) <= 1)) ? C.lash : null;
+      const col = mood === "alert" ? C.red : C.eye, ddx = x - cx, ddy = y - cy;
+      if (ddx === 0 && ddy === 0) return s.twinkle ? C.white : C.eyeHi;
+      if ((ddy === 0 && Math.abs(ddx) <= 2) || (ddx === 0 && Math.abs(ddy) <= 2)) return (Math.abs(ddx) === 2 || Math.abs(ddy) === 2) && mood !== "alert" ? C.blush : col;
+      if (Math.abs(ddx) === 1 && Math.abs(ddy) === 1) return C.lash;
+      return null;
+    };
+    const el = eyeAt(L) || eyeAt(R);
+    if (el) return el;
+    if (mood === "alert" && y === EY - 4 && (x === L - 1 || x === L || x === R || x === R + 1)) return C.lash;
+    if ((mood === "happy" || mood === "talking") && y === EY + 3 && (x === L - 2 || x === L - 3 || x === R + 2 || x === R + 3)) return C.blush;
+    // nose
+    if (x === HX && y === HY + 3) return C.nose;
+    // mouth
+    const M = HY + 6;
+    if (mood === "talking") {
+      const o = s.mouthOpen;
+      if (y === M && x >= HX - 1 && x <= HX + 1) return C.lip;
+      if (o >= 1 && y === M + 1 && x >= HX - 1 && x <= HX + 1) return x === HX ? C.mouthIn : C.lip2;
+      if (o >= 2 && y === M + 2 && x === HX) return C.lip2;
+      if (o === 0 && y === M + 1 && x === HX) return C.lip2;
+      return null;
+    }
+    if (mood === "happy") { if ((y === M && (x === HX - 2 || x === HX + 2)) || (y === M + 1 && x >= HX - 1 && x <= HX + 1)) return C.lip; return null; }
+    if (mood === "listening" || mood === "alert") { if (y === M && x === HX) return C.lip; if (y === M + 1 && x === HX) return C.mouthIn; return null; }
+    if (mood === "thinking") { if (y === M + 1 && x >= HX - 1 && x <= HX) return C.lip; if (y === M && x === HX + 1) return C.lip; return null; }
+    if (mood === "sleeping") { if (y === M + 1 && x === HX) return C.lip2; return null; }
+    if (y === M && x >= HX - 1 && x <= HX + 1) return x === HX ? C.lip : C.lip2;
+    if (y === M + 1 && x === HX) return C.lip2;
+    return null;
+  }
+  /* body group: shoulders + neck (breathing transform) */
+  function bodyPx(x, y) {
+    const ax = Math.abs(x + 0.5 - HX);
+    if (y >= 27 && y <= 32 && ax <= 2.6) return [y < 29 ? C.faceSh2 : C.neck, 3];
+    if (y >= 33 && ax <= 9 + (y - 33) * 1.2) {
+      if (y === 33 || (y === 34 && ax > 2.6)) return [C.collar, 2];
+      if (y <= 35 && ax <= 2.6) return [C.neck, 3];
+      return [h2(x, y) > 0.85 ? C.body2 : C.body, 2];
+    }
+    return null;
   }
 
+  /* ───────── renderer ───────── */
   function mount(canvas, opts) {
     opts = opts || {};
+    const crop = opts.crop || [0, 0, N, N];
+    const off = document.createElement("canvas"); off.width = crop[2]; off.height = crop[3];
+    const octx = off.getContext("2d"), img = octx.createImageData(crop[2], crop[3]), px = img.data;
     const ctx = canvas.getContext("2d");
-    let running = true, last = 0, blinkAt = performance.now() + 2500, blinkUntil = 0, cell = 6, mouthPhase = 0;
+    let running = true, last = 0, blinkAt = performance.now() + 2000, blinkUntil = 0, lookT = 0, look = [0, 0], fixedBg = null;
+    let curMood = null, prevBg = null, bgFadeT = 0, hopT = 0, twinkleAt = 0;
     const t0 = performance.now();
 
     function size() {
-      const r = canvas.parentNode.getBoundingClientRect();
-      const maxH = opts.maxHeight || 560;
-      const wAvail = Math.max(120, r.width || 300);
-      cell = Math.max(2, Math.floor(Math.min(wAvail / GW, maxH / GH)));
-      const dpr = Math.min(2, G.devicePixelRatio || 1);
-      canvas.style.width = cell * GW + "px"; canvas.style.height = cell * GH + "px";
-      canvas.width = cell * GW * dpr; canvas.height = cell * GH * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false;
+      const box = canvas.parentNode.getBoundingClientRect();
+      // fill the box exactly (square); nearest-neighbour keeps the pixels crisp
+      const want = Math.max(crop[2], Math.floor(Math.min(box.width || 300, opts.size || 9999)));
+      const dpr = Math.min(3, G.devicePixelRatio || 1), hgt = Math.round(want * crop[3] / crop[2]);
+      canvas.style.width = want + "px"; canvas.style.height = hgt + "px";
+      canvas.width = Math.round(want * dpr); canvas.height = Math.round(hgt * dpr);
+      ctx.imageSmoothingEnabled = false;
     }
 
     function draw(now) {
-      const anim = (G.Helix && G.Helix.SET.anim) || "full";
+      const anim = opts.still ? "off" : (G.Helix && G.Helix.SET.anim) || "full", moving = anim !== "off";
       const st = (opts.getMood && opts.getMood()) || { mood: "calm" };
-      const mood = st.mood || "calm";
-      const t = anim === "off" ? 0 : (now - t0) / 1000;
-      const sleepy = mood === "sleeping";
-      const tint = (c) => (sleepy ? grey(c, 0.55) : c);
-      // blink scheduler
-      if (anim !== "off" && !sleepy && now > blinkAt) { blinkUntil = now + 140; blinkAt = now + 2200 + Math.random() * 3800; }
-      const blinking = now < blinkUntil;
-      const spin = mood === "thinking" ? 1.4 : mood === "talking" ? 0.9 : mood === "happy" ? 1.1 : mood === "alert" ? 0.6 : sleepy ? 0.05 : 0.35;
-      const rayA = mood === "alert" ? P.orange : P.ray, rayB = mood === "alert" ? P.red : P.ray2;
-      const pulse = mood === "happy" ? (Math.sin(t * 6) + 1) / 2 : 0;
-
-      const C = (x, y, c) => { ctx.fillStyle = c; ctx.fillRect(x * cell, y * cell, cell, cell); };
-      for (let y = 0; y < GH; y++) {
-        for (let x = 0; x < GW; x++) {
-          const dx = x + 0.5 - CX, dy = y + 0.5 - HY, d = Math.hypot(dx, dy);
-          // hair silhouette
-          const widen = Math.max(0, y - HY) * 0.07;
-          const xl = 6 - widen, xr = 34 + widen;
-          const end = 54 + Math.floor(colN[x] * 7) + (anim === "full" && colN[x] > 0.62 ? Math.floor((t * 1.6 + colN[x] * 9) % 5) : 0);
-          const inHead = d <= 14.2 && y <= HY;
-          const inSides = y > HY && x + 0.5 >= xl && x + 0.5 <= xr && y <= end;
-          const fx = (x + 0.5 - CX) / 7.6, fy = (y + 0.5 - 22.5) / 9.6, inFace = fx * fx + fy * fy <= 1 && y >= 14;
-          const inInner = y >= 31 && Math.abs(x + 0.5 - CX) < 6.2 + (y - 31) * 0.16 && y <= end;
-          let c;
-          if (inFace && !(y < 16 && (Math.abs(x + 0.5 - CX) > 2.5 - (y - 14) * 1.5 || y < 15))) {
-            // face with soft edge shading
-            const e = fx * fx + fy * fy;
-            c = e > 0.82 ? P.faceSh2 : e > 0.62 ? P.faceSh : P.face;
-            if (y >= 30) c = P.faceSh;
-          } else if (inInner) {
-            const n = h2(x >> 1, y >> 1), n2 = h2(x, y);
-            c = n > 0.86 ? P.p1 : n > 0.68 ? P.p2 : n2 > 0.75 ? P.p3 : n > 0.4 ? P.p4 : P.body;
-          } else if (inHead || inSides) {
-            // long hair: pale blue strands, highlights that shimmer downwards, purple towards the ends
-            // wavy strands: sample the column noise along a gentle sine so hair falls in clumps, not bars
-            const sx = Math.max(0, Math.min(GW - 1, Math.round(x + Math.sin(y * 0.22 + colN[x] * 6) * 1.1)));
-            const strand = h2(Math.floor(sx / 2) * 2 + (y > 30 ? 1 : 0), 3) * 0.6 + colN[sx] * 0.4, depth = (y - 36) / 22;
-            const shimmer = anim !== "off" && ((y + Math.floor(t * 5)) % 13 === Math.floor(strand * 13)) && strand > 0.35;
-            if (depth > 0 && h2(x, y) < depth * 0.9) {
-              const n = h2(x * 3, y);
-              c = n > 0.66 ? P.p1 : n > 0.33 ? P.p2 : P.p3;
-            } else if (shimmer) c = P.hairHi;
-            else c = strand > 0.72 ? P.hairHi : strand > 0.45 ? P.hair : strand > 0.2 ? P.hairMid : P.hairDeep;
-            if (Math.abs(x + 0.5 - xl) < 1 || Math.abs(x + 0.5 - xr) < 1) c = y > 40 ? P.p3 : P.hairDeep;
-            // shadow where the hair meets the face
-            const fxs = (x + 0.5 - CX) / 8.8, fys = (y + 0.5 - 22.5) / 10.4;
-            if (y > 14 && y < 33 && fxs * fxs + fys * fys <= 1 && depth <= 0) c = P.hairDeep;
-            if (y >= end - 1 && y > 40) c = P.p2;
-          } else {
-            // background: sunburst rays from the head, deep blue below
-            const ang = Math.atan2(dy, dx);
-            const stripe = Math.floor(((ang + Math.PI) / (2 * Math.PI)) * 30 + t * spin) % 2 === 0;
-            const rayZone = y < 44 - Math.abs(dx) * 0.1;
-            if (rayZone && d > 13 && stripe) c = (d > 24 ? rayA : rayB);
-            else c = (x + Math.floor(y / 2)) % 7 === 0 && y > 40 ? P.bg2 : P.bg;
-            if (pulse && c === rayA) c = pulse > 0.5 ? P.ray2 : P.ray;
+      const mood = st.mood || "calm", t = moving ? (now - t0) / 1000 : 0;
+      if (mood !== curMood) { prevBg = curMood; bgFadeT = now; if (curMood) hopT = now; curMood = mood; }
+      // blink + gaze + twinkle
+      if (moving && mood !== "sleeping" && now > blinkAt) { blinkUntil = now + 130; blinkAt = now + 2000 + Math.random() * 4000; }
+      if (moving && now > lookT) { lookT = now + 1500 + Math.random() * 2500; look = mood === "thinking" ? [-1, -1] : mood === "listening" ? [0, 0] : [[0, 0], [0, 0], [-1, 0], [1, 0], [0, 1]][Math.floor(Math.random() * 5)]; }
+      if (mood === "thinking") look = [-1, -1];
+      if (moving && now > twinkleAt + 1800) twinkleAt = now;
+      const s = {
+        mood, anim: anim === "full", blink: now < blinkUntil, look, twinkle: now - twinkleAt < 160,
+        speaking: !!st.speaking, mouthOpen: st.speaking ? [0, 1, 2, 1][Math.floor(now / 105) % 4] : 0,
+      };
+      // transforms
+      const breath = moving ? Math.round((Math.sin(t * 1.6) + 1) / 2) : 0;
+      let bob = 0, tilt = 0, swayAmp = 0.6;
+      if (moving) {
+        if (mood === "talking") bob = st.speaking ? Math.round(Math.sin(t * 9) * 0.6) : 0;
+        if (mood === "happy") bob = -Math.round(Math.abs(Math.sin(t * 5)) * 1.4);
+        if (mood === "calm") bob = Math.round(Math.sin(t * 1.2) * 0.6);
+        if (mood === "sleeping") bob = 1 + Math.round((Math.sin(t * 0.9) + 1) / 2);
+        if (now - hopT < 300) bob -= 1;
+        swayAmp = mood === "happy" ? 1.4 : mood === "talking" ? 0.9 : mood === "sleeping" ? 0.3 : 0.7;
+      }
+      if (mood === "listening") tilt = 0.12; else if (mood === "thinking") tilt = -0.08; else if (mood === "sleeping") tilt = 0.1;
+      const bgName = fixedBg || mood, bgFn = BG[bgName] || BG.calm, prevFn = prevBg ? (BG[prevBg] || BG.calm) : null;
+      const fade = prevFn && !fixedBg ? Math.min(1, (now - bgFadeT) / 600) : 1;
+      for (let j = 0; j < crop[3]; j++) {
+        const y = j + crop[1];
+        const hy = y - bob, sway = moving ? Math.sin(t * 1.3 + hy * 0.22) * swayAmp * Math.max(0, (hy - 14) / 26) : 0;
+        for (let i = 0; i < crop[2]; i++) {
+          const x = i + crop[0];
+          // head group (bob + tilt + hair sway below the jaw)
+          const hx = x - (hy - HY) * tilt - (hy > 22 ? sway : 0);
+          const hp = headPx(Math.floor(hx), Math.floor(hy), s, t);
+          const bp = bodyPx(x, y - breath);
+          let rgb;
+          if (hp && (!bp || hp[1] > bp[1])) rgb = hp[0];
+          else if (bp) rgb = bp[0];
+          else {
+            rgb = bgFn(x, y, t, s);
+            if (fade < 1) rgb = lerp(prevFn(x, y, t, s), rgb, fade);
           }
-          C(x, y, tint(c));
+          const k = (j * crop[2] + i) * 4;
+          px[k] = rgb[0]; px[k + 1] = rgb[1]; px[k + 2] = rgb[2]; px[k + 3] = 255;
         }
       }
-
-      // ── face features ──
-      const L = 16, R = 24, EY = 20;
-      // eyeshadow band
-      for (let x = 13; x <= 18; x++) C(x, EY - 1, tint(P.shadow));
-      for (let x = 22; x <= 27; x++) C(x, EY - 1, tint(P.shadow));
-      const star = (ex, ey, big, col) => {
-        C(ex, ey, P.eyeHi); C(ex - 1, ey, col); C(ex + 1, ey, col); C(ex, ey - 1, col); C(ex, ey + 1, col);
-        if (big) { C(ex - 2, ey, col); C(ex + 2, ey, col); C(ex, ey - 2, col); C(ex, ey + 2, col); }
-        // dark lash rays (the reference's X-shaped lashes)
-        C(ex - 2, ey - 1, P.lash); C(ex + 2, ey - 1, P.lash); C(ex - 2, ey + 1, P.lash); C(ex + 2, ey + 1, P.lash);
-        C(ex - 3, ey, P.lash); C(ex + 3, ey, P.lash);
-      };
-      const closed = (ex, ey, curveDown) => { for (let i = -2; i <= 2; i++) C(ex + i, ey + (curveDown && Math.abs(i) === 2 ? -1 : 0), P.lash); };
-      const happyEye = (ex, ey) => { C(ex - 2, ey + 1, P.lash); C(ex - 1, ey, P.lash); C(ex, ey - 1, P.lash); C(ex + 1, ey, P.lash); C(ex + 2, ey + 1, P.lash); };
-      const look = mood === "thinking" ? { dx: -1, dy: -1 } : { dx: 0, dy: 0 };
-      if (sleepy) { closed(L, EY + 1, true); closed(R, EY + 1, true); }
-      else if (blinking) { closed(L, EY, false); closed(R, EY, false); }
-      else if (mood === "happy") { happyEye(L, EY); happyEye(R, EY); }
-      else {
-        const big = mood === "listening" || mood === "alert";
-        const col = mood === "alert" ? P.red : P.eye;
-        star(L + look.dx, EY + look.dy, big, col); star(R + look.dx, EY + look.dy, big, col);
-      }
-      if (mood === "alert") { C(L - 2, EY - 3, P.lash); C(L - 1, EY - 2, P.lash); C(R + 2, EY - 3, P.lash); C(R + 1, EY - 2, P.lash); }
-      if (mood === "happy" || mood === "talking") { C(14, 23, P.blush); C(15, 23, P.blush); C(25, 23, P.blush); C(26, 23, P.blush); }
-      // nose
-      C(20, 24, tint(P.nose)); C(20, 25, tint(P.faceSh));
-      // mouth
-      const M = 27;
-      if (mood === "talking") {
-        mouthPhase = Math.floor(now / 110) % 4;
-        const open = st.speaking === false ? 0 : [0, 1, 2, 1][mouthPhase];
-        for (let x = 18; x <= 22; x++) C(x, M, P.lip);
-        if (open >= 1) { for (let x = 19; x <= 21; x++) C(x, M + 1, P.body); C(18, M + 1, P.lip); C(22, M + 1, P.lip); }
-        if (open >= 2) { for (let x = 19; x <= 21; x++) C(x, M + 2, P.body); C(18, M + 2, P.lip2); C(22, M + 2, P.lip2); }
-        for (let x = 19; x <= 21; x++) C(x, M + 1 + open, P.lip2);
-      } else if (mood === "happy") {
-        C(17, M, P.lip); C(23, M, P.lip); for (let x = 18; x <= 22; x++) C(x, M + 1, P.lip2); C(19, M, P.body); C(20, M, P.body); C(21, M, P.body);
-      } else if (mood === "alert" || mood === "listening") {
-        C(19, M, P.lip); C(20, M, P.lip); C(21, M, P.lip); C(19, M + 1, P.lip2); C(20, M + 1, P.body); C(21, M + 1, P.lip2); C(20, M + 2, P.lip2);
-      } else if (mood === "thinking") {
-        for (let x = 18; x <= 21; x++) C(x, M + 1, P.lip); C(22, M, P.lip);
-      } else {
-        // calm: closed lilac lips like the reference
-        for (let x = 18; x <= 22; x++) C(x, M, tint(P.lip)); C(20, M, tint(P.body));
-        for (let x = 19; x <= 21; x++) C(x, M + 1, tint(P.lip2));
-      }
-
-      // ── mood props ──
-      if (mood === "thinking" && anim !== "off") { const k = Math.floor(t * 3) % 4; for (let i = 0; i < 3; i++) if (i < k) { C(30 + i * 2, 5, P.white); } }
-      if (sleepy) { const k = anim === "off" ? 0 : Math.floor(t * 1.5) % 3; [[30, 8], [33, 5], [36, 2]].forEach(([x, y], i) => { if (i <= k) { C(x, y, P.white); C(x + 1, y, P.white); C(x + 1, y + 1, P.white); C(x, y + 2, P.white); C(x + 1, y + 2, P.white); } }); }
-      if (mood === "alert" && (anim === "off" || Math.floor(t * 3) % 2 === 0)) { for (let y = 2; y <= 5; y++) C(34, y, P.red); C(34, 7, P.red); }
-      if (mood === "happy" && anim !== "off") { [[5, 10], [33, 12], [8, 30], [31, 32]].forEach(([x, y], i) => { if (Math.floor(t * 4 + i) % 3 === 0) { C(x, y, P.white); C(x - 1, y, P.eyeHi); C(x + 1, y, P.eyeHi); C(x, y - 1, P.eyeHi); C(x, y + 1, P.eyeHi); } }); }
-      if (mood === "listening" && anim !== "off") { const k = Math.floor(t * 4) % 3; for (let i = 0; i <= k; i++) { C(3, 20 - i * 2, P.white); C(36, 20 - i * 2, P.white); } }
-
-      // cross-stitch grid like the reference
-      if (cell >= 5) {
-        ctx.fillStyle = P.grid;
-        for (let x = 1; x < GW; x++) ctx.fillRect(x * cell, 0, 1, GH * cell);
-        for (let y = 1; y < GH; y++) ctx.fillRect(0, y * cell, GW * cell, 1);
-      }
+      // mood props drawn over everything
+      const P = (x, y, c) => { x -= crop[0]; y -= crop[1]; if (x < 0 || y < 0 || x >= crop[2] || y >= crop[3]) return; const k = (y * crop[2] + x) * 4; px[k] = c[0]; px[k + 1] = c[1]; px[k + 2] = c[2]; };
+      if (mood === "thinking" && moving) { const k = Math.floor(t * 3) % 4; for (let i = 0; i < k; i++) P(34 + i * 2, 4, C.white); }
+      if (mood === "sleeping") { const k = moving ? Math.floor(t * 1.2) % 3 : 2; [[33, 10], [36, 7], [39, 4]].forEach(([x, y], i) => { if (i <= k) { P(x, y, C.white); P(x + 1, y, C.white); P(x + 1, y + 1, C.white); P(x, y + 2, C.white); P(x + 1, y + 2, C.white); } }); }
+      if (mood === "alert") { if (!moving || Math.floor(t * 3) % 2 === 0) { for (let y = 3; y <= 6; y++) P(37, y, C.red); P(37, 8, C.red); } P(HX + 8, HY - 3 + (moving ? Math.floor(t * 2) % 3 : 0), C.sweat); }
+      if (mood === "happy" && moving) [[12, 9], [36, 11], [10, 27], [38, 29]].forEach(([x, y], i) => { if (Math.floor(t * 4 + i) % 3 === 0) { P(x, y, C.white); P(x - 1, y, C.eyeHi); P(x + 1, y, C.eyeHi); P(x, y - 1, C.eyeHi); P(x, y + 1, C.eyeHi); } });
+      octx.putImageData(img, 0, 0);
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
     }
 
     function frame(now) {
       if (!running) return;
       const anim = (G.Helix && G.Helix.SET.anim) || "full";
-      const fps = anim === "full" ? 20 : 8;
-      if (now - last > 1000 / fps) { last = now; draw(now); }
-      if (anim === "off") setTimeout(() => G.requestAnimationFrame(frame), 500); else G.requestAnimationFrame(frame);
+      if (now - last > 1000 / (anim === "full" ? 24 : 8)) { last = now; draw(now); }
+      if (anim === "off") setTimeout(() => G.requestAnimationFrame(frame), 400); else G.requestAnimationFrame(frame);
     }
+    if (opts.still) { const sc = opts.scale || 2; canvas.width = crop[2] * sc; canvas.height = crop[3] * sc; draw(performance.now()); return { destroy() {} }; }
     const ro = new ResizeObserver(() => { size(); draw(performance.now()); });
     ro.observe(canvas.parentNode);
     size(); G.requestAnimationFrame(frame);
-    return { destroy() { running = false; ro.disconnect(); }, redraw() { draw(performance.now()); } };
+    return {
+      destroy() { running = false; ro.disconnect(); },
+      setBackground(name) { fixedBg = name && BG[name] ? name : null; bgFadeT = performance.now(); },
+      poke() { hopT = performance.now(); },
+    };
   }
 
   /* mood from real state */
@@ -196,5 +289,13 @@
     return { mood: "calm", why: "standing by" };
   }
 
-  G.HelixAvatar = { mount, moodOf };
+  /* tiny still portrait (head crop) for chat bubbles, cached per mood */
+  const faceCache = {};
+  function face(mood) {
+    if (faceCache[mood]) return faceCache[mood];
+    const c = document.createElement("canvas");
+    mount(c, { still: true, scale: 2, crop: [10, 3, 28, 28], getMood: () => ({ mood: mood || "calm" }) });
+    return (faceCache[mood] = c.toDataURL());
+  }
+  G.HelixAvatar = { mount, moodOf, face, BACKGROUNDS: Object.keys(BG) };
 })(window);

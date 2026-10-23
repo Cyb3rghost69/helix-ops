@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- HELIX page redesigned as a messenger window (HELIX.MSG): square live avatar in a contact pane, pixel chat bubbles with mini faces, presence/typing, read ticks, quick replies.
+- Helix avatar rebuilt as a fully procedural 48×48 layered pixel rig (no image files) with a separate, swappable background layer (7 scenes, BACKDROP picker).
+
 ### Added
 
 - HELIX page: animated pixel avatar with moods from real state (calm, listening, thinking, talking, happy, alert, asleep) and a chat terminal under it; `/api/chat` streaming bridge to Hermes (OpenAI-compatible API or CLI), home badge.

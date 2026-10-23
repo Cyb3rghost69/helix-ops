@@ -438,55 +438,90 @@
   const MOOD_LABEL = { calm: "CALM", listening: "LISTENING", thinking: "THINKING", talking: "TALKING", happy: "HAPPY", alert: "ALERT", sleeping: "ASLEEP" };
   const MOOD_COL = { calm: "#22d3ee", listening: "#a78bfa", thinking: "#f59e0b", talking: "#ff4fa3", happy: "#39e58c", alert: "#ff4d6d", sleeping: "#6f6880" };
 
+  const BG_OPTS = [["auto", "AUTO"], ["calm", "SUNBURST"], ["thinking", "CIRCUIT"], ["talking", "PULSE"], ["listening", "EQ"], ["happy", "SPARKLE"], ["alert", "HAZARD"], ["sleeping", "NIGHT"]];
+  const BG_KEY = "helix.avatarBg";
+  const QUICK = ["status report", "any alerts?", "what are the bots doing?", "summarise today"];
+  const hm = (t) => { const d = new Date((t || Date.now() / 1000) * 1000); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+
   function helixPage(el) {
     el.classList.add("hx-page");
     const chat = { hist: loadHist(), waiting: false, streaming: false, speaking: false, typing: false, happyUntil: 0, configured: false, lastDelta: 0, typingT: 0 };
+    let bgPick = "auto"; try { bgPick = localStorage.getItem(BG_KEY) || "auto"; } catch (e) {}
     el.innerHTML = `
-      <div class="pagehd"><div><div class="crumbs"><a href="#/">FLOOR</a> › HELIX</div><h1>HE<span>LIX</span></h1><p>Talk to Helix directly. Her face follows what she's actually doing.</p></div>
+      <div class="pagehd"><div><div class="crumbs"><a href="#/">FLOOR</a> › HELIX</div><h1>HE<span>LIX</span></h1><p>Direct line to Helix. Her face follows what she's actually doing.</p></div>
         <div class="row"><span class="tag" id="hx-mood">…</span></div></div>
       <div class="grid" style="align-items:start">
-        <div class="c5 stack hx-col" style="gap:0">
-          <section class="pn glow hx-frame"><div class="hx-avatar"><canvas id="hx-cv" aria-label="Helix avatar"></canvas></div>
-            <div class="hx-why" id="hx-why" aria-live="polite">waking up…</div></section>
-          <section class="pn hx-term"><div class="hd"><h2><span class="dot"></span>TERMINAL</h2><small id="hx-link">checking link…</small></div>
-            <div class="out" id="hx-out" role="log" aria-live="polite"></div>
-            <form id="hx-form" autocomplete="off"><span class="ps">▶</span><input class="input" id="hx-in" placeholder="message Helix…  (/clear to reset)" aria-label="Message Helix" enterkeyhint="send"><button class="btn pri" id="hx-send">SEND</button></form>
-          </section>
-        </div>
-        <div class="c7 stack" style="gap:14px">
+        <section class="c8 pn glow mw">
+          <div class="mw-bar"><span class="mw-led"></span><b>HELIX.MSG</b><small class="hide-m">// encrypted channel → hermes</small><span class="mw-linkst" id="hx-link">…</span><span class="mw-btns" aria-hidden="true"><i></i><i></i><i></i></span></div>
+          <div class="mw-body">
+            <aside class="mw-contact">
+              <div class="mw-cam"><canvas id="hx-cv" aria-label="Helix avatar"></canvas><span class="mw-live"><i></i>LIVE</span><span class="mw-mtag" id="hx-mtag"></span></div>
+              <div class="mw-id">
+                <div class="mw-name">HELIX<span>ORCHESTRATOR · HERMES</span></div>
+                <div class="mw-pres" id="hx-pres">● connecting…</div>
+                <div class="mw-why" id="hx-why" aria-live="polite"></div>
+              </div>
+              <div class="mw-bgsel"><div class="k">BACKDROP</div><div class="mw-chips" id="hx-bg">${BG_OPTS.map(([k, l]) => `<button type="button" data-bg="${k}" class="${k === bgPick ? "on" : ""}">${l}</button>`).join("")}</div></div>
+            </aside>
+            <div class="mw-chat">
+              <div class="mw-thread" id="hx-out" role="log" aria-live="polite"></div>
+              <div class="mw-quick" id="hx-quick">${QUICK.map((q) => `<button type="button">${esc(q)}</button>`).join("")}</div>
+              <form class="mw-compose" id="hx-form" autocomplete="off"><span class="ps">&gt;_</span><input class="input" id="hx-in" placeholder="message helix…" aria-label="Message Helix" enterkeyhint="send"><button class="btn pri" id="hx-send" aria-label="Send">SEND ▶</button></form>
+            </div>
+          </div>
+        </section>
+        <div class="c4 stack" style="gap:14px">
           <section class="pn" id="hx-status"><div class="hd"><h2><span class="dot"></span>STATUS</h2></div><div class="loader"><div class="blocks"><i></i><i></i><i></i><i></i></div>LOADING_</div></section>
           <section class="pn" id="hx-now"><div class="hd"><h2><span class="dot"></span>RIGHT NOW</h2></div><div class="loader"><div class="blocks"><i></i><i></i><i></i><i></i></div>LOADING_</div></section>
         </div>
       </div>`;
     const mood = () => G.HelixAvatar.moodOf(Object.assign({}, chat, { speaking: Date.now() - chat.lastDelta < 450, chatConfigured: chat.configured }));
-    // size the portrait so the terminal under it stays on screen
-    const small = matchMedia("(max-width: 900px)").matches;
-    const avH = small ? Math.max(220, Math.min(300, innerHeight * 0.36)) : Math.max(256, Math.min(520, innerHeight - 470));
-    const av = G.HelixAvatar.mount($("#hx-cv", el), { maxHeight: avH, getMood: mood });
+    const av = G.HelixAvatar.mount($("#hx-cv", el), { getMood: mood });
+    if (bgPick !== "auto") av.setBackground(bgPick);
+    $("#hx-bg", el).addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-bg]"); if (!b) return;
+      bgPick = b.dataset.bg; try { localStorage.setItem(BG_KEY, bgPick); } catch (er) {}
+      av.setBackground(bgPick === "auto" ? null : bgPick); X.bleep(880, 0.03);
+      $$("#hx-bg button", el).forEach((x) => x.classList.toggle("on", x === b));
+    });
     const out = $("#hx-out", el), inp = $("#hx-in", el), form = $("#hx-form", el);
 
+    function bubble(m) {
+      if (m.err || m.role === "sys") return `<div class="bb-sys"><span>${esc(m.content)}</span></div>`;
+      const mine = m.role === "user";
+      const body = m.pending && !m.content ? `<span class="typing"><i></i><i></i><i></i></span>` : esc(m.content) + (m.pending ? '<i class="caret"></i>' : "");
+      const face = mine ? "" : `<img class="bb-av" alt="" src="${G.HelixAvatar.face(m.pending ? mood().mood : m.mood || "calm")}">`;
+      const meta = mine ? `${hm(m.t)} <b class="${m.read ? "rd" : ""}">✓✓</b>` : `HELIX · ${hm(m.t)}`;
+      return `<div class="bb ${mine ? "out" : "in"}">${face}<div class="bb-col"><div class="bb-b">${body}</div><div class="bb-m">${meta}</div></div></div>`;
+    }
     function render() {
-      out.innerHTML = chat.hist.length ? chat.hist.map((m) => `<div class="ln ${m.role}${m.err ? " err" : ""}"><span class="who">${m.role === "user" ? "YOU" : m.err ? "SYS" : "HELIX"}</span><span class="tx">${esc(m.content)}${m.pending ? '<i class="caret"></i>' : ""}</span></div>`).join("")
-        : `<div class="ln sys"><span class="who">SYS</span><span class="tx">Say hi to Helix. Messages go to Hermes through the dashboard's chat bridge.</span></div>`;
+      const items = chat.hist.length ? chat.hist : [{ role: "sys", content: "Channel open. Say hi to Helix. Messages go to Hermes through the dashboard's chat bridge." }];
+      out.innerHTML = `<div class="bb-day"><span>TODAY</span></div>` + items.map(bubble).join("");
       out.scrollTop = out.scrollHeight;
     }
     function moodUI() {
-      const m = mood(), t = $("#hx-mood", el), w = $("#hx-why", el);
-      if (t) { t.textContent = "MOOD · " + (MOOD_LABEL[m.mood] || m.mood.toUpperCase()); t.style.color = MOOD_COL[m.mood]; t.style.borderColor = MOOD_COL[m.mood]; }
-      if (w) w.innerHTML = `<span style="color:${MOOD_COL[m.mood]}">● ${esc(MOOD_LABEL[m.mood] || m.mood)}</span> · ${esc(trunc(m.why || "", 90))}`;
+      const m = mood(), col = MOOD_COL[m.mood], lab = MOOD_LABEL[m.mood] || m.mood.toUpperCase();
+      const t = $("#hx-mood", el); if (t) { t.textContent = "MOOD · " + lab; t.style.color = col; t.style.borderColor = col; }
+      const mt = $("#hx-mtag", el); if (mt) { mt.textContent = lab; mt.style.color = col; mt.style.borderColor = col; }
+      const pres = $("#hx-pres", el);
+      if (pres) pres.innerHTML = chat.streaming ? `<span class="pink">typing<span class="dots3"></span></span>` : chat.waiting ? `<span style="color:${MOOD_COL.thinking}">thinking<span class="dots3"></span></span>`
+        : m.mood === "sleeping" ? `<span class="dim">● away</span>` : `<span class="ok">● online</span>`;
+      const w = $("#hx-why", el); if (w) w.textContent = trunc(m.why || "", 90);
     }
     async function status() {
       try {
         const s = await X.fetchJSON("/api/chat", 10000);
         chat.configured = !!s.configured;
-        $("#hx-link", el).innerHTML = s.configured ? `<span class="ok">● ${s.mode === "api" ? "HERMES API" : "HERMES CLI"}</span>` : `<span class="warn">● NOT CONNECTED</span>`;
+        $("#hx-link", el).innerHTML = s.configured ? `<span class="ok">● ${s.mode === "api" ? "API LINK" : "CLI LINK"}</span>` : `<span class="warn">● NO LINK</span>`;
         if (!s.configured && !chat.hist.some((m) => m.setup)) { chat.hist.push({ role: "assistant", err: true, setup: true, content: "Chat isn't connected yet. Give Helix the setup prompt so the dashboard can reach her (HELIX_CHAT_URL or HELIX_CHAT_CMD in ops.env).", t: Date.now() / 1000 }); render(); }
       } catch (e) { $("#hx-link", el).innerHTML = `<span class="bad">● OFFLINE</span>`; }
+      moodUI();
     }
     async function send(text) {
       if (text === "/clear") { chat.hist = []; saveHist(chat.hist); render(); return; }
       if (text === "/help") { chat.hist.push({ role: "assistant", err: true, content: "Type a message and press Enter. /clear resets this chat (Helix keeps her own memory).", t: Date.now() / 1000 }); render(); return; }
-      chat.hist.push({ role: "user", content: text, t: Date.now() / 1000 });
+      const mine = { role: "user", content: text, t: Date.now() / 1000 };
+      chat.hist.push(mine);
       const reply = { role: "assistant", content: "", pending: true, t: Date.now() / 1000 };
       chat.hist.push(reply); render(); chat.waiting = true; moodUI(); X.bleep(660, 0.04);
       const msgs = chat.hist.filter((m) => !m.err && !m.pending && m.content).slice(-20).map((m) => ({ role: m.role, content: m.content }));
@@ -505,19 +540,20 @@
             const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
             const ev = (chunk.match(/^event: (.+)$/m) || [])[1], dat = (chunk.match(/^data: (.*)$/m) || [])[1];
             let d = {}; try { d = JSON.parse(dat || "{}"); } catch (e) {}
-            if (ev === "delta" && d.text) { chat.waiting = false; chat.streaming = true; chat.lastDelta = Date.now(); reply.content += d.text; render(); }
+            if (ev === "delta" && d.text) { if (!chat.streaming) { mine.read = true; moodUI(); } chat.waiting = false; chat.streaming = true; chat.lastDelta = Date.now(); reply.content += d.text; render(); }
             else if (ev === "error") gotError = d.error + (d.detail ? " — " + d.detail : "");
           }
         }
       } catch (e) { gotError = e.message; }
       reply.pending = false; chat.waiting = false; chat.streaming = false;
-      if (gotError) { if (!reply.content) { reply.err = true; reply.content = "⚠ " + gotError; } else reply.content += "\n⚠ " + gotError; }
-      else { chat.happyUntil = Date.now() + 6000; X.bleep(1320, 0.08); }
+      if (gotError) { reply.mood = "alert"; if (!reply.content) { reply.err = true; reply.content = "⚠ " + gotError; } else reply.content += "\n⚠ " + gotError; }
+      else { reply.mood = "happy"; mine.read = true; chat.happyUntil = Date.now() + 6000; X.bleep(1320, 0.08); }
       if (!reply.content) reply.content = "(no reply)";
       saveHist(chat.hist); render(); moodUI(); $("#hx-send", el).disabled = false; inp.focus();
     }
-    form.addEventListener("submit", (e) => { e.preventDefault(); const t = inp.value.trim(); if (!t || chat.waiting || chat.streaming) return; inp.value = ""; send(t); });
+    form.addEventListener("submit", (e) => { e.preventDefault(); const t = inp.value.trim(); if (!t || chat.waiting || chat.streaming) return; inp.value = ""; chat.typing = false; send(t); });
     inp.addEventListener("input", () => { chat.typing = !!inp.value; clearTimeout(chat.typingT); chat.typingT = setTimeout(() => { chat.typing = false; moodUI(); }, 2500); moodUI(); });
+    $("#hx-quick", el).addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b || chat.waiting || chat.streaming) return; send(b.textContent); });
 
     function upd() {
       const st = D("stats") || {}, h = st.hermes || {}, tr = D("trace");
@@ -540,7 +576,7 @@
   function homeBadge(host) {
     host.innerHTML = `<a class="hx-badge" href="#/helix" data-hash="#/helix" aria-label="Talk to Helix"><span class="hx-mini"><canvas></canvas></span><span><span class="k">HELIX</span><span class="v" id="hb-mood">…</span><span class="pink" style="font:10px var(--px)">TALK ▸</span></span></a>`;
     const ctxm = {};
-    const av = G.HelixAvatar.mount($("canvas", host), { maxHeight: 128, getMood: () => G.HelixAvatar.moodOf(ctxm) });
+    const av = G.HelixAvatar.mount($("canvas", host), { crop: [8, 2, 32, 32], getMood: () => G.HelixAvatar.moodOf(ctxm) });
     const tick = setInterval(() => { const m = G.HelixAvatar.moodOf(ctxm), e = $("#hb-mood", host); if (e) { e.textContent = (MOOD_LABEL[m.mood] || m.mood); e.style.color = MOOD_COL[m.mood]; } }, 1000);
     return () => { clearInterval(tick); av.destroy(); };
   }
