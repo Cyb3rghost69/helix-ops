@@ -921,12 +921,26 @@ def git_now() -> dict:
         repo = "helix-ops"
     ahead = behind = 0
     code, ab = g(["rev-list", "--left-right", "--count", "@{upstream}...HEAD"])
+    upstream_ok = code == 0
     if code == 0 and ab.strip():
         parts = ab.split()
         if len(parts) == 2:
             behind, ahead = int(parts[0] or 0), int(parts[1] or 0)
+    days = [0] * 14
+    lcode, log = g(["log", "--since=14.days", "--format=%ad", "--date=short"])
+    if lcode == 0:
+        today = time.localtime()
+        base = time.mktime((today.tm_year, today.tm_mon, today.tm_mday, 12, 0, 0, 0, 0, -1))
+        for ln in log.splitlines():
+            try:
+                d = time.mktime(time.strptime(ln.strip(), "%Y-%m-%d")) + 12 * 3600
+            except ValueError:
+                continue
+            ago = int(round((base - d) / 86400))
+            if 0 <= ago < 14:
+                days[13 - ago] += 1
     sync = "NO REMOTE"
-    if code == 0:
+    if upstream_ok:
         if ahead and behind:
             sync = "DIVERGED"
         elif ahead:
@@ -946,6 +960,7 @@ def git_now() -> dict:
         "behind": behind,
         "sync": sync,
         "clean": len(dirty) == 0,
+        "days": days,
     }
 
 
@@ -1094,6 +1109,8 @@ def net_stats() -> dict:
                 "tx_gb": round(obytes / (1024**3), 2),
                 "rx_pkts": ipkts,
                 "tx_pkts": opkts,
+                "rx_bytes": ibytes,
+                "tx_bytes": obytes,
             }
             break
         if row:
@@ -2700,6 +2717,8 @@ class Handler(BaseHTTPRequestHandler):
             "/helix-remote.js": ("helix-remote.js", "application/javascript; charset=utf-8"),
             "/helix-matrix.css": ("helix-matrix.css", "text/css; charset=utf-8"),
             "/helix-matrix.js": ("helix-matrix.js", "application/javascript; charset=utf-8"),
+            "/helix-deck.css": ("helix-deck.css", "text/css; charset=utf-8"),
+            "/helix-deck.js": ("helix-deck.js", "application/javascript; charset=utf-8"),
         }
         if path in static:
             name, ctype = static[path]

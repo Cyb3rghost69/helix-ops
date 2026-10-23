@@ -1227,6 +1227,7 @@ async function load() {
     const bw = document.getElementById("bot-wrap");
     if (bw) bw.innerHTML = botMesh(data.bot_mesh);
     if (globalThis.HelixNoc) HelixNoc.ingestStats(data);
+    if (globalThis.HelixDeck) HelixDeck.ingestStats(data);
     fillField({ hermes: data.hermes, mesh: data.bot_mesh, ts: data.tailscale, netLabel: (data.network && data.network.egress_iface) || "" });
     fillRidge(data);
   } catch (e) {
@@ -1619,6 +1620,7 @@ document.getElementById("prompt-in")?.addEventListener("keydown", (e) => {
       if (!r.ok) return;
       const d = await r.json();
       if (globalThis.HelixNoc) HelixNoc.ingestCompute(d);
+      if (globalThis.HelixDeck) HelixDeck.ingestCompute(d);
       fillField({ compute: d });
       hist.push({ used_pct: d.used_pct, mac_pct: d.mac_pct });
       if (hist.length > MAX) hist.shift();
@@ -1790,11 +1792,11 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0491";
+    const ASSET_V = "hos0492";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;
-    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css"].forEach((href) => {
+    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-deck.css"].forEach((href) => {
       const css = document.createElement("link");
       css.rel = "stylesheet";
       css.href = p + "/" + href + "?v=" + ASSET_V;
@@ -1830,6 +1832,10 @@ async function loadClients() {
     document.body.appendChild(tjs);
     document.body.appendChild(rjs);
     document.body.appendChild(mjs);
+    const djs = document.createElement("script");
+    djs.src = p + "/helix-deck.js?v=" + ASSET_V;
+    djs.onload = function () { HelixDeck.mount(); };
+    document.body.appendChild(djs);
 
     (function fieldTerm() {
       const mq = matchMedia("(max-width: 767px)");
