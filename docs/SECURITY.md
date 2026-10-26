@@ -15,6 +15,7 @@
 - Roles: **admin** (everything, incl. ADMIN page), **operator** (use the dashboard: chat, lights, actions), **viewer** (read-only — every POST is refused with 403).
 - First run (no admin yet): the login page becomes **FIRST RUN** and creates the first admin.
 - Upgrading from the old single login: on start the server moves `HELIX_OPS_PASSWORD` from `ops.env` into a hashed **admin** account (same username/password) and deletes that line. All other `ops.env` settings are kept.
+- Locked out / forgot it: on the Mac run `python3 helix_auth.py reset-admin` in the dashboard folder. It sets **admin / admin** as a temporary login that must be changed at the first sign-in (`reset-admin <user> <temp-password>` for other values). Rename the account afterwards on ADMIN → USERS → RENAME.
 - Temporary passwords (new users, resets) are shown to the admin once and must be replaced at first sign-in.
 
 ### ADMIN page (`#/admin`)

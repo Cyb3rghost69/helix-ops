@@ -63,6 +63,18 @@ class Auth(unittest.TestCase):
         self.assertIn("user_deleted", events)
         self.assertNotIn(tmp, A.AUDIT_FILE.read_text())
 
+    def test_reset_admin_forces_change_and_rename(self):
+        A.setup_first_admin("mat", "neon-pixel-comet-42", "ip")
+        A.reset_admin()
+        r = A.login("admin", "admin", "ip")
+        self.assertTrue(r["must_change"])
+        self.assertFalse(A.complete_change(r["change_token"], "admin", "ip")["ok"])
+        done = A.complete_change(r["change_token"], "cobalt-ember-drift-9", "ip")
+        self.assertTrue(done["ok"])
+        self.assertTrue(A.admin_act("admin", "ip", {"action": "rename", "username": "admin", "new": "mat2"})["ok"])
+        self.assertEqual(A.session(done["token"])["user"], "mat2")
+        self.assertTrue(A.login("mat2", "cobalt-ember-drift-9", "ip")["ok"])
+
     def test_password_rules(self):
         self.assertIsNotNone(A.password_problem("password123"))
         self.assertIsNotNone(A.password_problem("mat-is-great-1", "mat"))

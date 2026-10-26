@@ -62,6 +62,7 @@
             <div class="ad-meta">last login ${esc(ago(x.last_login))}${x.last_ip ? " · " + esc(x.last_ip) : ""} · created ${esc((x.created || "").slice(0, 10))}</div></div>
           <select class="input ad-role" data-role="${esc(x.username)}" aria-label="Role for ${esc(x.username)}">${Object.keys(data.roles).map((r) => `<option value="${r}"${r === x.role ? " selected" : ""}>${r.toUpperCase()}</option>`).join("")}</select>
           <div class="ad-acts">
+            <button class="btn sm" data-a="rename" data-u="${esc(x.username)}">RENAME</button>
             <button class="btn sm" data-a="reset" data-u="${esc(x.username)}">RESET PW</button>
             <button class="btn sm" data-a="logout" data-u="${esc(x.username)}"${x.sessions ? "" : " disabled"}>SIGN OUT</button>
             <button class="btn sm" data-a="${x.disabled ? "enable" : "disable"}" data-u="${esc(x.username)}">${x.disabled ? "ENABLE" : "DISABLE"}</button>
@@ -126,6 +127,11 @@
       const b = e.target.closest("[data-a]"); if (!b || b.disabled) return;
       const a = b.dataset.a, u = b.dataset.u;
       if (a === "add") { addSheet(); return; }
+      if (a === "rename") {
+        X.openSheet("insp", `<form class="lt-sheet" id="ad-ren"><div class="lt-sname">RENAME ${esc(u.toUpperCase())}</div><label class="k">NEW USERNAME<input class="input" name="n" value="${esc(u)}" maxlength="32" autocapitalize="none" required></label><button class="btn pri">SAVE</button></form>`);
+        $("#ad-ren").onsubmit = async (ev) => { ev.preventDefault(); const n = ev.target.n.value.trim().toLowerCase(); const d = await post("/api/admin", { action: "rename", username: u, new: n }); if (d.ok) { X.toast("Renamed to " + n); X.closeSheet(); load(); } else X.toast("⚠ " + d.error); };
+        return;
+      }
       if (a === "delete" || a === "reset" || a === "disable") {
         if (!b.dataset.sure) { b.dataset.sure = 1; const old = b.textContent; b.textContent = "SURE?"; b.classList.add("ad-sure"); setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = old; b.classList.remove("ad-sure"); } }, 3000); return; }
       }

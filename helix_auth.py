@@ -503,6 +503,19 @@ def admin_act(actor: str, ip: str, data: dict) -> dict:
             unlock("user:" + name)
             audit("password_reset", actor, ip, target=name)
             out["temp_password"] = pw
+        elif action == "rename":
+            new = str(data.get("new") or "").strip().lower()
+            if not USER_RX.match(new):
+                return {"ok": False, "error": "username: 2–32 lowercase letters, digits, . _ -"}
+            if _find(store, new):
+                return {"ok": False, "error": "that username already exists"}
+            u["username"] = new
+            _save(store)
+            for v in _SESSIONS.values():
+                if v["user"] == name:
+                    v["user"] = new
+            audit("user_renamed", actor, ip, target=name, to=new)
+            out["username"] = new
         elif action == "logout":
             n = revoke_user(name)
             audit("sessions_revoked", actor, ip, target=name, count=n)
@@ -510,3 +523,30 @@ def admin_act(actor: str, ip: str, data: dict) -> dict:
         else:
             return {"ok": False, "error": "unknown action"}
     return out
+
+
+def reset_admin(username: str = "admin", password: str = "admin") -> None:
+    """Recovery: (re)create an admin account with a temporary password that MUST be changed at first
+    sign-in. Deliberately skips the password rules — the forced change applies them."""
+    username = username.strip().lower()
+    with _LOCK:
+        data = _load()
+        u = _find(data, username)
+        if not u:
+            u = {"username": username, "created": _now()}
+            data["users"].append(u)
+        u.update({"role": "admin", "hash": hash_password(password), "must_change": True, "disabled": False, "note": "reset from the command line"})
+        _save(data)
+    audit("admin_reset", username, "local", note="reset from the command line; must change at first sign-in")
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) >= 2 and sys.argv[1] == "reset-admin":
+        user = sys.argv[2] if len(sys.argv) > 2 else "admin"
+        pw = sys.argv[3] if len(sys.argv) > 3 else "admin"
+        migrate()
+        reset_admin(user, pw)
+        print(f"OK: '{user}' is an admin with a temporary password. It must be changed at the first sign-in.")
+    else:
+        print("usage: python3 helix_auth.py reset-admin [username] [temporary-password]")
