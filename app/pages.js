@@ -455,7 +455,7 @@
           <div class="mw-bar"><span class="mw-led"></span><b>HELIX.MSG</b><small class="hide-m">// encrypted channel → hermes</small><span class="mw-linkst" id="hx-link">…</span><span class="mw-btns" aria-hidden="true"><i></i><i></i><i></i></span></div>
           <div class="mw-body">
             <aside class="mw-contact">
-              <div class="mw-cam"><canvas id="hx-cv" aria-label="Helix avatar"></canvas><span class="mw-live"><i></i>LIVE</span><span class="mw-mtag" id="hx-mtag"></span></div>
+              <div class="mw-cam"><canvas id="hx-cv" aria-label="Helix avatar"></canvas><span class="mw-live"><i></i>LIVE</span></div>
               <div class="mw-id">
                 <div class="mw-name">HELIX<span>ORCHESTRATOR · HERMES</span></div>
                 <div class="mw-pres" id="hx-pres">● connecting…</div>
@@ -476,7 +476,7 @@
         </div>
       </div>`;
     const mood = () => G.HelixAvatar.moodOf(Object.assign({}, chat, { speaking: Date.now() - chat.lastDelta < 450, chatConfigured: chat.configured }));
-    const av = G.HelixAvatar.mount($("#hx-cv", el), { getMood: mood });
+    const av = G.HelixAvatar.mount($("#hx-cv", el), { getMood: mood, fit: $(".mw-contact", el), inset: 8, size: matchMedia("(max-width: 900px)").matches ? 120 : 0 });
     if (bgPick !== "auto") av.setBackground(bgPick);
     $("#hx-bg", el).addEventListener("click", (e) => {
       const b = e.target.closest("button[data-bg]"); if (!b) return;
@@ -502,10 +502,9 @@
     function moodUI() {
       const m = mood(), col = MOOD_COL[m.mood], lab = MOOD_LABEL[m.mood] || m.mood.toUpperCase();
       const t = $("#hx-mood", el); if (t) { t.textContent = "MOOD · " + lab; t.style.color = col; t.style.borderColor = col; }
-      const mt = $("#hx-mtag", el); if (mt) { mt.textContent = lab; mt.style.color = col; mt.style.borderColor = col; }
       const pres = $("#hx-pres", el);
-      if (pres) pres.innerHTML = chat.streaming ? `<span class="pink">typing<span class="dots3"></span></span>` : chat.waiting ? `<span style="color:${MOOD_COL.thinking}">thinking<span class="dots3"></span></span>`
-        : m.mood === "sleeping" ? `<span class="dim">● away</span>` : `<span class="ok">● online</span>`;
+      if (pres) pres.innerHTML = `<span class="mw-mood" style="color:${col};border-color:${col}">${lab}</span> ` + (chat.streaming ? `<span class="pink">typing<span class="dots3"></span></span>` : chat.waiting ? `<span style="color:${MOOD_COL.thinking}">thinking<span class="dots3"></span></span>`
+        : m.mood === "sleeping" ? `<span class="dim">● away</span>` : `<span class="ok">● online</span>`);
       const w = $("#hx-why", el); if (w) w.textContent = trunc(m.why || "", 90);
     }
     async function status() {

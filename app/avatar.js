@@ -284,11 +284,13 @@
     const t0 = performance.now();
 
     function size() {
-      const box = canvas.parentNode.getBoundingClientRect();
-      const want = Math.max(crop[2], Math.floor(Math.min(box.width || 300, opts.size || 9999)));
-      const dpr = Math.min(3, G.devicePixelRatio || 1), hgt = Math.round(want * crop[3] / crop[2]);
-      canvas.style.width = want + "px"; canvas.style.height = hgt + "px";
-      canvas.width = Math.round(want * dpr); canvas.height = Math.round(hgt * dpr);
+      // whole-number pixel scaling only, so every sprite pixel is the same size on screen
+      const fit = opts.fit || canvas.parentNode, cs = getComputedStyle(fit);
+      const avail = Math.min(fit.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0) - (opts.inset || 0), opts.size || 9999) || 300;
+      const dpr = Math.min(3, G.devicePixelRatio || 1), sc = Math.max(1, Math.floor((avail * dpr) / crop[2]));
+      canvas.width = sc * crop[2]; canvas.height = sc * crop[3];
+      canvas.style.width = canvas.width / dpr + "px"; canvas.style.height = canvas.height / dpr + "px";
+      if (opts.fit) { canvas.parentNode.style.width = canvas.style.width; canvas.parentNode.style.height = canvas.style.height; }
     }
     function draw(now) {
       const anim = opts.still ? "off" : (G.Helix && G.Helix.SET.anim) || "full", moving = anim !== "off";
@@ -324,7 +326,7 @@
     }
     if (opts.still) { const sc = opts.scale || 2; canvas.width = crop[2] * sc; canvas.height = crop[3] * sc; draw(performance.now()); return { destroy() {}, setBackground() {}, poke() {} }; }
     const ro = new ResizeObserver(() => { size(); draw(performance.now()); });
-    ro.observe(canvas.parentNode);
+    ro.observe(opts.fit || canvas.parentNode);
     size(); G.requestAnimationFrame(frame);
     return {
       destroy() { running = false; ro.disconnect(); },
