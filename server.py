@@ -3245,6 +3245,7 @@ class Handler(BaseHTTPRequestHandler):
             "/app/mesh.js": ("app/mesh.js", "application/javascript; charset=utf-8"),
             "/app/avatar.js": ("app/avatar.js", "application/javascript; charset=utf-8"),
             "/app/pages.js": ("app/pages.js", "application/javascript; charset=utf-8"),
+            "/app/lights.js": ("app/lights.js", "application/javascript; charset=utf-8"),
         }
         if path in static:
             name, ctype = static[path]
@@ -3252,6 +3253,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/chat":
             self._send(200, json.dumps(chat_status()).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/lights":
+            from helix_lights import snapshot as lights_snapshot
+            self._send(200, json.dumps(lights_snapshot(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
             return
         if path == "/api/mesh":
             MESH.ensure()
@@ -3488,6 +3493,16 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/mindscape/seed":
             body = json.dumps(seed_ms_graph(force=True), ensure_ascii=False).encode()
+            self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path == "/api/lights":
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                data = json.loads(self.rfile.read(max(0, min(n, 4000))).decode() or "{}")
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                data = {}
+            from helix_lights import act as lights_act
+            body = json.dumps(lights_act(data if isinstance(data, dict) else {}), ensure_ascii=False).encode()
             self._send(200, body, "application/json; charset=utf-8")
             return
         if path == "/api/chat":

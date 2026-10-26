@@ -149,6 +149,7 @@
     more: "M4 11h4v2H4zM10 11h4v2h-4zM16 11h4v2h-4z",
     chat: "M3 4h18v12H9l-4 4v-4H3zM7 8h10v2H7zM7 11h7v2H7z",
     menu: "M3 5h18v2H3zM3 11h18v2H3zM3 17h18v2H3z",
+    bulb: "M9 2h6v2h2v2h2v6h-2v2h-2v3H9v-3H7v-2H5V6h2V4h2zM9 19h6v2H9z",
   };
   const icon = (k) => `<svg viewBox="0 0 24 24" shape-rendering="crispEdges" aria-hidden="true"><path d="${IC[k] || IC.more}" fill="currentColor" stroke="${k === "mesh" ? "currentColor" : "none"}" stroke-width="${k === "mesh" ? 1.6 : 0}"/></svg>`;
 
@@ -332,6 +333,7 @@
     { id: "agents", label: "AGENTS", icon: "agents", hash: "#/agents" },
     { id: "trace", label: "TRACE", icon: "trace", hash: "#/trace" },
     { id: "systems", label: "SYSTEMS", icon: "systems", hash: "#/systems" },
+    { id: "lights", label: "LIGHTS", icon: "bulb", hash: "#/lights" },
     { id: "memory", label: "MEMORY", icon: "memory", hash: "#/memory" },
     { id: "settings", label: "SETTINGS", icon: "settings", hash: "#/settings" },
   ];
@@ -401,7 +403,7 @@
     });
     document.addEventListener("keydown", (e) => {
       if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
-      const i = "12345678".indexOf(e.key); if (i >= 0 && ROUTES[i]) go(ROUTES[i].hash);
+      const i = "123456789".indexOf(e.key); if (i >= 0 && ROUTES[i]) go(ROUTES[i].hash);
       if (e.key === "Escape") closeSheet();
     });
     setInterval(tickClock, 1000); tickClock();
@@ -430,7 +432,7 @@
     const al = agentList(), nm = $("#nb-agents"); if (nm && al.length) { nm.hidden = false; nm.textContent = al.filter((a) => a.online && !["user", "telegram"].includes(a.id)).length + "/" + al.filter((a) => !["user", "telegram"].includes(a.id)).length; }
     const tr = D("trace"), nt = $("#nb-trace"); if (nt && tr) { nt.hidden = false; nt.textContent = tr.live ? "LIVE" : "IDLE"; nt.classList.toggle("alert", !!tr.live); }
     const ms = $("#nb-mesh"); if (ms) { const n = (store.mesh.unsupported ? talkItems() : store.mesh.events).filter((m) => m.t && Date.now() / 1000 - m.t < 3600).length; ms.hidden = !n; ms.textContent = n; }
-    const f = $("#navfoot"); if (f) f.innerHTML = `<b>HOS://TKY-06</b><br>${st ? `scan ${esc(st.collect_ms)}ms · age ${esc(st.cache_age_s ?? 0)}s` : "connecting…"}<br>keys 1–8 switch pages`;
+    const f = $("#navfoot"); if (f) f.innerHTML = `<b>HOS://TKY-06</b><br>${st ? `scan ${esc(st.collect_ms)}ms · age ${esc(st.cache_age_s ?? 0)}s` : "connecting…"}<br>keys 1–9 switch pages`;
   }
   function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2200); }
 

@@ -21,7 +21,7 @@
 <noscript><p style="padding:24px">HELIX/OPS needs JavaScript. <a href="legacy">Open the classic dashboard</a>.</p></noscript>
 <script>
   (function () {
-    var V = "hos1010";
+    var V = "hos1100";
     window.HELIX_ASSET_V = V;
     var P = (location.pathname === "/ops" || location.pathname.indexOf("/ops/") === 0) ? "/ops" : "";
     function icon(rel, href) { var l = document.createElement("link"); l.rel = rel; l.href = P + href + "?v=" + V; document.head.appendChild(l); }
@@ -31,7 +31,7 @@
       window.addEventListener("load", function () { navigator.serviceWorker.register(P + "/sw.js", { scope: P + "/" }).catch(function () {}); });
     }
     var css = document.createElement("link"); css.rel = "stylesheet"; css.href = P + "/app/arcade.css?v=" + V; document.head.appendChild(css);
-    var files = ["/app/core.js", "/app/mesh.js", "/app/avatar.js", "/app/pages.js"], i = 0;
+    var files = ["/app/core.js", "/app/mesh.js", "/app/avatar.js", "/app/pages.js", "/app/lights.js"], i = 0;
     (function next() {
       if (i >= files.length) { window.Helix.start(); return; }
       var s = document.createElement("script"); s.src = P + files[i++] + "?v=" + V; s.onload = next;

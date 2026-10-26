@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- LIGHTS page: WiZ bulbs by room (Bedroom, Blaine's Room, Violet's Room, Unassigned) with drag-and-drop to move bulbs between rooms, drop-on-bulb to swap, per-bulb and per-room controls, scenes, blink-to-identify, add/rename/reorder/delete rooms. `helix_lights.py` restored from the lighting branch with new actions.
+
 - Helix avatar redrawn as a symmetric 16-bit (SNES-style) sprite with outline, dithered shading and expression sprites; background is now a parallax scene (sky, sun/moon, mountains, city, floor grid) whose colours fade with her mood. BACKDROP chips renamed SUNSET/MATRIX/NEON/OCEAN/DAYLIGHT/ALARM/NIGHT.
 
 - HELIX page redesigned as a messenger window (HELIX.MSG): square live avatar in a contact pane, pixel chat bubbles with mini faces, presence/typing, read ticks, quick replies.

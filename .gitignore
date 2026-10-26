@@ -44,3 +44,5 @@ verify-*.png
 # Unraid runner
 .helix-ops.pid
 helix-ops.log
+helix-lights.json
+helix-lights.tmp
