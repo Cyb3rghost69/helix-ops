@@ -46,3 +46,6 @@ verify-*.png
 helix-ops.log
 helix-lights.json
 helix-lights.tmp
+helix-users.json
+helix-users.tmp
+ops.tmp

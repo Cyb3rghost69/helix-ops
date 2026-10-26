@@ -295,7 +295,7 @@
     function draw(now) {
       const anim = opts.still ? "off" : (G.Helix && G.Helix.SET.anim) || "full", moving = anim !== "off";
       const st = (opts.getMood && opts.getMood()) || { mood: "calm" };
-      const mood = PALRGB[st.mood] ? st.mood : "calm", t = moving ? (now - t0) / 1000 : 0;
+      const mood = PALRGB[st.mood] ? st.mood : "calm", t = moving ? Math.max(0, (now - t0) / 1000) : 0;
       if (curMood && mood !== curMood) hopT = now;
       curMood = mood;
       if (moving && mood !== "sleeping" && now > blinkAt) { blinkUntil = now + 120; blinkAt = now + 2200 + Math.random() * 3800; }

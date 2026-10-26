@@ -71,9 +71,7 @@ GRAPH_FILE = HERMES_HOME / "mindscape" / "graph.json"
 PROMPT_LOG = ROOT / "prompts.jsonl"
 HERDR = os.path.expanduser("~/.local/bin/herdr")
 AUTH_FILE = ROOT / "ops.env"
-SESSION_TTL = 12 * 3600
-_SESSIONS: dict[str, dict] = {}
-_SESS_LOCK = threading.Lock()
+SESSION_TTL = 7 * 86400   # cookie lifetime; the server also enforces 12 h idle / 7 d absolute
 SECRETISH = re.compile(r"(password|passwd|token|api[_-]?key|secret|r3dbull)", re.I)
 _FLEET_CPU: dict = {"hosts": [], "t": 0.0}
 _AGENTS_CACHE: dict = {"t": 0.0, "data": None}
@@ -130,35 +128,22 @@ def _parse_ops_env(text: str) -> dict[str, str]:
     return out
 
 
+import helix_auth as AUTH  # noqa: E402  (users, hashing, sessions, lockouts, audit)
+
+
 def ensure_ops_auth() -> None:
-    if AUTH_FILE.exists():
-        AUTH_FILE.chmod(0o600)
-        return
-    AUTH_FILE.write_text(
-        "# Helix ops login — never paste this in Telegram\n"
-        "HELIX_OPS_USER=helix\n"
-        "HELIX_OPS_PASSWORD=\n"
-        "HELIX_OPS_SETUP=1\n",
-        encoding="utf-8",
-    )
+    if not AUTH_FILE.exists():
+        fd = os.open(AUTH_FILE, os.O_WRONLY | os.O_CREAT, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write("# HELIX/OPS settings — never paste this in Telegram. Logins live (hashed) in helix-users.json.\n")
     AUTH_FILE.chmod(0o600)
+    AUTH.migrate()
 
 
 def _ops_env() -> dict[str, str]:
-    ensure_ops_auth()
+    if not AUTH_FILE.exists():
+        return {}
     return _parse_ops_env(AUTH_FILE.read_text(encoding="utf-8"))
-
-
-def _ops_creds() -> tuple[str, str]:
-    env = _ops_env()
-    return env.get("HELIX_OPS_USER") or "helix", env.get("HELIX_OPS_PASSWORD") or ""
-
-
-def setup_needed() -> bool:
-    env = _ops_env()
-    if (env.get("HELIX_OPS_SETUP") or "").strip() in ("1", "true", "yes"):
-        return True
-    return not (env.get("HELIX_OPS_PASSWORD") or "")
 
 
 def auth_open() -> bool:
@@ -166,61 +151,20 @@ def auth_open() -> bool:
     return v in ("off", "0", "false", "open", "disabled")
 
 
-def write_ops_password(user: str, password: str) -> None:
-    user = (user or "helix").strip() or "helix"
-    auth = (_ops_env().get("HELIX_OPS_AUTH") or "").strip()
-    extra = f"HELIX_OPS_AUTH={auth}\n" if auth else ""
-    AUTH_FILE.write_text(
-        "# Helix ops login — never paste this in Telegram\n"
-        f"HELIX_OPS_USER={user}\n"
-        f"HELIX_OPS_PASSWORD={password}\n"
-        "HELIX_OPS_SETUP=0\n"
-        + extra,
-        encoding="utf-8",
-    )
-    AUTH_FILE.chmod(0o600)
-
-
-def check_login(user: str, password: str) -> bool:
-    want_user, want_pw = _ops_creds()
-    if not want_pw:
-        return False
-    u_ok = hmac.compare_digest(hashlib.sha256(user.encode("utf-8")).digest(), hashlib.sha256(want_user.encode("utf-8")).digest())
-    p_ok = hmac.compare_digest(hashlib.sha256(password.encode("utf-8")).digest(), hashlib.sha256(want_pw.encode("utf-8")).digest())
-    return u_ok and p_ok
-
-
-def new_session(user: str) -> str:
-    tok = secrets.token_urlsafe(32)
-    with _SESS_LOCK:
-        _SESSIONS[tok] = {"user": user, "exp": time.time() + SESSION_TTL}
-    return tok
-
-
-def drop_session(tok: str) -> None:
-    with _SESS_LOCK:
-        _SESSIONS.pop(tok, None)
-
-
-def session_user(handler: BaseHTTPRequestHandler) -> str | None:
-    raw = handler.headers.get("Cookie") or ""
+def _cookie_token(handler: BaseHTTPRequestHandler) -> str | None:
     jar = SimpleCookie()
     try:
-        jar.load(raw)
+        jar.load(handler.headers.get("Cookie") or "")
     except Exception:
         return None
-    morsel = jar.get("helix_ops")
-    if not morsel:
-        return None
-    tok = morsel.value
-    now = time.time()
-    with _SESS_LOCK:
-        rec = _SESSIONS.get(tok)
-        if not rec or rec["exp"] < now:
-            _SESSIONS.pop(tok, None)
-            return None
-        rec["exp"] = now + SESSION_TTL
-        return rec["user"]
+    m = jar.get("helix_ops")
+    return m.value if m else None
+
+
+def session_rec(handler: BaseHTTPRequestHandler) -> dict | None:
+    if auth_open():
+        return {"user": "local", "role": "admin", "sid": "", "open": True}
+    return AUTH.session(_cookie_token(handler))
 
 
 def http_code(url: str, timeout: float = 2.0) -> dict:
@@ -3096,10 +3040,40 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         if not any(k.lower() == "cache-control" for k, _ in (extra or [])):
             self.send_header("Cache-Control", "no-store")
+        self._sec_headers()
         for k, v in extra or []:
             self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
+
+    def _sec_headers(self) -> None:
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "same-origin")
+        self.send_header("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'")
+        self.send_header("Permissions-Policy", "camera=(), geolocation=(), microphone=(self)")
+        if self._https():
+            self.send_header("Strict-Transport-Security", "max-age=31536000")
+
+    def _ip(self) -> str:
+        ip = self.client_address[0] if self.client_address else ""
+        if ip in ("127.0.0.1", "::1"):   # behind Tailscale serve / a local proxy: trust its forwarded address
+            fwd = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+            if fwd and len(fwd) < 64:
+                return fwd
+        return ip
+
+    def _same_origin(self) -> bool:
+        """Block cross-site form/fetch POSTs (CSRF): Origin, else Referer, must match our Host."""
+        host = (self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "").lower()
+        src = self.headers.get("Origin") or self.headers.get("Referer") or ""
+        if not src:
+            return True          # non-browser clients (curl, webhooks) send neither
+        try:
+            from urllib.parse import urlparse
+            return urlparse(src).netloc.lower() == host
+        except ValueError:
+            return False
 
     def _prefix(self) -> str:
         raw = self.path.split("?", 1)[0]
@@ -3123,18 +3097,14 @@ class Handler(BaseHTTPRequestHandler):
         host = (self.headers.get("Host") or "").lower()
         return xf == "https" or "ts.net" in host
 
-    def _login_page(self, err: str = "") -> bytes:
-        setup = setup_needed()
-        pfx = self._prefix()
-        html = (ROOT / "login.html").read_text(encoding="utf-8")
-        html = html.replace("__PREFIX__", pfx or "")
-        html = html.replace("__ERR__", err)
-        html = html.replace("__TITLE__", "SET PASSWORD" if setup else "LOGIN")
-        html = html.replace("__WELCOME__", "SET YOUR PASSWORD" if setup else "ようこそ · AUTHORIZED PERSONNEL")
-        html = html.replace("__HINT__", "Choose a login and password on this page. It stays on the Mini.")
-        html = html.replace("__SETUP_DISP__", "block" if setup else "none")
-        html = html.replace("__LOGIN_DISP__", "none" if setup else "block")
-        return html.encode("utf-8")
+    def _login_page(self, err: str = "", mode: str = "", user: str = "", token: str = "") -> bytes:
+        import html as _html
+        mode = mode or ("setup" if AUTH.setup_needed() else "login")
+        page = (ROOT / "login.html").read_text(encoding="utf-8")
+        for k, v in (("__PREFIX__", self._prefix() or ""), ("__ERR__", _html.escape(err)), ("__MODE__", mode),
+                     ("__USER__", _html.escape(user, quote=True)), ("__TOKEN__", _html.escape(token, quote=True)), ("__MINPW__", str(AUTH.MIN_PW))):
+            page = page.replace(k, v)
+        return page.encode("utf-8")
 
     def _cookie(self, token: str | None) -> str:
         extra = "; Secure" if self._https() else ""
@@ -3145,7 +3115,7 @@ class Handler(BaseHTTPRequestHandler):
     def _need_auth(self, path: str, method: str) -> bool:
         if auth_open():
             return False
-        if path in ("/login", "/logout", "/health", "/sw.js", "/manifest.webmanifest", "/helix-arcade-mark.svg"):
+        if path in ("/login", "/logout", "/health", "/sw.js", "/manifest.webmanifest", "/helix-arcade-mark.svg", "/app/avatar.js"):
             return False
         if path.startswith(("/app/icons/", "/app/fonts/")):   # PWA install assets: no data, must load without a cookie
             return False
@@ -3154,16 +3124,29 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def _gate(self, path: str, method: str) -> bool:
+        if method == "POST" and not self._same_origin():
+            self._send(403, b'{"error":"cross-site request blocked"}', "application/json; charset=utf-8")
+            return False
         if not self._need_auth(path, method):
+            self._who = session_rec(self) if auth_open() else None
             return True
-        if session_user(self):
-            return True
+        rec = session_rec(self)
         pfx = self._prefix()
-        if path.startswith("/api/"):
-            self._send(401, b'{"error":"login"}', "application/json; charset=utf-8")
-        else:
-            self._send(302, b"", "text/plain", [("Location", f"{pfx}/login" if pfx else "/login")])
-        return False
+        if not rec:
+            if path.startswith("/api/"):
+                self._send(401, b'{"error":"login"}', "application/json; charset=utf-8")
+            else:
+                self._send(302, b"", "text/plain", [("Location", f"{pfx}/login" if pfx else "/login")])
+            return False
+        self._who = rec
+        role = rec.get("role")
+        if path.startswith("/api/admin") and role != "admin":
+            self._send(403, b'{"error":"admins only"}', "application/json; charset=utf-8")
+            return False
+        if method == "POST" and role == "viewer" and path not in ("/api/me/password",):
+            self._send(403, b'{"error":"read-only account"}', "application/json; charset=utf-8")
+            return False
+        return True
 
     def do_GET(self):
         raw = self.path
@@ -3177,15 +3160,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, self._login_page(), "text/html; charset=utf-8")
             return
         if path == "/logout":
-            rawc = self.headers.get("Cookie") or ""
-            jar = SimpleCookie()
-            try:
-                jar.load(rawc)
-            except Exception:
-                pass
-            tok = jar.get("helix_ops")
-            if tok:
-                drop_session(tok.value)
+            rec = AUTH.session(_cookie_token(self))
+            if rec:
+                AUTH.audit("logout", rec["user"], self._ip())
+            AUTH.drop_session(_cookie_token(self))
             self._send(302, b"", "text/plain", [("Location", f"{pfx}/login" if pfx else "/login"), ("Set-Cookie", self._cookie(None))])
             return
         if not self._gate(path, "GET"):
@@ -3246,6 +3224,7 @@ class Handler(BaseHTTPRequestHandler):
             "/app/avatar.js": ("app/avatar.js", "application/javascript; charset=utf-8"),
             "/app/pages.js": ("app/pages.js", "application/javascript; charset=utf-8"),
             "/app/lights.js": ("app/lights.js", "application/javascript; charset=utf-8"),
+            "/app/admin.js": ("app/admin.js", "application/javascript; charset=utf-8"),
         }
         if path in static:
             name, ctype = static[path]
@@ -3253,6 +3232,21 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/chat":
             self._send(200, json.dumps(chat_status()).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/me":
+            w = getattr(self, "_who", None) or {}
+            u = next((x for x in AUTH.public_users() if x["username"] == w.get("user")), {})
+            self._send(200, json.dumps({"user": w.get("user"), "role": w.get("role"), "auth_open": auth_open(), "sid": w.get("sid"),
+                                        "pw_changed": u.get("pw_changed"), "last_login": u.get("last_login"), "roles": AUTH.ROLE_INFO}).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/admin":
+            w = getattr(self, "_who", None) or {}
+            body = {"users": AUTH.public_users(), "sessions": AUTH.sessions_list(), "lockouts": AUTH.lockouts(), "audit": AUTH.audit_tail(150),
+                    "roles": AUTH.ROLE_INFO, "me": w.get("user"), "my_sid": w.get("sid"), "auth_open": auth_open(), "https": self._https(),
+                    "policy": {"min_password": AUTH.MIN_PW, "idle_hours": AUTH.IDLE_TTL // 3600, "max_days": AUTH.ABS_TTL // 86400,
+                               "lock_after": AUTH.MAX_FAILS_IP, "lock_minutes": AUTH.LOCK_SECONDS // 60,
+                               "hash": "scrypt" if hasattr(hashlib, "scrypt") else "pbkdf2-sha256"}}
+            self._send(200, json.dumps(body).encode(), "application/json; charset=utf-8")
             return
         if path == "/api/lights":
             from helix_lights import snapshot as lights_snapshot
@@ -3456,44 +3450,80 @@ class Handler(BaseHTTPRequestHandler):
         path = self._canon()
         pfx = self._prefix()
         if path == "/login":
+            if not self._same_origin():
+                self._send(403, b"cross-site login blocked", "text/plain")
+                return
             n = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(max(0, min(n, 4000))).decode("utf-8", "replace")
             form = parse_qs(raw)
-            user = (form.get("user") or [""])[0]
-            password = (form.get("password") or [""])[0]
-            password2 = (form.get("password2") or [""])[0]
-            if setup_needed():
-                if len(password) < 8:
-                    self._send(400, self._login_page("PASSWORD TOO SHORT (8+)"), "text/html; charset=utf-8")
-                    return
+            f = lambda k: (form.get(k) or [""])[0]  # noqa: E731
+            user, password, password2, mode = f("user").strip().lower(), f("password"), f("password2"), f("mode")
+            ip, ua = self._ip(), self.headers.get("User-Agent") or ""
+            home = f"{pfx}/" if pfx else "/"
+            def ok(tok: str) -> None:
+                self._send(303, b"", "text/plain", [("Location", home), ("Set-Cookie", self._cookie(tok))])
+            if mode == "change":
                 if password != password2:
-                    self._send(400, self._login_page("PASSWORDS DO NOT MATCH"), "text/html; charset=utf-8")
+                    self._send(400, self._login_page("PASSWORDS DO NOT MATCH", "change", user, f("token")), "text/html; charset=utf-8")
                     return
-                write_ops_password(user, password)
-                tok = new_session(user.strip() or "helix")
-                self._send(
-                    302,
-                    b"",
-                    "text/plain",
-                    [("Location", f"{pfx}/" if pfx else "/"), ("Set-Cookie", self._cookie(tok))],
-                )
+                r = AUTH.complete_change(f("token"), password, ip, ua)
+                if r["ok"]:
+                    ok(r["token"])
+                else:
+                    self._send(400, self._login_page(r["error"], "change", user, f("token")), "text/html; charset=utf-8")
                 return
-            if check_login(user, password):
-                tok = new_session(user)
-                self._send(
-                    302,
-                    b"",
-                    "text/plain",
-                    [("Location", f"{pfx}/" if pfx else "/"), ("Set-Cookie", self._cookie(tok))],
-                )
+            if AUTH.setup_needed():
+                if password != password2:
+                    self._send(400, self._login_page("PASSWORDS DO NOT MATCH", "setup", user), "text/html; charset=utf-8")
+                    return
+                r = AUTH.setup_first_admin(user, password, ip, ua)
+                if r["ok"]:
+                    ok(r["token"])
+                else:
+                    self._send(400, self._login_page(r["error"], "setup", user), "text/html; charset=utf-8")
                 return
-            self._send(401, self._login_page("ACCESS DENIED"), "text/html; charset=utf-8")
+            r = AUTH.login(user, password, ip, ua)
+            if r.get("must_change"):
+                self._send(200, self._login_page("", "change", user, r["change_token"]), "text/html; charset=utf-8")
+                return
+            if r.get("ok"):
+                ok(r["token"])
+                return
+            if r.get("error") == "locked":
+                self._send(429, self._login_page(f"TOO MANY TRIES — LOCKED FOR {r['wait'] // 60 + 1} MIN", "login", user), "text/html; charset=utf-8")
+                return
+            time.sleep(0.4)
+            self._send(401, self._login_page("ACCESS DENIED", "login", user), "text/html; charset=utf-8")
             return
         if not self._gate(path, "POST"):
             return
         if path == "/api/mindscape/seed":
             body = json.dumps(seed_ms_graph(force=True), ensure_ascii=False).encode()
             self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path in ("/api/me/password", "/api/admin"):
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                data = json.loads(self.rfile.read(max(0, min(n, 4000))).decode() or "{}")
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                data = {}
+            data = data if isinstance(data, dict) else {}
+            w = getattr(self, "_who", None) or {}
+            if path == "/api/me/password":
+                if w.get("open"):
+                    out = {"ok": False, "error": "auth is off (HELIX_OPS_AUTH=off) — there is no account to change"}
+                else:
+                    out = AUTH.change_own_password(w["user"], str(data.get("current") or ""), str(data.get("new") or ""), self._ip(), w.get("sid", ""))
+            elif data.get("action") == "revoke_session":
+                out = {"ok": AUTH.revoke_sid(str(data.get("sid") or ""))}
+                AUTH.audit("session_revoked", w.get("user", ""), self._ip(), sid=str(data.get("sid") or "")[:12])
+            elif data.get("action") == "unlock":
+                AUTH.unlock(str(data.get("key") or ""))
+                AUTH.audit("unlocked", w.get("user", ""), self._ip(), key=str(data.get("key") or "")[:80])
+                out = {"ok": True}
+            else:
+                out = AUTH.admin_act(w.get("user", ""), self._ip(), data)
+            self._send(200 if out.get("ok") else 400, json.dumps(out).encode(), "application/json; charset=utf-8")
             return
         if path == "/api/lights":
             n = int(self.headers.get("Content-Length") or 0)

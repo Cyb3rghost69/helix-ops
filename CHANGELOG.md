@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Accounts: multi-user login with admin/operator/viewer roles, salted scrypt password hashes (old plaintext `HELIX_OPS_PASSWORD` migrated automatically, other ops.env settings kept), lockouts, CSRF origin check, security headers, audit log. ADMIN page for users, sessions, security log and password changes. Arcade-styled login with Helix. See docs/SECURITY.md.
+- Fix: setting the password no longer rewrites ops.env (it used to wipe chat keys).
+
 - LIGHTS page: WiZ bulbs by room (Bedroom, Blaine's Room, Violet's Room, Unassigned) with drag-and-drop to move bulbs between rooms, drop-on-bulb to swap, per-bulb and per-room controls, scenes, blink-to-identify, add/rename/reorder/delete rooms. `helix_lights.py` restored from the lighting branch with new actions.
 
 - Helix avatar redrawn as a symmetric 16-bit (SNES-style) sprite with outline, dithered shading and expression sprites; background is now a parallax scene (sky, sun/moon, mountains, city, floor grid) whose colours fade with her mood. BACKDROP chips renamed SUNSET/MATRIX/NEON/OCEAN/DAYLIGHT/ALARM/NIGHT.
