@@ -438,7 +438,7 @@
   const MOOD_LABEL = { calm: "CALM", listening: "LISTENING", thinking: "THINKING", talking: "TALKING", happy: "HAPPY", alert: "ALERT", sleeping: "ASLEEP" };
   const MOOD_COL = { calm: "#22d3ee", listening: "#a78bfa", thinking: "#f59e0b", talking: "#ff4fa3", happy: "#39e58c", alert: "#ff4d6d", sleeping: "#6f6880" };
 
-  const BG_OPTS = [["auto", "AUTO"], ["calm", "SUNBURST"], ["thinking", "CIRCUIT"], ["talking", "PULSE"], ["listening", "EQ"], ["happy", "SPARKLE"], ["alert", "HAZARD"], ["sleeping", "NIGHT"]];
+  const BG_OPTS = [["auto", "AUTO"], ["calm", "SUNSET"], ["thinking", "MATRIX"], ["talking", "NEON"], ["listening", "OCEAN"], ["happy", "DAYLIGHT"], ["alert", "ALARM"], ["sleeping", "NIGHT"]];
   const BG_KEY = "helix.avatarBg";
   const QUICK = ["status report", "any alerts?", "what are the bots doing?", "summarise today"];
   const hm = (t) => { const d = new Date((t || Date.now() / 1000) * 1000); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };

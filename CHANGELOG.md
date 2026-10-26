@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Helix avatar redrawn as a symmetric 16-bit (SNES-style) sprite with outline, dithered shading and expression sprites; background is now a parallax scene (sky, sun/moon, mountains, city, floor grid) whose colours fade with her mood. BACKDROP chips renamed SUNSET/MATRIX/NEON/OCEAN/DAYLIGHT/ALARM/NIGHT.
+
 - HELIX page redesigned as a messenger window (HELIX.MSG): square live avatar in a contact pane, pixel chat bubbles with mini faces, presence/typing, read ticks, quick replies.
 - Helix avatar rebuilt as a fully procedural 48×48 layered pixel rig (no image files) with a separate, swappable background layer (7 scenes, BACKDROP picker).
 
