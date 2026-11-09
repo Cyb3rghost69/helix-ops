@@ -514,6 +514,13 @@
         <div class="ft-k">SCANNING_</div>
       </div>
     </button>
+    <button type="button" class="ft-card wide" id="ft-shield">
+      <div class="ft-k">RAGNAR SHIELD · 防御網</div>
+      <div id="ft-shield-body">
+        <div class="ft-v">SHIELD</div>
+        <div class="ft-k">NO SCAN YET</div>
+      </div>
+    </button>
     <button type="button" class="ft-card wide ft-trace" id="ft-trace">
       <div class="ft-k">HERMES TRACE · 思考追跡</div>
       <div id="ft-trace-body">
@@ -553,6 +560,7 @@
   <button type="button" data-tab="trace">[05] TRACE</button>
   <button type="button" data-tab="remote">[06] REMOTE</button>
   <button type="button" data-tab="matrix">[07] MEMORY</button>
+  <button type="button" data-tab="shield">[08] SHIELD</button>
 </nav>
 <div id="pane-ops">
 <section id="noc" class="noc">
@@ -773,6 +781,51 @@
     <div class="mm-grid" id="mm-grid"></div>
     <div class="mm-detail" id="mm-detail"></div>
     <div class="mm-act"><button type="button" id="mm-rescan">[ RESCAN MEMORY ]</button></div>
+  </section>
+</div>
+<div id="pane-shield" hidden>
+  <button type="button" class="trace-fs-close" id="sh-close">CLOSE SHIELD</button>
+  <section class="sh">
+    <div class="sh-head">
+      <div>RAGNAR SHIELD<br><small>LAN EXPOSURE AUDIT · 防御網監視 · SEC://TKY-06 · NETSERV / TRANSCRYPT / WEBI / UNIFI</small></div>
+      <span id="sh-cap">SCOPE —</span>
+    </div>
+    <div class="sh-top">
+      <div class="sh-box sh-score">
+        <div class="ident">DEFENSE INTEGRITY · 防御指数</div>
+        <div class="sh-num"><b id="sh-score">--</b><span id="sh-grade">·</span></div>
+        <div class="sh-bar" id="sh-bar"><i></i></div>
+        <div class="sh-sev" id="sh-sev"></div>
+      </div>
+      <div class="sh-box">
+        <div class="ident">SCAN CONTROL · 走査</div>
+        <pre class="sh-ctl" id="sh-ctl">NO SCAN YET</pre>
+        <div class="sh-prog" id="sh-prog" hidden><i></i></div>
+        <div class="sh-act">
+          <button type="button" id="sh-run">[ RUN SCAN ]</button>
+          <button type="button" id="sh-showmuted">[ SHOW MUTED ]</button>
+        </div>
+      </div>
+      <div class="sh-box">
+        <div class="ident">INTEGRITY HISTORY · 履歴</div>
+        <canvas class="sh-hist" id="sh-hist" aria-label="score history"></canvas>
+        <div class="sh-mods" id="sh-mods"></div>
+      </div>
+    </div>
+    <div class="ident">HOST GRID · 端末格子 <small id="sh-grid-sub"></small></div>
+    <div class="sh-grid" id="sh-grid"></div>
+    <div class="sh-detail" id="sh-detail" hidden></div>
+    <div class="sh-cols">
+      <div class="sh-box">
+        <div class="ident">FINDINGS · 検出 <small id="sh-find-sub"></small></div>
+        <div class="sh-find" id="sh-find"><div class="empty">no telemetry_</div></div>
+      </div>
+      <div class="sh-box">
+        <div class="ident">UNIFI INTEL · 新規端末 / IPS</div>
+        <div id="sh-unifi"><div class="empty">no telemetry_</div></div>
+      </div>
+    </div>
+    <p class="sh-foot">Non-destructive audit ported from Ragnar (imperador/ragnar). No floods, injection, fuzzing or credential guessing. Private addresses inside SHIELD_SCOPE only.</p>
   </section>
 </div>
 <div id="pane-dock" hidden>
@@ -1460,7 +1513,7 @@ loadSkills();
 setInterval(loadSkills, 5000);
 
 const pf = document.getElementById("prompt-form");
-const CLI_CMDS = ["help","about","status","clear","whoami","uptime","node","orbit","tokyo","helix","matrix","memory","network","operations","system","archive","docker","security","clients","ops","net","sec","dock","trace","cognitive","remote"];
+const CLI_CMDS = ["help","about","status","clear","whoami","uptime","node","orbit","tokyo","helix","matrix","memory","network","operations","system","archive","docker","security","clients","ops","net","sec","dock","trace","cognitive","remote","shield","ragnar","scan"];
 function cliOut(text) {
   const box = document.getElementById("thoughts");
   if (!box) return;
@@ -1480,7 +1533,7 @@ function runCli(raw) {
   const text = raw.trim();
   const cmd = text.split(/\s+/)[0].toLowerCase();
   const map = {
-    help: "AVAILABLE COMMANDS\nhelp about status clear whoami uptime node orbit tokyo helix matrix\nnetwork operations system archive trace remote\nOther input is forwarded as an operator prompt.",
+    help: "AVAILABLE COMMANDS\nhelp about status clear whoami uptime node orbit tokyo helix matrix\nnetwork operations system archive trace remote shield\nOther input is forwarded as an operator prompt.",
     about: "HELIX/OPS // TOKYO-06\nHELIX OPERATIONS SYSTEM\nHOS://TKY-06 · CORE 04.87\n統合管制システム",
     status: "SYS: NOMINAL\nUPLINK: ACTIVE\nNODE: TOKYO-06\n通信正常 · CRC OK · LINK 10.048",
     whoami: "OPERATOR: SESSION\nCLEARANCE: OPS\nNODE: TOKYO-06",
@@ -1491,6 +1544,9 @@ function runCli(raw) {
     helix: "HELIX/OPS\nHELIX OPERATIONS SYSTEM · 東京統合管制",
     matrix: "__tab:matrix",
     memory: "__tab:matrix",
+    shield: "__tab:shield",
+    ragnar: "__tab:shield",
+    scan: "__tab:shield",
     network: "__tab:net",
     clients: "__tab:net",
     net: "__tab:net",
@@ -1637,7 +1693,7 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-tab]");
   if (!b) return;
   const tab = b.dataset.tab;
-  const names = { ops: "01 OPERATIONS", net: "02 NETWORK", sec: "03 SYSTEM", dock: "04 ARCHIVE", trace: "05 TRACE", remote: "06 REMOTE", matrix: "07 MEMORY" };
+  const names = { ops: "01 OPERATIONS", net: "02 NETWORK", sec: "03 SYSTEM", dock: "04 ARCHIVE", trace: "05 TRACE", remote: "06 REMOTE", matrix: "07 MEMORY", shield: "08 SHIELD" };
   const flash = document.getElementById("modflash");
   const go = () => {
     document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
@@ -1651,6 +1707,9 @@ document.getElementById("tabs").addEventListener("click", (e) => {
     if (pr) pr.hidden = tab !== "remote";
     const pm = document.getElementById("pane-matrix");
     if (pm) pm.hidden = tab !== "matrix";
+    const psh = document.getElementById("pane-shield");
+    if (psh) psh.hidden = tab !== "shield";
+    document.body.classList.toggle("shield-open", tab === "shield" && matchMedia("(max-width: 767px)").matches);
     document.body.classList.toggle("trace-open", tab === "trace" && matchMedia("(max-width: 767px)").matches);
     document.body.classList.toggle("remote-open", tab === "remote" && matchMedia("(max-width: 767px)").matches);
     document.body.classList.toggle("matrix-open", tab === "matrix" && matchMedia("(max-width: 767px)").matches);
@@ -1659,6 +1718,7 @@ document.getElementById("tabs").addEventListener("click", (e) => {
     if (tab === "dock") loadDocker();
     if (tab === "remote" && globalThis.HelixRemote) HelixRemote.load();
     if (tab === "matrix" && globalThis.HelixMatrix) HelixMatrix.load();
+    if (tab === "shield" && globalThis.HelixShield) HelixShield.load();
     document.body.classList.remove("nav-open");
     document.getElementById("nav-toggle")?.setAttribute("aria-expanded", "false");
   };
@@ -1790,11 +1850,11 @@ async function loadClients() {
 <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }</style>
 <script>
   (function () {
-    const ASSET_V = "hos0491";
+    const ASSET_V = "hos0492";
     const p = (typeof OPS === "string") ? OPS : ((location.pathname === "/ops" || location.pathname.startsWith("/ops/")) ? "/ops" : "");
     const ico = document.querySelector('link[rel="icon"]');
     if (ico) ico.href = p + "/helix-core-mark.svg?v=" + ASSET_V;
-    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css"].forEach((href) => {
+    ["helix-ops-wordmark.css", "helix-crt.css", "helix-noc.css", "helix-field.css", "helix-trace.css", "helix-adze.css", "helix-remote.css", "helix-matrix.css", "helix-shield.css"].forEach((href) => {
       const css = document.createElement("link");
       css.rel = "stylesheet";
       css.href = p + "/" + href + "?v=" + ASSET_V;
@@ -1830,6 +1890,10 @@ async function loadClients() {
     document.body.appendChild(tjs);
     document.body.appendChild(rjs);
     document.body.appendChild(mjs);
+    const shjs = document.createElement("script");
+    shjs.src = p + "/helix-shield.js?v=" + ASSET_V;
+    shjs.onload = function () { HelixShield.mount(); };
+    document.body.appendChild(shjs);
 
     (function fieldTerm() {
       const mq = matchMedia("(max-width: 767px)");

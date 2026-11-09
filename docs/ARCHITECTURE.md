@@ -30,6 +30,7 @@ No bundler, no WebSocket. Polling:
 | GET `/api/docker` `/api/clients` `/api/protect` | Unraid / LAN / cameras |
 | GET `/api/remote` | RustDesk OSS snapshot |
 | GET `/api/git` | local git status |
+| GET/POST `/api/shield` | RAGNAR SHIELD audit (local, or proxied to Unraid `:8791` when `SHIELD_REMOTE` is set) |
 
 `/ops` prefix is applied when `location.pathname` starts with `/ops`.
 
@@ -59,6 +60,7 @@ Read-only Hermes `~/.hermes/state.db` and profile DBs. Ops-local: `prompts.jsonl
 | 192.168.1.207 | Omarchy laptop (host inventory name, not branding) |
 | 192.168.1.151 | ThinkPad |
 | 192.168.1.1 | UDM |
+| 192.168.1.84:8791 | helix-shield container (optional, token auth) |
 
 ## Planned
 

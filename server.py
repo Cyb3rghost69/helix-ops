@@ -24,6 +24,8 @@ from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 import ssl
 
+import helix_shield
+
 HOST = "0.0.0.0"
 PORT = 8790
 ROOT = Path(__file__).resolve().parent
@@ -2573,6 +2575,86 @@ def collect() -> dict:
     }
 
 
+def shield_targets() -> list[dict]:
+    """LAN clients (UniFi + DNS) plus fixed infra hosts. helix_shield enforces SHIELD_SCOPE."""
+    rows = list((lan_clients() or {}).get("clients") or [])
+    have = {r.get("ip") for r in rows}
+    infra = [(UDM, "UDM"), (UNRAID, "Unraid bigboi"), (UMBREL, "Umbrel"), (ILO, "HPE iLO"),
+             (OMARCHY, "Omarchy laptop"), (THINKPAD, "ThinkPad"), ("192.168.1.172", "Mac Mini / Helix")]
+    extra = [x.strip() for x in os.environ.get("SHIELD_EXTRA_TARGETS", "").split(",") if x.strip()]
+    def _rdns(ip: str) -> str:
+        try:
+            return socket.gethostbyaddr(ip)[0].split(".")[0]
+        except OSError:
+            return ip
+    for ip, name in infra + [(x, _rdns(x)) for x in extra if x not in have]:
+        if ip not in have:
+            owner, how = guess_owner(ip, name)
+            rows.append({"ip": ip, "name": name, "hostname": name, "owner": owner, "owner_how": how, "source": "infra"})
+            have.add(ip)
+    return rows
+
+
+def shield_self(remote: bool = False) -> list[dict]:
+    """Findings about the deck itself. In Unraid mode the container reports its own UniFi state."""
+    out = []
+    if auth_open():
+        out.append({"key": "self:auth-open", "check": "ops-auth-off", "sev": "high", "ip": "", "host": "HELIX OPS", "port": 8790,
+                    "title": "HELIX OPS login is bypassed",
+                    "detail": "HELIX_OPS_AUTH=off — anyone on the LAN can drive Docker, prompts and SHIELD. Turn login back on."})
+    key, _ = _unifi_cfg()
+    if not key and not remote:
+        out.append({"key": "self:no-unifi", "check": "no-unifi-key", "sev": "low", "ip": "", "host": "HELIX OPS", "port": "",
+                    "title": "UniFi intel offline", "detail": "No unifi.env key — new-device + IPS checks use DNS only."})
+    return out
+
+
+def _shield_remote() -> tuple[str, str]:
+    env = _ops_env()
+    url = (os.environ.get("SHIELD_REMOTE") or env.get("SHIELD_REMOTE") or "").strip().rstrip("/")
+    tok = (os.environ.get("SHIELD_TOKEN") or env.get("SHIELD_TOKEN") or "").strip()
+    return url, tok
+
+
+def shield_get() -> dict:
+    url, tok = _shield_remote()
+    if not url:
+        return helix_shield.snapshot()
+    try:
+        req = Request(f"{url}/api/shield", headers={"Authorization": f"Bearer {tok}", "Accept": "application/json"})
+        with urlopen(req, timeout=6) as r:
+            d = json.loads(r.read().decode() or "{}")
+    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError, OSError) as e:
+        d = helix_shield.snapshot()
+        d["remote_error"] = f"unraid shield unreachable: {type(e).__name__}"
+        return d
+    d["remote"] = url.split("://", 1)[-1]
+    rep = d.get("report")
+    if rep:  # the deck's own posture is only knowable here
+        for f in shield_self(remote=True):
+            f.update(new=False, muted=False)
+            rep.setdefault("findings", []).insert(0, f)
+            if f["sev"] in ("high", "med", "low"):
+                rep["counts"][f["sev"]] = rep["counts"].get(f["sev"], 0) + 1
+                rep["cost"] = rep.get("cost", 0) + helix_shield.SEV_COST[f["sev"]]
+        rep["score"] = helix_shield.score_for(rep.get("cost", 0))
+        rep["grade"] = helix_shield.grade_for(rep["score"])
+    return d
+
+
+def shield_post(body: dict) -> dict:
+    url, tok = _shield_remote()
+    if not url:
+        return helix_shield.act(body, shield_targets, _unifi_cfg, shield_self)
+    try:
+        req = Request(f"{url}/api/shield", data=json.dumps(body).encode(), method="POST",
+                      headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"})
+        with urlopen(req, timeout=6) as r:
+            return json.loads(r.read().decode() or "{}")
+    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError, OSError) as e:
+        return {"ok": False, "error": f"unraid shield unreachable: {type(e).__name__}"}
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         return
@@ -2627,6 +2709,14 @@ class Handler(BaseHTTPRequestHandler):
         if not token:
             return f"helix_ops=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax{extra}"
         return f"helix_ops={token}; Path=/; Max-Age={SESSION_TTL}; HttpOnly; SameSite=Lax{extra}"
+
+    def _same_origin(self) -> bool:
+        origin = self.headers.get("Origin") or self.headers.get("Referer") or ""
+        if not origin:
+            return True
+        host = (self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "").lower()
+        o = origin.lower().split("://", 1)[-1].split("/", 1)[0]
+        return bool(host) and o == host
 
     def _need_auth(self, path: str, method: str) -> bool:
         if auth_open():
@@ -2700,6 +2790,8 @@ class Handler(BaseHTTPRequestHandler):
             "/helix-remote.js": ("helix-remote.js", "application/javascript; charset=utf-8"),
             "/helix-matrix.css": ("helix-matrix.css", "text/css; charset=utf-8"),
             "/helix-matrix.js": ("helix-matrix.js", "application/javascript; charset=utf-8"),
+            "/helix-shield.css": ("helix-shield.css", "text/css; charset=utf-8"),
+            "/helix-shield.js": ("helix-shield.js", "application/javascript; charset=utf-8"),
         }
         if path in static:
             name, ctype = static[path]
@@ -2824,6 +2916,13 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json; charset=utf-8",
             )
             return
+        if path == "/api/shield":
+            self._send(
+                200,
+                json.dumps(shield_get(), ensure_ascii=False, default=str).encode(),
+                "application/json; charset=utf-8",
+            )
+            return
         if path == "/api/matrix":
             self._send(
                 200,
@@ -2935,6 +3034,19 @@ class Handler(BaseHTTPRequestHandler):
             body = json.dumps(remote_act(data if isinstance(data, dict) else {}, ip), ensure_ascii=False).encode()
             self._send(200, body, "application/json; charset=utf-8")
             return
+        if path == "/api/shield":
+            if not self._same_origin():
+                self._send(403, b'{"ok":false,"error":"cross-origin"}', "application/json")
+                return
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(max(0, min(n, 2000)))
+            try:
+                data = json.loads(raw.decode() or "{}")
+            except json.JSONDecodeError:
+                data = {}
+            res = shield_post(data if isinstance(data, dict) else {})
+            self._send(200, json.dumps(res).encode(), "application/json; charset=utf-8")
+            return
         if path == "/api/matrix":
             n = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(max(0, min(n, 2000)))
@@ -2972,6 +3084,8 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     ensure_ops_auth()
+    if not _shield_remote()[0]:  # Unraid container owns scheduling when SHIELD_REMOTE is set
+        helix_shield.start_scheduler(shield_targets, _unifi_cfg, shield_self)
     httpd = ThreadingHTTPServer((HOST, PORT), Handler)
     httpd.serve_forever()
 

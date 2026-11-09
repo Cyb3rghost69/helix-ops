@@ -56,7 +56,7 @@ Edit files in this directory. HTML/CSS/JS are reread on each GET. After `server.
 
 ```bash
 python3 -m py_compile server.py rustdesk_remote.py
-python3 -m unittest test_remote.py test_adze.py
+python3 -m unittest test_remote.py test_adze.py test_matrix.py test_shield.py
 ```
 
 ## BUILD
@@ -89,6 +89,7 @@ See `.env.example`. Real values live in `ops.env`, `unifi.env`, and `~/.hermes/.
 | DATA VAULT | IN DEVELOPMENT (memory/SOUL viewer exists; not a vault product) |
 | MODEL MATRIX | PLANNED (model/provider shown on Hermes card only) |
 | SOURCE CONTROL // GITHUB | IMPLEMENTED (compact git status) |
+| RAGNAR SHIELD // LAN EXPOSURE AUDIT | IMPLEMENTED (`[08] SHIELD`, `helix_shield.py`, optional Unraid container — see `docs/SHIELD.md`) |
 
 ## AGENT SYSTEM
 

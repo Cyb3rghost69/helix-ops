@@ -40,3 +40,5 @@ verify-*.png
 *.orig
 *.swp
 *~
+shield-baseline.json
+shield-baseline.tmp

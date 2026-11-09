@@ -13,6 +13,7 @@ LAST MAJOR CHANGE: amber HELIX/OPS particle identity + MEMORY MATRIX + GitHub pr
 - UniFi clients + Protect stills (key local)
 - Compact SOURCE CONTROL instrument
 - Desktop INSTRUMENT BUS (SYSTEM CORE / MODEL / SERVICE / DATA VAULT)
+- RAGNAR SHIELD `[08]` LAN exposure audit (branch `feat/ragnar-shield`, Unraid container optional)
 
 ## IN-PROGRESS
 

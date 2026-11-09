@@ -4,6 +4,8 @@
 
 ### Added
 
+- RAGNAR SHIELD (`[08] SHIELD`, `/api/shield`, `helix_shield.py`) — non-destructive LAN audit ported from Ragnar: port exposure, unauthenticated Redis/Docker/MQTT/Elastic, TLS/PFS/legacy/cert, cleartext logins, clickjacking/HSTS, UniFi new devices / firmware / IPS. Baseline, mute, score history, 6h schedule. Optional Unraid container (`unraid/helix-shield`).
+
 - MEMORY MATRIX (`/api/matrix`) — Hermes/HELIX memory banks, no file contents.
 - REMOTE MATRIX for self-hosted RustDesk OSS (hbbs/hbbr health, known peers, COPY ID / rustdesk:// launch).
 - ADZE analysis-core profile, orchestrator, dual-core TRACE strip.

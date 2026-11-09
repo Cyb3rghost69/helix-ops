@@ -1,0 +1,81 @@
+/* HELIX OPS — RAGNAR SHIELD. Phosphor diagnostic, square corners, no SaaS cards. */
+.sh { color: var(--ok, #6adf64); font-family: ui-monospace, "IBM Plex Mono", monospace; }
+.sh small { color: var(--dim, #7d8574); font-size: 10px; font-weight: 400; }
+.sh-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-end; margin: 0 0 10px; }
+.sh-head small { color: #cfc8b8; display: block; }
+#sh-cap { font-size: 10px; letter-spacing: 0.08em; color: var(--dim); text-align: right; }
+.sh-top { display: grid; grid-template-columns: 1.1fr 1fr 1.3fr; gap: 10px; margin-bottom: 10px; }
+.sh-box { border: 1px solid #2a4a2a; background: #040604; padding: 8px; min-width: 0; }
+.sh-num { display: flex; align-items: baseline; gap: 10px; margin: 6px 0 4px; }
+.sh-num b { font-size: 44px; line-height: 1; letter-spacing: 0.04em; color: #b8ffb0; text-shadow: 0 0 6px rgba(124, 255, 122, 0.25); }
+.sh-num span { font-size: 22px; border: 1px solid currentColor; padding: 0 6px; }
+.sh-score.g-c .sh-num b, .sh-score.g-c .sh-num span { color: var(--gold, #d4a017); }
+.sh-score.g-d .sh-num b, .sh-score.g-d .sh-num span,
+.sh-score.g-f .sh-num b, .sh-score.g-f .sh-num span { color: #e0705f; text-shadow: none; }
+.sh-bar { height: 10px; border: 1px solid #2a4a2a; background: #0a0a0a; position: relative; }
+.sh-bar i { display: block; height: 100%; width: 0; background: repeating-linear-gradient(90deg, #7CFF7A 0 6px, transparent 6px 8px); transition: width 0.6s steps(12); }
+.sh-score.g-c .sh-bar i { background: repeating-linear-gradient(90deg, #d4a017 0 6px, transparent 6px 8px); }
+.sh-score.g-d .sh-bar i, .sh-score.g-f .sh-bar i { background: repeating-linear-gradient(90deg, #c44a3a 0 6px, transparent 6px 8px); }
+.sh-sev { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; font-size: 11px; }
+.sh-sev span { border: 1px solid #2a4a2a; padding: 2px 6px; }
+.sev-high { color: #e0705f !important; border-color: #8a3030 !important; }
+.sev-med { color: #e6c35c !important; border-color: #7a6420 !important; }
+.sev-low { color: #9adf9a !important; }
+.sev-info, .sev-clean { color: var(--dim) !important; }
+.sh-ctl { font-size: 11px; line-height: 1.45; white-space: pre-wrap; margin: 6px 0; color: #cfe8c8; min-height: 5.8em; }
+.sh-prog { height: 6px; border: 1px solid #2a4a2a; margin: 4px 0 6px; }
+.sh-prog i { display: block; height: 100%; width: 0; background: var(--gold, #d4a017); transition: width 0.4s linear; }
+.sh-act { display: flex; gap: 6px; flex-wrap: wrap; }
+.sh button { font: inherit; font-size: 11px; color: var(--ok, #7CFF7A); background: #050805; border: 1px solid #2a4a2a; padding: 4px 8px; cursor: pointer; border-radius: 0; }
+.sh button:hover:not(:disabled) { border-color: #7CFF7A; background: #071407; }
+.sh button:disabled { color: var(--dim); cursor: wait; }
+.sh button.hot { color: var(--gold); border-color: #7a6420; }
+.sh-hist { width: 100%; height: 72px; display: block; margin: 6px 0; }
+.sh-mods { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 10px; letter-spacing: 0.05em; }
+.sh-mods .off { color: var(--dim); text-decoration: line-through; }
+.sh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 6px; margin: 6px 0 10px; }
+.sh-host { border: 1px solid #2a4a2a; background: #050805; padding: 6px 7px; text-align: left; color: inherit; cursor: pointer; min-height: 64px; font: inherit; border-radius: 0; }
+.sh-host:hover, .sh-host.on { border-color: #7CFF7A; background: #071407; }
+.sh-host .ip { font-size: 10px; color: #9adf9a; }
+.sh-host .nm { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-host .pt { font-size: 9px; letter-spacing: 1px; margin-top: 3px; color: #7CFF7A; word-break: break-all; }
+.sh-host.w-high { border-color: #8a3030; }
+.sh-host.w-high .nm { color: #e0705f; }
+.sh-host.w-med { border-color: #7a6420; }
+.sh-host.w-med .nm { color: #e6c35c; }
+.sh-host.w-clean .pt { color: var(--dim); }
+.sh-detail { border: 1px solid #2a4a2a; padding: 10px; margin: -4px 0 10px; background: #040604; }
+.sh-detail table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.sh-detail th, .sh-detail td { text-align: left; padding: 3px 6px; border-bottom: 1px solid #142014; vertical-align: top; }
+.sh-detail th { color: var(--dim); font-weight: 400; }
+.sh-cols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; }
+.sh-find { max-height: 460px; overflow: auto; }
+.sh-f { display: grid; grid-template-columns: 46px 1fr auto; gap: 8px; padding: 5px 2px; border-bottom: 1px solid #142014; font-size: 11px; align-items: start; }
+.sh-f .tag { border: 1px solid currentColor; text-align: center; font-size: 9px; padding: 1px 0; }
+.sh-f .t { color: #e8ffe2; }
+.sh-f .d { color: #9cba90; margin-top: 2px; word-break: break-word; }
+.sh-f .new { color: var(--gold); font-size: 9px; margin-left: 6px; }
+.sh-f.muted { opacity: 0.45; }
+.sh-u { font-size: 11px; }
+.sh-u .row { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 4px 0; border-bottom: 1px solid #142014; }
+.sh-u .k { color: var(--dim); font-size: 10px; margin: 8px 0 2px; letter-spacing: 0.06em; }
+.sh-foot { color: var(--dim); font-size: 10px; margin: 10px 0 0; }
+@media (max-width: 1100px) { .sh-top { grid-template-columns: 1fr 1fr; } .sh-top .sh-box:last-child { grid-column: 1 / -1; } }
+@media (max-width: 767px) {
+  .sh-top, .sh-cols { grid-template-columns: 1fr; }
+  .sh-head { flex-direction: column; align-items: flex-start; }
+  #sh-cap { text-align: left; }
+  .sh-grid { grid-template-columns: repeat(2, 1fr); }
+  body.field-term #pane-shield { display: none; }
+  body.field-term.shield-open #pane-ops, body.field-term.shield-open #pane-net, body.field-term.shield-open #pane-sec,
+  body.field-term.shield-open #pane-dock, body.field-term.shield-open #pane-trace, body.field-term.shield-open #pane-remote,
+  body.field-term.shield-open #pane-matrix { display: none !important; }
+  body.field-term.shield-open #pane-shield {
+    display: block !important; position: fixed; inset: 0; z-index: 30; overflow: auto; background: var(--bg, #060705);
+    padding: max(10px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom));
+  }
+  body.shield-open #sh-close { display: inline-block; min-height: 44px; margin: 0 0 8px; }
+  body.shield-open #field { display: none; }
+}
+@media (min-width: 768px) { #ft-shield { display: none !important; } }
+@media (prefers-reduced-motion: reduce) { .sh-bar i, .sh-prog i { transition: none; } }
