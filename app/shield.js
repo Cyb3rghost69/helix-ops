@@ -37,7 +37,7 @@
         <section class="pn c4"><div class="hd"><h2><span class="dot"></span>HISTORY</h2><small id="sh-hsub">score per scan</small></div>
           <div class="bd"><canvas class="sh-hist" id="sh-hist" aria-label="score history"></canvas><div class="sh-mods" id="sh-mods"></div></div></section>
         <section class="pn c12"><div class="hd"><h2><span class="dot"></span>HOST GRID</h2><small id="sh-gsub">tap a host for ports + checks</small></div>
-          <div class="bd"><div class="sh-grid" id="sh-grid"><div class="loader"><div class="blocks"><i></i><i></i><i></i><i></i></div>LOADING_</div></div></div></section>
+          <div class="bd"><div id="sh-grid"><div class="loader"><div class="blocks"><i></i><i></i><i></i><i></i></div>LOADING_</div></div></div></section>
         <section class="pn c7"><div class="hd"><h2><span class="dot"></span>FINDINGS</h2><small id="sh-fsub"></small></div><div class="sh-find" id="sh-find"></div></section>
         <section class="pn c5"><div class="hd"><h2><span class="dot"></span>UNIFI INTEL</h2><small>new devices · gear · IPS</small></div><div class="bd" id="sh-unifi"></div></section>
       </div>
@@ -111,10 +111,18 @@
       if (!r) { box.innerHTML = `<div class="empty">No scan yet — press ▶ RUN SCAN. The first scan also records today's devices as your baseline.</div>`; return; }
       const hosts = r.hosts.slice().sort((a, b) => ((SEV.indexOf(a.worst) + 1) || 9) - ((SEV.indexOf(b.worst) + 1) || 9) || b.open.length - a.open.length);
       $("#sh-gsub", el).textContent = `${hosts.length} hosts · ${hosts.reduce((n, x) => n + x.open.length, 0)} open ports${r.skipped_out_of_scope ? ` · ${r.skipped_out_of_scope} out of scope` : ""}`;
-      box.innerHTML = hosts.map((x) => `<button class="sh-host w-${esc(x.worst)}" data-ip="${esc(x.ip)}">
+      const card = (x) => `<button class="sh-host w-${esc(x.worst)}" data-ip="${esc(x.ip)}">
         <span class="sh-hi">${shieldSVG(SEVCOL[x.worst] || "var(--mute)", 22)}</span>
-        <span class="sh-ht"><b class="ell">${esc(x.name || x.owner || "unnamed")}</b><small>${esc(x.ip)}</small>
-        <span class="sh-ports">${x.open.length ? x.open.map((p) => `<i>${p.port}</i>`).join("") : `<em>no risky ports</em>`}</span></span></button>`).join("") || `<div class="empty">no hosts in scope</div>`;
+        <span class="sh-ht"><b class="ell">${esc(x.name || "unnamed")}</b><small>${esc(x.ip)}</small>
+        <span class="sh-ports">${x.open.length ? x.open.map((p) => `<i>${p.port}</i>`).join("") : `<em>no risky ports</em>`}</span></span></button>`;
+      // group by owner; "unknown" goes first and dashed — an unowned device is the one to look at
+      const groups = new Map();
+      hosts.forEach((x) => { const o = (x.owner && x.owner !== "infra") ? x.owner : "unknown"; if (!groups.has(o)) groups.set(o, []); groups.get(o).push(x); });
+      const rank = (list) => Math.min(...list.map((x) => (SEV.indexOf(x.worst) + 1) || 9));
+      const order = [...groups.keys()].sort((a, b) => (b === "unknown") - (a === "unknown") || rank(groups.get(a)) - rank(groups.get(b)) || groups.get(b).length - groups.get(a).length);
+      box.innerHTML = order.map((o) => { const list = groups.get(o), bad = list.filter((x) => x.worst === "high" || x.worst === "med").length;
+        return `<div class="sh-group ${o === "unknown" ? "unknown" : ""}"><div class="sh-gh"><b>${o === "unknown" ? "UNKNOWN OWNER" : esc(o.toUpperCase())}</b>${o === "unknown" ? `<span class="muted">— whose are these? name them in clients-aliases.json</span>` : ""}<span class="n">${list.length} host${list.length === 1 ? "" : "s"}${bad ? ` · <span class="warn">${bad} need a look</span>` : ""}</span></div>
+          <div class="sh-grid">${list.map(card).join("")}</div></div>`; }).join("") || `<div class="empty">no hosts in scope</div>`;
     }
 
     function hostSheet(ip) {
@@ -141,7 +149,7 @@
       box.innerHTML = list.map((f) => `<div class="sh-f${f.muted ? " muted" : ""}">
         <span class="tag ${f.sev === "low" ? "ok" : f.sev}">${f.sev.toUpperCase()}</span>
         <div class="grow"><div class="t1">${esc(f.title)}${f.new ? ` <span class="tag fill" style="background:var(--yellow)">NEW</span>` : ""}</div>
-        <div class="t2">${esc(f.host)}${f.ip && f.host !== f.ip ? " · " + esc(f.ip) : ""}${f.port ? ":" + esc(f.port) : ""} — ${esc(f.detail)}</div></div>
+        <div class="t2">${esc(f.host)}${f.ip && f.host !== f.ip ? " · " + esc(f.ip) : ""}${f.port ? ":" + esc(f.port) : ""} — ${esc(f.detail)}${f.known ? ` <span class="ok">· routine on a known device</span>` : ""}</div></div>
         <button class="btn sm" data-mute="${esc(f.key)}" data-on="${f.muted ? 1 : 0}" title="${f.muted ? "count it again" : "accept this risk"}">${f.muted ? "UNMUTE" : "MUTE"}</button></div>`).join("")
         || `<div class="empty"><span class="px">${shieldSVG("var(--green)", 32)}</span>ALL CLEAR — nothing open that shouldn't be</div>`;
     }

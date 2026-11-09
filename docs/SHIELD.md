@@ -24,8 +24,13 @@ See `docs/DECISIONS.md`.
 ## Score
 
 Cost: HIGH 15 · MED 6 · LOW 2 · INFO 0. `score = 100 / (1 + cost/60)` → A ≥90, B ≥75, C ≥60, D ≥40, F.
+- **No HIGH → never below C** (score floor 60). An F means something is genuinely exposed.
+- **Known devices:** a plain "port open" MED on a device you own — in the baseline, or given an owner in `clients-aliases.json` — counts as LOW ("routine on a known device"). Specific problems (no-auth Redis/Docker/MQTT, cleartext logins, weak TLS) keep their severity everywhere.
+- The deck re-scores after adding owner knowledge and its own posture checks, so the dial, home tile and top-bar chip always agree.
+
 **MUTE** = operator accepted the risk (removed from score, kept visible under SHOW MUTED).
 **ACK** = add a new device to the baseline. The first scan seeds the baseline silently.
+Hosts are grouped by owner; **UNKNOWN OWNER** is listed first, dashed — name them in `clients-aliases.json`.
 
 ## Deploy modes
 

@@ -143,5 +143,26 @@ class Shield(unittest.TestCase):
         self.assertEqual(oct(sh.BASELINE.stat().st_mode & 0o777), "0o600")
 
 
+class Scoring(unittest.TestCase):
+    def _rep(self, sevs, ips=None):
+        f = [{"key": f"k{i}", "sev": s, "check": "port-445" if s == "med" else "x", "ip": (ips or {}).get(i, "10.0.0.9"), "port": 445}
+             for i, s in enumerate(sevs)]
+        return {"findings": f, "hosts": []}
+
+    def test_no_high_floor(self):
+        r = sh.rescore(self._rep(["med"] * 15 + ["low"] * 12))
+        self.assertEqual(r["counts"]["high"], 0)
+        self.assertEqual(r["grade"], "C")          # was F/34 before the floor
+        r = sh.rescore(self._rep(["high"] + ["med"] * 15))
+        self.assertIn(r["grade"], ("D", "F"))
+
+    def test_known_downgrade(self):
+        r = self._rep(["med", "med", "high"], {0: "10.0.0.1", 1: "10.0.0.2", 2: "10.0.0.1"})
+        r["findings"][2]["check"] = "redis-noauth"
+        n = sh.downgrade_known(r, {"10.0.0.1"})
+        self.assertEqual(n, 1)
+        self.assertEqual([f["sev"] for f in r["findings"]], ["low", "med", "high"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -66,7 +66,8 @@
     el.innerHTML = `
       <div class="pagehd"><div><div class="crumbs">HOS://TKY-06 · COMMAND FLOOR</div><h1>COMMAND <span>FLOOR</span></h1><p id="h-now">${X.SET ? "Connecting to the floor…" : ""}</p></div>
         <div class="row" style="gap:12px"><div id="h-badge"></div><button class="btn pri" data-hash="#/mesh">▶ OPEN MESH</button></div></div>
-      ${slot("h-agents", "agents", Array(8).fill(`<div class="skel" style="height:136px"></div>`).join(""))}
+      <div class="crew" id="h-crew">${slot("h-agents", "agents", Array(4).fill(`<div class="skel" style="height:136px"></div>`).join(""))}
+      ${slot("h-bench", "bench")}</div>
       <div class="grid">
         <section class="pn c8 glow"><div class="hd"><h2><span class="dot"></span>BOTMESH · LIVE</h2><small id="h-mode">connecting</small></div><div class="mesh-wrap"><canvas class="mesh-canvas" id="h-mesh" aria-label="Botmesh preview"></canvas></div></section>
         ${panel("h-needs", "NEEDS YOU", "要対応", "c4 alert")}
@@ -82,7 +83,17 @@
     mesh.on("select", (id) => { if (id) X.go("#/agents/" + id); });
     function upd(keys) {
       const st = D("stats"), al = agentList(), tc = talkCounts();
-      if (al.length) { $("#h-agents", el).innerHTML = al.filter((a) => !["user", "telegram"].includes(a.id)).slice(0, 8).map((a) => agentCard(a, tc[a.id])).join(""); mesh.setAgents(al, (st && st.bot_mesh || {}).edges); }
+      if (al.length) {
+        // full cards only for agents doing something (plus Helix); everyone else sits on the bench row
+        const crew = al.filter((a) => !["user", "telegram"].includes(a.id));
+        const awake = crew.filter((a) => a.id === "helix" || a.status === "busy" || a.status === "idle").slice(0, 8);
+        const bench = crew.filter((a) => !awake.includes(a));
+        const ag = $("#h-agents", el);
+        ag.innerHTML = awake.map((a) => agentCard(a, tc[a.id])).join("");
+        const crewEl = $("#h-crew", el); crewEl.classList.toggle("wide", awake.length >= 3); crewEl.style.setProperty("--n", String(awake.length));
+        $("#h-bench", el).innerHTML = bench.length ? `<span class="k">BENCH · ${bench.length}</span>` + bench.map((a) => `<button class="benchmate ${a.status}" style="--acc:${a.acc}" data-hash="#/agents/${esc(a.id)}" title="${esc(a.name)} · ${esc(a.role)}">${sprite(a.id, a.online, 22)}<span class="nm">${esc(a.name)}</span><span class="st">${esc((STATE_TXT[a.status] || a.status).toUpperCase())}</span></button>`).join("") : "";
+        mesh.setAgents(al, (st && st.bot_mesh || {}).edges);
+      }
       mesh.ingest(G.HelixMesh.collectEvents());
       const tr = D("trace"), now = $("#h-now", el);
       if (now && (st || tr)) {
@@ -91,7 +102,7 @@
       }
       if (st) {
         const items = needsList();
-        $("#h-needs", el).innerHTML = `<div class="hd"><h2><span class="dot"></span>NEEDS YOU</h2><small>${items.length} open</small></div><div class="list" style="max-height:${$("#h-mesh", el).clientHeight || 360}px;overflow:auto">${items.length ? items.map((x) => `<div class="li">${sevTag(x.sev)}<div class="grow"><div class="t1">${esc(x.title)}</div><div class="t2 ell">${esc(x.src)}</div></div></div>`).join("") : `<div class="empty">${sprite("helix", true, 48)}<br>NOTHING NEEDS YOU</div>`}</div>`;
+        $("#h-needs", el).innerHTML = `<div class="hd"><h2><span class="dot"></span>NEEDS YOU</h2><small>${items.length} open</small></div><div class="list" style="max-height:${$("#h-mesh", el).clientHeight || 360}px;overflow:auto">${items.length ? items.map((x) => `<button class="li needrow" data-hash="${esc(x.hash || "#/systems/security")}">${sevTag(x.sev)}<div class="grow"><div class="t1">${esc(x.title)}${x.also ? ` <span class="muted">+${x.also} related</span>` : ""}</div><div class="t2 ell">${esc(x.src)}</div></div><span class="go">▸</span></button>`).join("") : `<div class="empty">${sprite("helix", true, 48)}<br>NOTHING NEEDS YOU</div>`}</div>`;
       }
       tiles();
       if (!keys || keys.has("compute")) $("#h-fleet", el).querySelector(".hd + *").outerHTML = `<div class="bd">${fleetChart(store.hist)}</div>`;
@@ -113,7 +124,9 @@
         T("NETWORK", `<div class="num">${lr ? (lr.rx + lr.tx).toFixed(1) : "—"}<small>Mb/s</small></div>${spark(rates.map((r) => r.rx + r.tx), 200, 34, "#3b82f6", "Network")}`, lr ? `↓ ${lr.rx.toFixed(1)} · ↑ ${lr.tx.toFixed(1)}` : "measuring between scans", "", "#/systems/network"),
         T("AGENTS", `<div class="num">${bots.filter((a) => a.online).length}<small>/ ${bots.length} active today</small></div><div class="segs">${bots.map((a) => `<i title="${esc(a.name)} · ${esc(STATE_TXT[a.status] || a.status)}" style="background:${a.online ? a.acc : "#3a3346"}"></i>`).join("")}</div>`, [`${bots.filter((a) => a.status === "busy").length} busy`, `${bots.filter((a) => a.status === "asleep").length} asleep`, `${bots.filter((a) => a.status === "never").length} never run`].join(" · "), "", "#/agents"),
         T("DOCKER", `<div class="num">${dk && dk.ok ? up : "—"}<small>/ ${dk && dk.ok ? cs.length : "—"} up</small></div><div class="bar"><i style="width:${cs.length ? 100 * up / cs.length : 0}%"></i></div>`, dk && dk.ok ? `${cs.length - up} stopped` : (dk ? esc(dk.error || "unavailable") : "scanning"), "", "#/systems/docker"),
-        T("NEEDS YOU", `<div class="num">${st ? needs.length : "—"}<small>open</small></div><div class="segs">${["high", "med", "warn", "low"].map((s) => needs.filter((x) => x.sev === s).map(() => `<i style="background:${s === "high" ? "#ff4d6d" : s === "low" ? "#3a3346" : "#f59e0b"}"></i>`).join("")).join("") || '<i></i>'}</div>`, `hardening ${sec.score ?? "—"}/100`, "alert", "#/systems/security"),
+        (() => { const sh = (D("shield") || {}).report, c2 = (sh && sh.counts) || {}, col = !sh ? "#6f6880" : c2.high ? "#ff4d6d" : c2.med ? "#f59e0b" : "#39e58c";
+          return T("SHIELD · LAN", `<div class="row" style="gap:10px"><div class="num" style="color:${col}">${sh ? sh.score : "—"}<small>/100</small></div>${sh ? `<span class="tilegrade" style="color:${col}">${esc(sh.grade)}</span>` : ""}</div><div class="segs">${sh ? [["high", "#ff4d6d"], ["med", "#f59e0b"], ["low", "#3a3346"]].map(([k, cc]) => Array(Math.min(12, c2[k] || 0)).fill(`<i style="background:${cc}"></i>`).join("")).join("") || '<i style="background:#39e58c"></i>' : "<i></i>"}</div>`,
+            sh ? `${c2.high || 0} high · ${c2.med || 0} med` : "no scan yet", c2.high ? "alert" : "", "#/shield"); })(),
       ].join("");
     }
     const un = sub(upd); upd();
@@ -358,7 +371,7 @@
         const sec = st.security || {}, items = needsList();
         const snake = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
         body.innerHTML = `<div class="grid"><section class="pn c6"><div class="hd"><h2><span class="dot"></span>hardening.py</h2><small>every check the deck believes</small></div><div class="bd py" style="font:13px/1.5 var(--mono)"><div class="muted">score = <span class="num" style="font-size:30px">${esc(sec.score ?? "—")}</span> / 100</div><div class="muted">checks = {</div>${(sec.findings || []).map((x) => { const lv = String(x.level || "").toLowerCase(); const v = lv === "ok" ? '<span class="ok">PASS</span>' : lv === "high" ? '<span class="bad">HIGH ✗</span>' : lv === "low" ? '<span class="muted">LOW</span>' : '<span class="warn">MED ✗</span>'; return `<div class="r ${lv === "high" ? "high" : lv === "ok" || lv === "low" ? "" : "med"}" title="${esc(x.detail || "")}"><span>${esc(snake(x.title))}</span>${v}</div>`; }).join("")}<div class="muted">}</div></div></section>
-          <section class="pn c6 alert"><div class="hd"><h2><span class="dot"></span>NEEDS YOU</h2><small>${items.length} open</small></div><div class="list">${items.map((x) => `<div class="li">${sevTag(x.sev)}<div class="grow"><div class="t1">${esc(x.title)}</div><div class="t2">${esc(x.src)}</div></div></div>`).join("") || `<div class="empty">ALL CLEAR</div>`}</div></section></div>`;
+          <section class="pn c6 alert"><div class="hd"><h2><span class="dot"></span>NEEDS YOU</h2><small>${items.length} open</small></div><div class="list">${items.map((x) => `<button class="li needrow" data-hash="${esc(x.hash || "#/systems/security")}">${sevTag(x.sev)}<div class="grow"><div class="t1">${esc(x.title)}${x.also ? ` <span class="muted">+${x.also} related</span>` : ""}</div><div class="t2">${esc(x.src)}</div></div><span class="go">▸</span></button>`).join("") || `<div class="empty">ALL CLEAR</div>`}</div></section></div>`;
       }
     }
     const un = sub(upd); upd(); return { destroy: un };

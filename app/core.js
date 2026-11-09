@@ -183,6 +183,7 @@
     skills: { path: "/api/skills", every: 120000, pages: ["memory"] },
     thoughts: { path: "/api/thoughts", every: 3000, pages: ["agents"] },
     herdr: { path: "/api/herdr", every: 20000, pages: ["agents"] },
+    shield: { path: "/api/shield", every: 60000, always: true },
   };
   /* ── live mesh feed: /api/mesh snapshot + /api/stream (SSE), polling fallback ── */
   store.mesh = { seq: -1, events: [], sources: {}, mode: "connecting", unsupported: false, lastMsg: 0 };
@@ -298,13 +299,29 @@
   const D = (k) => store.data[k];
 
   /* ═════════ derived views ═════════ */
+  /* the deck's action queue and hardening checks often report the same problem twice
+     ("gateway down" + "Telegram gateway"): fold them into one item per topic, keeping the worst severity */
+  const NEED_TOPICS = [["defpw", /default password/i], ["auth", /\blogin\b|\bauth\b/i], ["gateway", /gateway|telegram/i], ["honcho", /honcho/i],
+    ["tailscale", /tailscale|tailnet/i], ["unifi", /unifi/i], ["webui", /web ?ui/i], ["hosts", /hosts? offline/i], ["herdr", /herdr/i], ["adze", /adze/i]];
+  const NEED_HASH = { auth: "#/admin/security", defpw: "#/admin/account", gateway: "#/systems/security", honcho: "#/systems/docker", tailscale: "#/systems/network", unifi: "#/systems/network", hosts: "#/systems/hosts", adze: "#/agents/adze", herdr: "#/agents" };
   function needsList() {
-    const d = D("stats") || {}, items = [];
-    (d.actions || []).forEach((a) => items.push({ sev: String(a.priority || "low").toLowerCase(), title: a.title || a.kind || "action", src: [a.source, a.detail].filter(Boolean).join(" · "), kind: a.kind || "" }));
-    ((d.security || {}).findings || []).forEach((f) => { const lv = String(f.level || "").toLowerCase(); if (lv && lv !== "ok") items.push({ sev: lv, title: f.title || "finding", src: "hardening · " + (f.detail || ""), kind: "security" }); });
+    const d = D("stats") || {}, raw = [];
+    (d.actions || []).forEach((a) => raw.push({ sev: String(a.priority || "low").toLowerCase(), title: a.title || a.kind || "action", src: [a.source, a.detail].filter(Boolean).join(" · "), kind: a.kind || "" }));
+    ((d.security || {}).findings || []).forEach((f) => { const lv = String(f.level || "").toLowerCase(); if (lv && lv !== "ok") raw.push({ sev: lv, title: f.title || "finding", src: "hardening · " + (f.detail || ""), kind: "security" }); });
+    const sh = (D("shield") || {}).report;
+    if (sh && sh.counts && sh.counts.high) raw.push({ sev: "high", title: `SHIELD: ${sh.counts.high} high-risk finding${sh.counts.high > 1 ? "s" : ""} on the LAN`, src: `network audit · score ${sh.score} ${sh.grade}`, kind: "shield", hash: "#/shield" });
     const R = { high: 0, med: 1, warn: 2, low: 3 };
-    items.forEach((x) => { if (!(x.sev in R)) x.sev = "low"; });
-    return items.sort((a, b) => R[a.sev] - R[b.sev]);
+    const byTopic = new Map();
+    raw.forEach((x) => {
+      if (!(x.sev in R)) x.sev = "low";
+      const t = x.kind === "shield" ? "shield" : (NEED_TOPICS.find(([, rx]) => rx.test(x.title)) || [])[0] || "t:" + x.title.toLowerCase();
+      x.hash = x.hash || NEED_HASH[t] || "#/systems/security";
+      const cur = byTopic.get(t);
+      if (!cur) { byTopic.set(t, Object.assign(x, { also: 0 })); return; }
+      cur.also += 1;
+      if (R[x.sev] < R[cur.sev]) cur.sev = x.sev;
+    });
+    return [...byTopic.values()].sort((a, b) => R[a.sev] - R[b.sev]);
   }
   /* one list of agents merging bot_mesh (online), /api/agents (status/thinking) and /api/adze */
   function agentList() {
@@ -449,7 +466,10 @@
     const lm = store.mesh.mode;
     chips.push(["LINK", lm === "live" ? "ok" : lm === "poll" || lm === "reconnecting" ? "warn" : lm === "legacy" ? "warn" : "", lm === "live" ? "LIVE" : lm === "poll" ? "POLL" : lm === "legacy" ? "OLD API" : lm === "reconnecting" ? "RETRY" : "…"]);
     if (st && st.auth_open) chips.push(["AUTH", "warn", "OPEN"]);
-    const c = $("#chips"); if (c) c.innerHTML = chips.map(([k, cls, v]) => `<span class="chip ${cls}"><i></i>${k} <b class="v">${esc(v)}</b></span>`).join("");
+    const shr = (D("shield") || {}).report;
+    if (shr) chips.push(["SHIELD", shr.counts.high ? "bad" : shr.counts.med ? "warn" : "ok", `${shr.grade} ${shr.score}`]);
+    const CHIP_HASH = { UPLINK: "#/systems/hosts", GATEWAY: "#/systems/security", ADZE: "#/agents/adze", TAILNET: "#/systems/network", LINK: "#/mesh", AUTH: "#/admin/security", SHIELD: "#/shield" };
+    const c = $("#chips"); if (c) c.innerHTML = chips.map(([k, cls, v]) => `<button class="chip ${cls}" data-hash="${CHIP_HASH[k] || "#/"}" title="Open ${k.toLowerCase()} details"><i></i>${k} <b class="v">${esc(v)}</b></button>`).join("");
     const needs = needsList(), nb = $("#nb-home");
     if (nb && st) { nb.hidden = !needs.length; nb.textContent = needs.length; nb.classList.toggle("alert", needs.some((x) => x.sev === "high")); }
     const al = agentList(), nm = $("#nb-agents"); if (nm && al.length) { nm.hidden = false; nm.textContent = al.filter((a) => a.online && !["user", "telegram"].includes(a.id)).length + "/" + al.filter((a) => !["user", "telegram"].includes(a.id)).length; }

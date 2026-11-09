@@ -3185,10 +3185,40 @@ def _shield_remote() -> tuple[str, str]:
     return url, tok
 
 
+def _shield_enrich(d: dict, remote: bool) -> dict:
+    """Deck-side knowledge the Unraid scanner doesn't have: owners (clients-aliases.json / known IPs),
+    the deck's own posture, and a rescore that treats owned devices' plain open ports as routine."""
+    rep = d.get("report")
+    if not rep:
+        return d
+    for row in list(rep.get("hosts", [])) + list(rep.get("new_devices", [])):
+        if str(row.get("owner") or "unknown") in ("unknown", "infra", ""):
+            owner, how = guess_owner(str(row.get("ip") or ""), str(row.get("name") or row.get("hostname") or ""))
+            row["owner"], row["owner_how"] = owner, how
+    for f in rep.get("findings", []):
+        h = next((x for x in rep.get("hosts", []) if x.get("ip") == f.get("ip")), None)
+        if h:
+            f["owner"] = h.get("owner")
+    known = {h["ip"] for h in rep.get("hosts", []) if h.get("owner") not in (None, "", "unknown")}
+    known -= {nd.get("ip") for nd in rep.get("new_devices", [])}
+    helix_shield.downgrade_known(rep, known)
+    if remote:  # local scans already include these
+        keys = {f.get("key") for f in rep.get("findings", [])}
+        for f in shield_self(remote=True):
+            if f["key"] not in keys:
+                f.update(new=False, muted=False)
+                rep.setdefault("findings", []).append(f)
+    helix_shield.rescore(rep)
+    hist = d.get("history") or []
+    if hist and abs(float(hist[-1].get("t") or 0) - float(rep.get("finished") or 0)) < 1:
+        hist[-1].update(score=rep["score"], **rep["counts"])
+    return d
+
+
 def shield_get() -> dict:
     url, tok = _shield_remote()
     if not url:
-        return helix_shield.snapshot()
+        return _shield_enrich(helix_shield.snapshot(), remote=False)
     try:
         req = Request(f"{url}/api/shield", headers={"Authorization": f"Bearer {tok}", "Accept": "application/json"})
         with urlopen(req, timeout=6) as r:
@@ -3196,19 +3226,9 @@ def shield_get() -> dict:
     except (URLError, HTTPError, TimeoutError, json.JSONDecodeError, OSError) as e:
         d = helix_shield.snapshot()
         d["remote_error"] = f"unraid shield unreachable: {type(e).__name__}"
-        return d
+        return _shield_enrich(d, remote=False)
     d["remote"] = url.split("://", 1)[-1]
-    rep = d.get("report")
-    if rep:  # the deck's own posture is only knowable here
-        for f in shield_self(remote=True):
-            f.update(new=False, muted=False)
-            rep.setdefault("findings", []).insert(0, f)
-            if f["sev"] in ("high", "med", "low"):
-                rep["counts"][f["sev"]] = rep["counts"].get(f["sev"], 0) + 1
-                rep["cost"] = rep.get("cost", 0) + helix_shield.SEV_COST[f["sev"]]
-        rep["score"] = helix_shield.score_for(rep.get("cost", 0))
-        rep["grade"] = helix_shield.grade_for(rep["score"])
-    return d
+    return _shield_enrich(d, remote=True)
 
 
 def shield_post(body: dict) -> dict:

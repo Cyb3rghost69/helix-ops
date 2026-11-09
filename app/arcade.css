@@ -90,6 +90,7 @@ body.anim-off .scan { display: none; }
 .brand .wm span { color: var(--pink); }
 .brand .sub { display: block; font: 10px/1.2 var(--mono); color: var(--dim); letter-spacing: .14em; margin-top: 3px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; justify-content: center; min-width: 0; }
+button.chip { cursor: pointer; } button.chip:hover { border-color: var(--pink); color: #fff; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg2); font: 10px/1.2 var(--px); letter-spacing: .06em; color: var(--dim); white-space: nowrap; }
 .chip i { width: 8px; height: 8px; display: block; background: var(--mute); box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
 .chip.ok i { background: var(--green); } .chip.warn i { background: var(--orange); } .chip.bad i { background: var(--red); }
@@ -602,3 +603,39 @@ body.anim-off .loader .blocks i, body.anim-off .skel { animation: none; }
 }
 /* Tall screens: SHIELD findings use the height instead of a fixed 560px box */
 @media (min-height: 1000px) and (min-width: 1101px) { .sh-find { max-height: max(560px, calc(100vh - 560px)); } }
+
+/* ═════════ home: bench row, clickable needs, SHIELD tile ═════════ */
+.bench { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 14px; }
+.bench:empty { display: none; }
+.bench > .k { margin-right: 4px; }
+.benchmate { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px 4px 5px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--dim); cursor: pointer; font: inherit; }
+.benchmate:hover { border-color: var(--acc); color: #fff; }
+.benchmate canvas, .benchmate img, .benchmate svg { width: 22px; height: 22px; image-rendering: pixelated; opacity: .75; }
+.benchmate .nm { font: 700 9px/1 var(--px); letter-spacing: .05em; color: var(--acc); }
+.benchmate .st { font: 9px/1 var(--mono); color: var(--mute); }
+button.li.needrow { width: 100%; background: none; border: 0; border-bottom: 1px solid #1d1926; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+button.li.needrow:hover { background: #1b1724; }
+.needrow .go { color: var(--mute); font-size: 12px; } .needrow:hover .go { color: var(--pink); }
+.tilegrade { font: 700 20px/1 var(--px); border: 2px solid currentColor; padding: 3px 6px 1px; }
+@media (max-width: 900px) { .bench { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; } .benchmate { flex: none; } }
+/* SHIELD host groups by owner */
+.sh-group + .sh-group { margin-top: 14px; }
+.sh-gh { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font: 700 10px/1 var(--px); letter-spacing: .06em; color: var(--dim); }
+.sh-gh b { color: #fff; } .sh-gh .n { margin-left: auto; font: 11px var(--mono); }
+.sh-group.unknown .sh-gh b { color: var(--yellow); }
+.sh-group.unknown .sh-host { border-style: dashed; border-color: #6a5a1a; }
+
+/* crew row: awake agents as cards, the bench fills the space beside them (below once 3+ are awake) */
+.crew { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+.crew > .agents { flex: none; grid-template-columns: repeat(var(--n, 1), minmax(240px, 290px)); }
+.crew > .bench { flex: 1; margin: 0; align-content: flex-start; min-width: 0; }
+.crew.wide { flex-direction: column; align-items: stretch; }
+.crew.wide > .agents { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.crew.wide > .bench { margin-top: 0; }
+@media (max-width: 1280px) { .crew.wide > .agents { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 900px) {
+  .crew { flex-direction: column; align-items: stretch; }
+  .crew > .agents, .crew.wide > .agents { grid-template-columns: none; }
+}
+.bench > .k { white-space: nowrap; flex: none; }
+@media (max-width: 900px) { .crew:not(.wide) > .agents { grid-auto-columns: 100%; } }

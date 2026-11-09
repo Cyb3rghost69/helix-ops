@@ -99,6 +99,41 @@ def grade_for(score: int) -> str:
     return "A" if score >= 90 else "B" if score >= 75 else "C" if score >= 60 else "D" if score >= 40 else "F"
 
 
+NO_HIGH_FLOOR = 60  # without a single HIGH finding the LAN can't grade below C
+
+
+def rescore(rep: dict) -> dict:
+    """Recompute counts / cost / score / grade from the (un-muted) findings. Used by the scanner
+    and again by the deck after it adds its own findings or owner knowledge."""
+    live = [f for f in rep.get("findings", []) if not f.get("muted")]
+    rep["counts"] = {s: sum(1 for f in live if f["sev"] == s) for s in ("high", "med", "low")}
+    rep["cost"] = sum(SEV_COST[f["sev"]] for f in live)
+    score = score_for(rep["cost"])
+    if not rep["counts"]["high"]:
+        score = max(score, NO_HIGH_FLOOR)
+    rep["score"], rep["grade"] = score, grade_for(score)
+    rep["findings"].sort(key=lambda f: (f.get("muted", False), SEV_ORDER[f["sev"]], f.get("ip") or "", str(f.get("port"))))
+    return rep
+
+
+def downgrade_known(rep: dict, known_ips: set) -> int:
+    """A plain 'port open' MED on a device you own (baseline / named owner) is routine home-lab
+    exposure → LOW. Specific problems (no-auth services, cleartext logins, weak TLS) keep their severity."""
+    n = 0
+    for f in rep.get("findings", []):
+        if f.get("ip") in known_ips and str(f.get("check", "")).startswith("port-") and f["sev"] == "med":
+            f["sev"], f["known"] = "low", True
+            n += 1
+    for h in rep.get("hosts", []):
+        if h.get("ip") in known_ips:
+            for c in h.get("checks", []):
+                if str(c.get("check", "")).startswith("port-") and c["sev"] == "med":
+                    c["sev"] = "low"
+            worst = min((SEV_ORDER[c["sev"]] for c in h.get("checks", [])), default=4)
+            h["worst"] = [k for k, v in SEV_ORDER.items() if v == worst][0] if worst < 4 else "clean"
+    return n
+
+
 _LOCK = threading.Lock()
 _STATE: dict = {"scanning": False, "phase": "IDLE", "done": 0, "total": 0, "started": None, "error": None}
 _SCHED: dict = {"thread": None, "next": None}
@@ -657,27 +692,21 @@ def run_scan(targets_fn: Callable[[], list[dict]], unifi_cfg: Callable, self_fn:
         for f in (self_fn() if self_fn else []):
             findings.append(f)
 
+        base_ips = {str(v.get("ip") or "") for v in base["devices"].values()} | {k[3:] for k in base["devices"] if k.startswith("ip:")}
+        base_macs = set(base["devices"])
+        known_ips = {t.get("ip") for t in raw if t.get("ip") and (_dev_key(t) in base_macs or t.get("ip") in base_ips)} - {"", None}
+        known_ips -= {d["ip"] for d in new_devices}
         prev = last_report() or {}
         prev_keys = {f["key"] for f in prev.get("findings", [])}
         muted = set(base.get("muted") or [])
         for f in findings:
             f["new"] = bool(prev) and f["key"] not in prev_keys
             f["muted"] = f["key"] in muted
-        findings.sort(key=lambda f: (f["muted"], SEV_ORDER[f["sev"]], f.get("ip") or "", str(f.get("port"))))
-        live = [f for f in findings if not f["muted"]]
-        counts = {s: sum(1 for f in live if f["sev"] == s) for s in ("high", "med", "low")}
-        cost = sum(SEV_COST[f["sev"]] for f in live)
-        score = score_for(cost)
-        grade = grade_for(score)
         fixed = [k for k in prev_keys if k not in {f["key"] for f in findings}]
         rep = {
             "started": t0,
             "finished": time.time(),
             "ms": int((time.time() - t0) * 1000),
-            "score": score,
-            "cost": cost,
-            "grade": grade,
-            "counts": counts,
             "muted": sum(1 for f in findings if f["muted"]),
             "hosts": hosts,
             "skipped_out_of_scope": skipped,
@@ -689,6 +718,9 @@ def run_scan(targets_fn: Callable[[], list[dict]], unifi_cfg: Callable, self_fn:
             "ports_checked": len(ports or PORTS),
             "scope": [str(n) for n in scope_nets()],
         }
+        downgrade_known(rep, known_ips)
+        rep["known_hosts"] = len(known_ips)
+        rescore(rep)
         save_report(rep)
         _set(scanning=False, phase="IDLE")
         return rep
