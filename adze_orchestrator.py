@@ -13,8 +13,8 @@ from adze_openai import AdzeProviderError, adze_model, complete, openai_configur
 ROOT = Path(__file__).resolve().parent
 EVENT_LOG = ROOT / "adze-events.jsonl"
 ENV_FILES = (
-    Path.home() / ".hermes" / ".env",
-    Path.home() / ".hermes" / "profiles" / "adze" / ".env",
+    Path(os.environ.get("HELIX_HERMES_HOME") or (Path.home() / ".hermes")).expanduser() / ".env",
+    Path(os.environ.get("HELIX_HERMES_HOME") or (Path.home() / ".hermes")).expanduser() / "profiles" / "adze" / ".env",
 )
 SECRETISH = re.compile(
     r"(password|passwd|token|api[_-]?key|secret|authorization|bearer\s+\S+|r3dbull)",

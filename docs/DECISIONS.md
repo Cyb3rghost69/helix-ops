@@ -1,5 +1,11 @@
 # Decisions
 
+## 2026-11-09 — RAGNAR SHIELD is audit-only, scanner on Unraid
+**DECISION:** Port Ragnar's netServ / transCrypt / webI *checks* as read-only probes; never floods, SQLi, XSS, fuzzing or credential guessing. Scanner runs as the `helix-shield` container on Unraid; the deck proxies `/api/shield`.
+**REASON:** An always-on dashboard must not be able to knock over household IoT. Unraid is always on and wired; the Mini stays a fallback.
+**ALTERNATIVES:** Wrap Ragnar itself (Python 2.7, scapy, patched OpenSSL — unmaintained); scan from the Mini only.
+**CONSEQUENCES:** Lower coverage than a real pentest; one more container + shared token in ops.env / shield.env.
+
 ## 2026-10-02 — HELIX/OPS branding
 **DECISION:** Canonical identity is HELIX/OPS (slash as system bus), not OMARCHY and not HELIX INDUSTRIES on the mark.  
 **REASON:** Operator identity for the Tokyo-06 deck.  
@@ -34,3 +40,15 @@
 **REASON:** GitHub is project memory, not a backup of runtime.  
 **ALTERNATIVES:** Encrypted git-crypt.  
 **CONSEQUENCES:** `.env.example` has names only.
+
+## 2026-10-23 — ARCADE theme (opt-in)
+**DECISION:** Add an ARCADE theme (hot-pink cabinet frame, colour-coded agent roster with original pixel mascots, office-floor scene) alongside CRT.
+**REASON:** Operator asked for a retro arcade look with more visual elements.
+**ALTERNATIVES:** Replace CRT outright.
+**CONSEQUENCES:** CRT stays the default and the rules in DESIGN-SYSTEM.md still govern it. ARCADE is opt-in (sysbar THEME button or `?theme=arcade`), scoped to `body.theme-arcade`, and still shows real telemetry only. Idle sprite bob/LED blink are decoration and stop under reduced motion.
+
+## 2026-10-23 — ARCADE as default command floor
+**DECISION:** ARCADE is the default theme; CRT remains a THEME toggle (`?theme=crt`). Tab `[01] FLOOR` (`data-tab=ops`). Header uses `helix-arcade-mark.svg`.
+**REASON:** Operator asked for the arcade command floor as the primary view.
+**ALTERNATIVES:** Keep CRT default.
+**CONSEQUENCES:** Unset `helix.theme` loads arcade. CRT chrome (particle wordmark, plaque) is hidden in arcade, not deleted. `/api/stats` exposes `auth_open`.

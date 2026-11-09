@@ -1,87 +1,117 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>HELIX/OPS · __TITLE__</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0910">
+<meta name="robots" content="noindex">
+<title>HELIX/OPS · SIGN IN</title>
 <style>
-  :root {
-    --bg: #060705; --ink: #d6d4c8; --gold: #d4a017; --cyan: #6aa8a8; --ok: #6adf64; --bad: #c44a3a;
-  }
+  @font-face { font-family: "Silkscreen"; src: url("__PREFIX__/app/fonts/silkscreen-400.woff") format("woff"); font-display: swap; }
+  @font-face { font-family: "VT323"; src: url("__PREFIX__/app/fonts/vt323-400.woff") format("woff"); font-display: swap; }
+  @font-face { font-family: "IBM Plex Mono"; src: url("__PREFIX__/app/fonts/plexmono-400.woff") format("woff"); font-display: swap; }
+  :root { --bg: #0b0910; --panel: #15111d; --line: #2a2238; --line2: #3a3050; --pink: #ff4fa3; --pink-deep: #b8236f; --green: #39e58c; --red: #ff4d6d; --cyan: #22d3ee; --dim: #a7a1b6; --ink: #f2eef8;
+    --px: "Silkscreen", monospace; --vt: "VT323", monospace; --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; min-height: 100%; background: #060705; color: var(--ink);
-    font: 16px/1.45 ui-monospace, "MS Gothic", "Hiragino Kaku Gothic ProN", Menlo, monospace; }
-  body {
-    min-height: 100svh; display: grid; place-items: center;
-    padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
-    background-image:
-      linear-gradient(rgba(80,255,90,.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(80,255,90,.04) 1px, transparent 1px),
-      radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.5) 100%);
-    background-size: 24px 24px, 24px 24px, 100% 100%;
-  }
-  body::before {
-    content: ""; pointer-events: none; position: fixed; inset: 0;
-    background: repeating-linear-gradient(180deg, rgba(90,255,90,.03) 0 1px, transparent 1px 3px);
-  }
-  .win {
-    position: relative; z-index: 1; width: min(420px, calc(100vw - 24px)); max-width: 100%;
-    border: 1px solid #243024; background: rgba(8,12,8,.94);
-  }
-  .bar {
-    background: #0b100b;
-    color: var(--ok); padding: 6px 10px; letter-spacing: .16em;
-    text-transform: uppercase; border-bottom: 1px solid #243024;
-  }
-  .body { padding: 18px 16px 20px; }
-  .welcome { color: var(--ok); letter-spacing: .06em; margin: 0 0 12px; overflow-wrap: anywhere; word-break: break-word; }
-  .hint { color: #7d8574; font-size: 11px; margin-top: 14px; overflow-wrap: anywhere; }
-  label { display: block; color: var(--cyan); margin: 10px 0 4px; font-size: 11px; letter-spacing: .12em; }
-  input {
-    width: 100%; background: #050805; color: var(--ok); border: 1px solid #243024;
-    padding: 10px; font: 16px ui-monospace, Menlo, monospace;
-  }
-  button {
-    margin-top: 16px; width: 100%; padding: 12px; min-height: 44px;
-    background: #101410; color: var(--ok); border: 1px solid #243024;
-    font: 700 16px ui-monospace, monospace; letter-spacing: .12em; cursor: pointer;
-    -webkit-appearance: none; appearance: none;
-  }
-  button:active { background: #161c16; }
-  .err { color: var(--bad); min-height: 1.2em; margin: 8px 0 0; font-size: 12px; }
-  .setup-only { display: __SETUP_DISP__; }
-  .login-only { display: __LOGIN_DISP__; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.45 var(--mono); }
+  body { min-height: 100svh; display: grid; place-items: center; padding: 18px;
+    background-image: linear-gradient(rgba(255,79,163,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,79,163,.05) 1px, transparent 1px), radial-gradient(ellipse at 50% 30%, rgba(255,79,163,.12), transparent 60%);
+    background-size: 24px 24px, 24px 24px, 100% 100%; }
+  body::before { content: ""; position: fixed; inset: 8px; border: 3px solid var(--pink); border-radius: 14px; pointer-events: none; box-shadow: 0 0 30px rgba(255,79,163,.25), inset 0 0 30px rgba(255,79,163,.08); }
+  .card { width: min(400px, 100%); background: var(--panel); border: 1px solid var(--line2); position: relative; z-index: 1; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .bar { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: linear-gradient(90deg, #2a0f22, #160d24 60%); border-bottom: 2px solid var(--pink); font: 11px var(--px); letter-spacing: .1em; }
+  .bar i { width: 8px; height: 8px; background: var(--green); box-shadow: 0 0 8px var(--green); animation: blink 1.6s steps(1) infinite; }
+  .bar b { color: #fff; } .bar span { margin-left: auto; color: var(--dim); font: 15px var(--vt); letter-spacing: .04em; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .hero { display: grid; grid-template-columns: 136px 1fr; gap: 14px; align-items: center; padding: 16px 16px 6px; }
+  .cam { width: 128px; height: 128px; overflow: hidden; background: #0d0a1a; box-shadow: 0 0 0 2px #0b0910, 0 0 0 4px var(--line2); margin: 4px; position: relative; }
+  .cam canvas { position: absolute; inset: 0; image-rendering: pixelated; }
+  h1 { margin: 0; font: 22px var(--px); letter-spacing: .08em; line-height: 1.1; } h1 span { color: var(--pink); }
+  .sub { font: 9px var(--px); color: var(--dim); letter-spacing: .12em; margin-top: 6px; }
+  .say { margin-top: 10px; font: 18px/1.15 var(--vt); color: var(--cyan); min-height: 2.3em; }
+  form { padding: 10px 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+  label { font: 9px var(--px); letter-spacing: .12em; color: var(--pink); display: flex; flex-direction: column; gap: 6px; }
+  input { font: 16px var(--mono); color: #fff; background: #0d0a14; border: 1px solid var(--line2); border-radius: 8px; padding: 0 12px; min-height: 44px; outline: none; width: 100%; }
+  input:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(255,79,163,.18); }
+  .pw { position: relative; } .pw button { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: 1px solid var(--line2); color: var(--dim); font: 8px var(--px); padding: 5px 6px; cursor: pointer; }
+  .go { margin-top: 6px; min-height: 46px; border: 1px solid #ff7cbd; border-radius: 8px; background: var(--pink); color: #fff; font: 12px var(--px); letter-spacing: .14em; cursor: pointer; box-shadow: 0 4px 0 var(--pink-deep); }
+  .go:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--pink-deep); }
+  .err { display: none; border: 1px solid var(--red); background: rgba(255,77,109,.1); color: #ffb1bf; font: 10px var(--px); letter-spacing: .08em; padding: 9px 10px; }
+  .err.on { display: block; animation: shake .3s steps(3); }
+  @keyframes shake { 33% { transform: translateX(-4px); } 66% { transform: translateX(4px); } }
+  .meter { height: 6px; background: #0d0a14; border: 1px solid var(--line2); } .meter i { display: block; height: 100%; width: 0; background: var(--red); transition: width .15s steps(5); }
+  .hint { font: 11.5px/1.4 var(--mono); color: var(--dim); }
+  .foot { padding: 10px 16px; border-top: 1px solid var(--line); font: 9px var(--px); color: var(--dim); letter-spacing: .1em; display: flex; justify-content: space-between; }
+  .m-setup, .m-change { display: none; }
+  body.setup .m-setup, body.change .m-change { display: flex; }
+  body.setup h1.m-setup, body.change h1.m-change { display: block; }
+  body.setup .m-login, body.change .m-login { display: none; }
+  .bar em { font-style: normal; }
+  @media (max-width: 440px) { .bar em { display: none; } }
+  @media (max-width: 380px) { h1 { font-size: 17px; } }
 </style>
 </head>
-<body>
-  <form class="win setup-only" method="post" action="__PREFIX__/login" autocomplete="on">
-    <div class="bar">HELIX/OPS · アクセス</div>
-    <div class="body">
-      <p class="welcome">__WELCOME__</p>
-      <label for="user_setup">LOGIN</label>
-      <input id="user_setup" name="user" type="text" value="helix" required autofocus autocomplete="username" />
-      <label for="password_setup">SET PASSWORD</label>
-      <input id="password_setup" name="password" type="password" minlength="8" required autocomplete="new-password" />
-      <label for="password2">CONFIRM</label>
-      <input id="password2" name="password2" type="password" minlength="8" required autocomplete="new-password" />
-      <input type="hidden" name="setup" value="1" />
-      <button type="submit">SAVE AND ENTER</button>
-      <p class="err">__ERR__</p>
-      <p class="hint">__HINT__</p>
+<body class="__MODE__">
+<main class="card">
+  <div class="bar"><i></i><b>HELIX/OPS</b><em class="st">SECURE TERMINAL</em><span>HOS://TKY-06</span></div>
+  <div class="hero">
+    <div class="cam"><canvas id="av" aria-hidden="true"></canvas></div>
+    <div>
+      <h1 class="m-login">SIGN <span>IN</span></h1><h1 class="m-setup">FIRST <span>RUN</span></h1><h1 class="m-change">NEW <span>PASSWORD</span></h1>
+      <div class="sub">HERMES COMMAND FLOOR</div>
+      <div class="say" id="say" aria-live="polite"></div>
     </div>
+  </div>
+  <form method="post" action="__PREFIX__/login" autocomplete="on" id="f">
+    <div class="err" id="err" role="alert">__ERR__</div>
+    <input type="hidden" name="mode" value="__MODE__">
+    <input type="hidden" name="token" value="__TOKEN__">
+    <label>USERNAME<input name="user" id="user" value="__USER__" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32" required></label>
+    <label>PASSWORD<span class="pw"><input type="password" name="password" id="pw" autocomplete="current-password" maxlength="256" required><button type="button" id="peek" aria-label="Show password">SHOW</button></span></label>
+    <label class="m-setup m-change">CONFIRM PASSWORD<input type="password" name="password2" id="pw2" autocomplete="new-password" maxlength="256"></label>
+    <div class="m-setup m-change" style="flex-direction:column;gap:6px"><div class="meter"><i id="meter"></i></div><div class="hint" id="hint">At least __MINPW__ characters. A few random words works well.</div></div>
+    <button class="go" id="go"><span class="m-login" style="display:inline">▶ PRESS START</span></button>
   </form>
-  <form class="win login-only" method="post" action="__PREFIX__/login" autocomplete="on">
-    <div class="bar">HELIX/OPS · アクセス</div>
-    <div class="body">
-      <p class="welcome">__WELCOME__</p>
-      <label for="user_login">LOGIN</label>
-      <input id="user_login" name="user" type="text" value="helix" required autocomplete="username" />
-      <label for="password_login">PASSWORD</label>
-      <input id="password_login" name="password" type="password" required autocomplete="current-password" />
-      <button type="submit">ENTER</button>
-      <p class="err">__ERR__</p>
-      <p class="hint">__HINT__</p>
-    </div>
-  </form>
+  <div class="foot"><span>© HEL-01</span><span id="lock">🔒 ENCRYPTED SESSION</span></div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var mode = document.body.className, err = document.getElementById("err"), say = document.getElementById("say");
+  var go = document.getElementById("go"), pw = document.getElementById("pw"), pw2 = document.getElementById("pw2"), user = document.getElementById("user");
+  if (mode === "setup") go.textContent = "▶ CREATE ADMIN";
+  if (mode === "change") { go.textContent = "▶ SAVE AND ENTER"; user.readOnly = true; pw.autocomplete = "new-password"; pw2.required = true; }
+  if (mode === "setup") { pw.autocomplete = "new-password"; pw2.required = true; }
+  if (location.protocol !== "https:" && !/^(localhost|127\.)/.test(location.hostname)) document.getElementById("lock").textContent = "⚠ NOT HTTPS";
+  var hasErr = err.textContent.trim().length > 0; if (hasErr) err.classList.add("on");
+  var LINES = { login: "Hi! Who's at the controls?", setup: "No admin yet. Pick a username and a strong password.", change: "Temporary password used. Choose your own to continue." };
+  var state = { mood: hasErr ? "alert" : "calm", until: 0 };
+  function line(t) { say.textContent = t; }
+  line(hasErr ? "That didn't work. Try again?" : LINES[mode] || LINES.login);
+  window.__hxLogin = state;
+  var t;
+  function typing() { state.mood = "listening"; clearTimeout(t); t = setTimeout(function () { state.mood = "calm"; }, 2000); }
+  [user, pw, pw2].forEach(function (i) { if (i) i.addEventListener("input", typing); });
+  document.getElementById("peek").onclick = function () { var s = pw.type === "password"; pw.type = s ? "text" : "password"; if (pw2) pw2.type = pw.type; this.textContent = s ? "HIDE" : "SHOW"; };
+  function score(p) { var s = 0; if (p.length >= __MINPW__) s++; if (p.length >= 14) s++; if (/[a-z]/.test(p) && /[A-Z0-9]/.test(p)) s++; if (/[^A-Za-z0-9]/.test(p)) s++; if (p.length >= 20) s++; return s; }
+  pw.addEventListener("input", function () {
+    if (mode === "login") return;
+    var s = score(pw.value), m = document.getElementById("meter");
+    m.style.width = (s * 20) + "%"; m.style.background = s < 2 ? "var(--red)" : s < 4 ? "#f59e0b" : "var(--green)";
+  });
+  document.getElementById("f").addEventListener("submit", function (e) {
+    if (mode !== "login" && pw.value !== pw2.value) { e.preventDefault(); err.textContent = "PASSWORDS DO NOT MATCH"; err.classList.remove("on"); void err.offsetWidth; err.classList.add("on"); state.mood = "alert"; line("Those two don't match."); return; }
+    state.mood = "thinking"; line("Checking…"); go.disabled = true;
+  });
+  (hasErr ? pw : user.value ? pw : user).focus();
+})();
+</script>
+<script src="__PREFIX__/app/avatar.js" defer onload="window.dispatchEvent(new Event('av'))"></script>
+<script>
+  window.addEventListener("av", function () {
+    var c = document.getElementById("av"); if (!window.HelixAvatar || c.dataset.on) return; c.dataset.on = 1;
+    window.HelixAvatar.mount(c, { fit: c.parentNode.parentNode, size: 128, getMood: function () { return { mood: (window.__hxLogin || {}).mood || "calm" }; } });
+  });
+</script>
 </body>
 </html>

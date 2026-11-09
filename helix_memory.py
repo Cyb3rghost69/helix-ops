@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
-HERMES_HOME = Path.home() / ".hermes"
+HERMES_HOME = Path(os.environ.get("HELIX_HERMES_HOME") or (Path.home() / ".hermes")).expanduser()
 MEM_DIR = HERMES_HOME / "memories"
 CONFIG = HERMES_HOME / "config.yaml"
 HONCHO_CFG = HERMES_HOME / "honcho.json"

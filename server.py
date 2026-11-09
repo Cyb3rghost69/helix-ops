@@ -8,9 +8,12 @@ import json
 import os
 import re
 import secrets
+import shlex
+import shutil
 import sqlite3
 import socket
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -24,11 +27,24 @@ from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 import ssl
 
+import helix_shield
+
 HOST = "0.0.0.0"
 PORT = 8790
 ROOT = Path(__file__).resolve().parent
-HERMES = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/hermes")
-TS = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+# Platform: the deck was built on the Mac Mini but also runs on Linux (e.g. directly on Unraid).
+IS_MAC = sys.platform == "darwin"
+ON_UNRAID = os.path.exists("/etc/unraid-version") or os.environ.get("HELIX_ON_UNRAID") == "1"
+LOCAL_ID = "mac" if IS_MAC else ("unraid" if ON_UNRAID else "local")
+# Hermes data dir: defaults to ~/.hermes; set HELIX_HERMES_HOME when Hermes lives elsewhere (e.g. an appdata mount).
+HERMES_HOME = Path(os.environ.get("HELIX_HERMES_HOME") or (Path.home() / ".hermes")).expanduser()
+HERMES = os.environ.get("HELIX_HERMES_BIN") or (
+    str(HERMES_HOME / "hermes-agent" / "venv" / "bin" / "hermes")
+    if (HERMES_HOME / "hermes-agent" / "venv" / "bin" / "hermes").exists()
+    else (shutil.which("hermes") or str(HERMES_HOME / "hermes-agent" / "venv" / "bin" / "hermes"))
+)
+_TS_MAC = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+TS = _TS_MAC if os.path.exists(_TS_MAC) else (shutil.which("tailscale") or _TS_MAC)
 UNRAID = "192.168.1.84"
 UMBREL = "192.168.1.236"
 OMARCHY = "192.168.1.207"
@@ -37,29 +53,31 @@ UDM = "192.168.1.1"
 ILO = "192.168.1.82"
 HOME = str(Path.home())
 PAGE = 16384
-STATE_DB = os.path.expanduser("~/.hermes/state.db")
-SKILLS_ROOT = Path.home() / ".hermes" / "skills"
+STATE_DB = str(HERMES_HOME / "state.db")
+SKILLS_ROOT = HERMES_HOME / "skills"
 MEM_FILES = [
-    ("SOUL", Path.home() / ".hermes" / "SOUL.md"),
-    ("USER", Path.home() / ".hermes" / "memories" / "USER.md"),
-    ("MEMORY", Path.home() / ".hermes" / "memories" / "MEMORY.md"),
+    ("SOUL", HERMES_HOME / "SOUL.md"),
+    ("USER", HERMES_HOME / "memories" / "USER.md"),
+    ("MEMORY", HERMES_HOME / "memories" / "MEMORY.md"),
 ]
 BOT_DBS = [
-    ("prefect", Path.home() / ".hermes" / "profiles" / "prefect" / "state.db"),
-    ("foreman", Path.home() / ".hermes" / "profiles" / "foreman" / "state.db"),
-    ("canon", Path.home() / ".hermes" / "profiles" / "canon" / "state.db"),
-    ("scribe", Path.home() / ".hermes" / "profiles" / "scribe" / "state.db"),
-    ("adze", Path.home() / ".hermes" / "profiles" / "adze" / "state.db"),
+    ("prefect", HERMES_HOME / "profiles" / "prefect" / "state.db"),
+    ("foreman", HERMES_HOME / "profiles" / "foreman" / "state.db"),
+    ("canon", HERMES_HOME / "profiles" / "canon" / "state.db"),
+    ("scribe", HERMES_HOME / "profiles" / "scribe" / "state.db"),
+    ("adze", HERMES_HOME / "profiles" / "adze" / "state.db"),
+    ("forge", HERMES_HOME / "profiles" / "forge" / "state.db"),
+    ("ecc", HERMES_HOME / "profiles" / "ecc" / "state.db"),
+    ("copilot", HERMES_HOME / "profiles" / "helix-copilot" / "state.db"),
+    ("community", HERMES_HOME / "profiles" / "community" / "state.db"),
 ]
 AGENT_DBS = {"helix": Path(STATE_DB), **{name: path for name, path in BOT_DBS}}
 _TRACE_CACHE: dict = {"t": 0.0, "key": "", "data": None}
-GRAPH_FILE = Path.home() / ".hermes" / "mindscape" / "graph.json"
+GRAPH_FILE = HERMES_HOME / "mindscape" / "graph.json"
 PROMPT_LOG = ROOT / "prompts.jsonl"
 HERDR = os.path.expanduser("~/.local/bin/herdr")
 AUTH_FILE = ROOT / "ops.env"
-SESSION_TTL = 12 * 3600
-_SESSIONS: dict[str, dict] = {}
-_SESS_LOCK = threading.Lock()
+SESSION_TTL = 7 * 86400   # cookie lifetime; the server also enforces 12 h idle / 7 d absolute
 SECRETISH = re.compile(r"(password|passwd|token|api[_-]?key|secret|r3dbull)", re.I)
 _FLEET_CPU: dict = {"hosts": [], "t": 0.0}
 _AGENTS_CACHE: dict = {"t": 0.0, "data": None}
@@ -105,6 +123,36 @@ def run(cmd: list[str], timeout: float = 8) -> tuple[int, str]:
         return 127, ""
 
 
+def _gateway_state() -> dict:
+    """Hermes writes ~/.hermes/gateway_state.json; read it directly so a slow `hermes gateway status` can't show a false DOWN."""
+    try:
+        d = json.loads((HERMES_HOME / "gateway_state.json").read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def gateway_state_pid() -> int | None:
+    pid = _gateway_state().get("pid")
+    return pid if isinstance(pid, int) and pid > 0 else None
+
+
+def gateway_state_running() -> bool:
+    d = _gateway_state()
+    pid = gateway_state_pid()
+    if str(d.get("gateway_state") or "").lower() != "running" or pid is None:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
 def _parse_ops_env(text: str) -> dict[str, str]:
     out: dict[str, str] = {}
     for line in text.splitlines():
@@ -116,35 +164,22 @@ def _parse_ops_env(text: str) -> dict[str, str]:
     return out
 
 
+import helix_auth as AUTH  # noqa: E402  (users, hashing, sessions, lockouts, audit)
+
+
 def ensure_ops_auth() -> None:
-    if AUTH_FILE.exists():
-        AUTH_FILE.chmod(0o600)
-        return
-    AUTH_FILE.write_text(
-        "# Helix ops login — never paste this in Telegram\n"
-        "HELIX_OPS_USER=helix\n"
-        "HELIX_OPS_PASSWORD=\n"
-        "HELIX_OPS_SETUP=1\n",
-        encoding="utf-8",
-    )
+    if not AUTH_FILE.exists():
+        fd = os.open(AUTH_FILE, os.O_WRONLY | os.O_CREAT, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write("# HELIX/OPS settings — never paste this in Telegram. Logins live (hashed) in helix-users.json.\n")
     AUTH_FILE.chmod(0o600)
+    AUTH.migrate()
 
 
 def _ops_env() -> dict[str, str]:
-    ensure_ops_auth()
+    if not AUTH_FILE.exists():
+        return {}
     return _parse_ops_env(AUTH_FILE.read_text(encoding="utf-8"))
-
-
-def _ops_creds() -> tuple[str, str]:
-    env = _ops_env()
-    return env.get("HELIX_OPS_USER") or "helix", env.get("HELIX_OPS_PASSWORD") or ""
-
-
-def setup_needed() -> bool:
-    env = _ops_env()
-    if (env.get("HELIX_OPS_SETUP") or "").strip() in ("1", "true", "yes"):
-        return True
-    return not (env.get("HELIX_OPS_PASSWORD") or "")
 
 
 def auth_open() -> bool:
@@ -152,61 +187,20 @@ def auth_open() -> bool:
     return v in ("off", "0", "false", "open", "disabled")
 
 
-def write_ops_password(user: str, password: str) -> None:
-    user = (user or "helix").strip() or "helix"
-    auth = (_ops_env().get("HELIX_OPS_AUTH") or "").strip()
-    extra = f"HELIX_OPS_AUTH={auth}\n" if auth else ""
-    AUTH_FILE.write_text(
-        "# Helix ops login — never paste this in Telegram\n"
-        f"HELIX_OPS_USER={user}\n"
-        f"HELIX_OPS_PASSWORD={password}\n"
-        "HELIX_OPS_SETUP=0\n"
-        + extra,
-        encoding="utf-8",
-    )
-    AUTH_FILE.chmod(0o600)
-
-
-def check_login(user: str, password: str) -> bool:
-    want_user, want_pw = _ops_creds()
-    if not want_pw:
-        return False
-    u_ok = hmac.compare_digest(hashlib.sha256(user.encode("utf-8")).digest(), hashlib.sha256(want_user.encode("utf-8")).digest())
-    p_ok = hmac.compare_digest(hashlib.sha256(password.encode("utf-8")).digest(), hashlib.sha256(want_pw.encode("utf-8")).digest())
-    return u_ok and p_ok
-
-
-def new_session(user: str) -> str:
-    tok = secrets.token_urlsafe(32)
-    with _SESS_LOCK:
-        _SESSIONS[tok] = {"user": user, "exp": time.time() + SESSION_TTL}
-    return tok
-
-
-def drop_session(tok: str) -> None:
-    with _SESS_LOCK:
-        _SESSIONS.pop(tok, None)
-
-
-def session_user(handler: BaseHTTPRequestHandler) -> str | None:
-    raw = handler.headers.get("Cookie") or ""
+def _cookie_token(handler: BaseHTTPRequestHandler) -> str | None:
     jar = SimpleCookie()
     try:
-        jar.load(raw)
+        jar.load(handler.headers.get("Cookie") or "")
     except Exception:
         return None
-    morsel = jar.get("helix_ops")
-    if not morsel:
-        return None
-    tok = morsel.value
-    now = time.time()
-    with _SESS_LOCK:
-        rec = _SESSIONS.get(tok)
-        if not rec or rec["exp"] < now:
-            _SESSIONS.pop(tok, None)
-            return None
-        rec["exp"] = now + SESSION_TTL
-        return rec["user"]
+    m = jar.get("helix_ops")
+    return m.value if m else None
+
+
+def session_rec(handler: BaseHTTPRequestHandler) -> dict | None:
+    if auth_open():
+        return {"user": "local", "role": "admin", "sid": "", "open": True}
+    return AUTH.session(_cookie_token(handler))
 
 
 def http_code(url: str, timeout: float = 2.0) -> dict:
@@ -222,7 +216,7 @@ def http_code(url: str, timeout: float = 2.0) -> dict:
 
 
 def ping_ms(host: str) -> float | None:
-    code, out = run(["ping", "-c", "1", "-W", "1000", host], timeout=3)
+    code, out = run(["ping", "-c", "1", "-W", "1000" if IS_MAC else "1", host], timeout=3)
     m = re.search(r"time=([\d.]+)\s*ms", out)
     if m:
         return float(m.group(1))
@@ -353,6 +347,59 @@ def mac_host() -> dict:
     }
 
 
+def _fmt_uptime(sec: float) -> str:
+    d, rem = divmod(int(sec), 86400)
+    h, rem = divmod(rem, 3600)
+    return (f"{d} days, " if d else "") + f"{h}:{rem // 60:02d}"
+
+
+def linux_host() -> dict:
+    """Same shape as mac_host(), read from /proc and standard Linux tools."""
+    _, out = run(["sh", "-c", LINUX_STATS], 6)
+    info = parse_linux_stats(out)
+    uptime = None
+    try:
+        uptime = _fmt_uptime(float(Path("/proc/uptime").read_text().split()[0]))
+    except (OSError, ValueError, IndexError):
+        pass
+    disk = {}
+    for mount in ("/mnt/user", "/mnt/cache", "/"):      # Unraid's / is RAM; prefer the array/cache
+        if os.path.ismount(mount) or mount == "/":
+            try:
+                du = shutil.disk_usage(mount)
+                disk = {"mount": mount, "used_gb": round(du.used / 1073741824, 1), "avail_gb": round(du.free / 1073741824, 1),
+                        "pct": f"{round(100 * du.used / du.total)}%" if du.total else None}
+                break
+            except OSError:
+                continue
+    ips = []
+    _, ipo = run(["ip", "-4", "-o", "addr", "show", "scope", "global"], 2)
+    for ln in ipo.splitlines():
+        m = re.match(r"\d+:\s+(\S+)\s+inet\s+(\d+\.\d+\.\d+\.\d+)", ln)
+        if m and not m.group(1).startswith(("docker", "br-", "veth", "virbr")):
+            ips.append({"iface": m.group(1), "ip": m.group(2)})
+    name = info.get("hostname") or socket.gethostname()
+    return {
+        "id": LOCAL_ID,
+        "name": name,
+        "role": "Unraid / Helix host" if ON_UNRAID else "Helix host",
+        "online": True,
+        "host": ips[0]["ip"] if ips else None,
+        "ips": ips,
+        "cpus": info.get("cpus") or os.cpu_count(),
+        "mem_total_gb": info.get("mem_total_gb"),
+        "mem_used_gb": info.get("mem_used_gb"),
+        "disk": disk,
+        "load": info.get("load") or list(os.getloadavg()),
+        "uptime": uptime,
+        "hermes_procs": info.get("hermes_procs", 0),
+    }
+
+
+def local_host() -> dict:
+    return mac_host() if IS_MAC else linux_host()
+
+
 def _host_cpu_row(h: dict) -> dict:
     load = h.get("load") or []
     ncpu = int(h.get("cpus") or 0)
@@ -381,18 +428,20 @@ def compute_now() -> dict:
     ncpu = os.cpu_count() or 1
     load = list(os.getloadavg())
     mac = {
-        "id": "mac",
-        "name": "Mac",
+        "id": LOCAL_ID,
+        "name": "Mac" if IS_MAC else socket.gethostname(),
         "online": True,
         "cpus": ncpu,
         "load1": round(float(load[0]), 2),
         "pct": min(100.0, round(100.0 * float(load[0]) / ncpu, 1)),
     }
-    cached_mac = next((h for h in (_FLEET_CPU.get("hosts") or []) if h.get("id") == "mac"), {})
+    cached_mac = next((h for h in (_FLEET_CPU.get("hosts") or []) if h.get("id") == LOCAL_ID), {})
     for k in ("mem_used_gb", "mem_total_gb", "disk_pct", "hermes_procs"):
         if cached_mac.get(k) is not None:
             mac[k] = cached_mac.get(k)
-    others = [h for h in (_FLEET_CPU.get("hosts") or []) if h.get("id") != "mac"]
+    if cached_mac.get("name"):
+        mac["name"] = cached_mac["name"]
+    others = [h for h in (_FLEET_CPU.get("hosts") or []) if h.get("id") != LOCAL_ID]
     hosts = [mac, *others]
     online = [h for h in hosts if h.get("online") and (h.get("cpus") or 0) > 0]
     total_cpus = sum(int(h["cpus"]) for h in online)
@@ -420,21 +469,19 @@ def fleet_btop() -> dict:
 
 
 def security_now(gw_running: bool, local_svcs: dict, ts: dict, hosts: list) -> dict:
+    _defaults = AUTH.default_password_users()
     findings = [
         {
-            "level": "low",
-            "title": "Ops login is on",
-            "detail": "Cookie session on :8790. Password lives in ops.env on the Mini — not Telegram.",
+            "level": "high" if auth_open() or _defaults else "ok",
+            "title": "Ops login",
+            "detail": ("OFF — dashboard limited to this Mac" if auth_open()
+                       else f"on · default password still set for {', '.join(_defaults)}" if _defaults
+                       else "on · cookie sessions, hashed passwords"),
         },
         {
             "level": "med",
             "title": "Rotate UniFi key",
             "detail": "Key lived in chat once. File unifi.env mode 600 only.",
-        },
-        {
-            "level": "med",
-            "title": "BlueBubbles Cloudflare URL dead",
-            "detail": "iMessage adapter retrying a dead tunnel. Local API is 127.0.0.1:1234.",
         },
         {
             "level": "ok" if gw_running else "high",
@@ -490,15 +537,22 @@ OWNER_RX = [
 ]
 
 
+_ALIASES: dict = {"mtime": None, "data": {}}
+
+
 def _load_aliases() -> dict:
     p = ROOT / "clients-aliases.json"
-    if not p.exists():
-        return {}
     try:
-        data = json.loads(p.read_text())
-        return data if isinstance(data, dict) else {}
-    except (OSError, json.JSONDecodeError):
+        mt = p.stat().st_mtime
+    except OSError:
         return {}
+    if _ALIASES["mtime"] != mt:
+        try:
+            data = json.loads(p.read_text())
+            _ALIASES.update({"mtime": mt, "data": data if isinstance(data, dict) else {}})
+        except (OSError, json.JSONDecodeError):
+            return {}
+    return _ALIASES["data"]
 
 
 def _unifi_cfg() -> tuple[str | None, str]:
@@ -543,7 +597,20 @@ def guess_owner(ip: str, hostname: str, name: str = "") -> tuple[str, str]:
     return "unknown", "no hostname"
 
 
+_PTR_CACHE: dict = {"t": 0.0, "prefix": "", "rows": None}
+PTR_TTL_S = 600
+
+
 def ptr_clients(prefix: str = "192.168.1.") -> list[dict]:
+    """Reverse-DNS sweep of the /24. Names rarely change, so reuse the sweep for 10 minutes."""
+    if _PTR_CACHE["rows"] is not None and _PTR_CACHE["prefix"] == prefix and time.time() - _PTR_CACHE["t"] < PTR_TTL_S:
+        return [dict(r) for r in _PTR_CACHE["rows"]]
+    rows = _ptr_sweep(prefix)
+    _PTR_CACHE.update({"t": time.time(), "prefix": prefix, "rows": [dict(r) for r in rows]})
+    return rows
+
+
+def _ptr_sweep(prefix: str) -> list[dict]:
     def one(i: int):
         ip = f"{prefix}{i}"
         code, out = run(["dig", "+time=1", "+tries=1", "+short", "-x", ip, "@192.168.1.1"], 2)
@@ -700,13 +767,20 @@ def _protect_headers() -> tuple[dict, str] | tuple[None, str]:
     return {"X-API-KEY": key, "Accept": "application/json"}, base
 
 
+_PROTECT_READY = False
+
+
 def _protect_init_db() -> None:
+    global _PROTECT_READY
+    if _PROTECT_READY:
+        return
     con = sqlite3.connect(PROTECT_DB)
     con.execute(
         "CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY, t REAL, cam TEXT, kind TEXT, note TEXT)"
     )
     con.commit()
     con.close()
+    _PROTECT_READY = True
 
 
 def protect_record(cam: str, kind: str, note: str = "") -> None:
@@ -815,6 +889,8 @@ SSH_UNRAID = [
     "ConnectTimeout=6",
     f"root@{UNRAID}",
 ]
+if ON_UNRAID and shutil.which("docker"):
+    SSH_UNRAID = ["sh", "-c"]   # same command strings, run locally
 DOCKER_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 DOCKER_WEBUI_FALLBACK = {
     "helix-command": f"http://{UNRAID}:8788/",
@@ -921,12 +997,26 @@ def git_now() -> dict:
         repo = "helix-ops"
     ahead = behind = 0
     code, ab = g(["rev-list", "--left-right", "--count", "@{upstream}...HEAD"])
+    upstream_ok = code == 0
     if code == 0 and ab.strip():
         parts = ab.split()
         if len(parts) == 2:
             behind, ahead = int(parts[0] or 0), int(parts[1] or 0)
+    days = [0] * 14
+    lcode, log = g(["log", "--since=14.days", "--format=%ad", "--date=short"])
+    if lcode == 0:
+        today = time.localtime()
+        base = time.mktime((today.tm_year, today.tm_mon, today.tm_mday, 12, 0, 0, 0, 0, -1))
+        for ln in log.splitlines():
+            try:
+                d = time.mktime(time.strptime(ln.strip(), "%Y-%m-%d")) + 12 * 3600
+            except ValueError:
+                continue
+            ago = int(round((base - d) / 86400))
+            if 0 <= ago < 14:
+                days[13 - ago] += 1
     sync = "NO REMOTE"
-    if code == 0:
+    if upstream_ok:
         if ahead and behind:
             sync = "DIVERGED"
         elif ahead:
@@ -946,6 +1036,7 @@ def git_now() -> dict:
         "behind": behind,
         "sync": sync,
         "clean": len(dirty) == 0,
+        "days": days,
     }
 
 
@@ -1028,6 +1119,12 @@ def ssh_linux(key: str, userhost: str) -> dict:
     info: dict = {"ssh_ok": code == 0}
     if code != 0:
         return info
+    info.update(parse_linux_stats(out))
+    return info
+
+
+def parse_linux_stats(out: str) -> dict:
+    info: dict = {}
     lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
     if lines:
         info["hostname"] = lines[0]
@@ -1069,7 +1166,43 @@ def tcp_open(host: str, port: int) -> bool:
             pass
 
 
+def linux_net_stats() -> dict:
+    gw = iface = None
+    try:
+        for ln in Path("/proc/net/route").read_text().splitlines()[1:]:
+            cols = ln.split()
+            if len(cols) > 2 and cols[1] == "00000000":
+                iface = cols[0]
+                g = int(cols[2], 16)
+                gw = ".".join(str((g >> (8 * i)) & 255) for i in range(4))
+                break
+    except (OSError, ValueError):
+        pass
+    ifaces = []
+    try:
+        rows = Path("/proc/net/dev").read_text().splitlines()[2:]
+    except OSError:
+        rows = []
+    for ln in rows:
+        name, _, rest = ln.partition(":")
+        name = name.strip()
+        role = "LAN" if name == iface else ("Tailscale" if name.startswith("tailscale") else None)
+        if not role:
+            continue
+        cols = rest.split()
+        try:
+            ib, ip_, ob, op_ = int(cols[0]), int(cols[1]), int(cols[8]), int(cols[9])
+        except (ValueError, IndexError):
+            continue
+        ifaces.append({"name": name, "role": role, "rx_gb": round(ib / 1073741824, 2), "tx_gb": round(ob / 1073741824, 2),
+                       "rx_pkts": ip_, "tx_pkts": op_, "rx_bytes": ib, "tx_bytes": ob})
+    ifaces.sort(key=lambda r: r["role"] != "LAN")
+    return {"ifaces": ifaces, "gateway": gw, "egress_iface": iface}
+
+
 def net_stats() -> dict:
+    if not IS_MAC:
+        return linux_net_stats()
     ifaces = []
     for name, role in (("en0", "LAN"), ("en1", "LAN-2"), ("utun0", "Tailscale")):
         _, ns = run(["/usr/sbin/netstat", "-I", name, "-b"], 2)
@@ -1094,6 +1227,8 @@ def net_stats() -> dict:
                 "tx_gb": round(obytes / (1024**3), 2),
                 "rx_pkts": ipkts,
                 "tx_pkts": opkts,
+                "rx_bytes": ibytes,
+                "tx_bytes": obytes,
             }
             break
         if row:
@@ -1186,6 +1321,7 @@ def lan_hosts() -> list[dict]:
             "host": ILO,
         },
     ]
+    specs = [sp for sp in specs if sp["id"] != LOCAL_ID]
     by_id: dict = {}
     with ThreadPoolExecutor(max_workers=6) as ex:
         futs = {ex.submit(probe_host, s): s["id"] for s in specs}
@@ -1214,6 +1350,10 @@ def bot_mesh(profiles: list[dict], peers: list[dict], gw_running: bool, local_sv
         {"id": "canon", "label": "Canon", "kind": "bot", "host": "mac", "online": on("canon")},
         {"id": "scribe", "label": "Scribe", "kind": "bot", "host": "mac", "online": on("scribe")},
         {"id": "adze", "label": "ADZE", "kind": "bot", "host": "mac", "online": on("adze")},
+        {"id": "forge", "label": "Forge", "kind": "bot", "host": "mac", "online": on("forge")},
+        {"id": "ecc", "label": "ECC", "kind": "bot", "host": "mac", "online": on("ecc")},
+        {"id": "copilot", "label": "Copilot", "kind": "bot", "host": "mac", "online": on("helix-copilot")},
+        {"id": "community", "label": "Community", "kind": "bot", "host": "mac", "online": on("community")},
         {"id": "unraid", "label": "Unraid peer", "kind": "peer", "host": "unraid", "online": "unraid" in peer_names},
         {"id": "umbrel", "label": "Umbrel peer", "kind": "peer", "host": "umbrel", "online": "umbrel" in peer_names},
         {"id": "telegram", "label": "Telegram", "kind": "channel", "host": "mac", "online": gw_running},
@@ -1229,6 +1369,10 @@ def bot_mesh(profiles: list[dict], peers: list[dict], gw_running: bool, local_sv
         {"from": "helix", "to": "canon", "label": "docs", "live": on("canon")},
         {"from": "helix", "to": "scribe", "label": "research", "live": on("scribe")},
         {"from": "helix", "to": "adze", "label": "critique", "live": on("adze")},
+        {"from": "helix", "to": "forge", "label": "code", "live": on("forge")},
+        {"from": "helix", "to": "ecc", "label": "tdd", "live": on("ecc")},
+        {"from": "helix", "to": "copilot", "label": "copilot", "live": on("helix-copilot")},
+        {"from": "user", "to": "community", "label": "matrix", "live": on("community")},
         {"from": "helix", "to": "unraid", "label": "peer", "live": "unraid" in peer_names},
         {"from": "helix", "to": "umbrel", "label": "peer", "live": "umbrel" in peer_names},
         {"from": "helix", "to": "honcho", "label": "memory", "live": honcho_ok},
@@ -1353,6 +1497,12 @@ def _bus_for_tool(name: str) -> str:
         return "foreman"
     if "canon" in n:
         return "canon"
+    if "forge" in n:
+        return "forge"
+    if "copilot" in n:
+        return "copilot"
+    if re.search(r"(^|[^a-z])ecc([^a-z]|$)", n):
+        return "ecc"
     if n in ("web_search", "web_extract", "browser_exec", "hermes_web_search") or n.startswith("browser_"):
         return "network"
     if n in ("terminal", "execute_code", "computer_use"):
@@ -1444,11 +1594,15 @@ def agents_now() -> dict:
         return _AGENTS_CACHE["data"]
     specs = [
         ("helix", "Helix", "mac", STATE_DB, "orchestra", "Telegram + desktop brain"),
-        ("prefect", "Prefect", "mac", os.path.expanduser("~/.hermes/profiles/prefect/state.db"), "bot", "align · silent"),
-        ("foreman", "Foreman", "mac", os.path.expanduser("~/.hermes/profiles/foreman/state.db"), "bot", "kanban · silent"),
-        ("canon", "Canon", "mac", os.path.expanduser("~/.hermes/profiles/canon/state.db"), "bot", "docs · silent"),
-        ("scribe", "Scribe", "mac", os.path.expanduser("~/.hermes/profiles/scribe/state.db"), "bot", "research · silent"),
-        ("adze", "ADZE", "mac", os.path.expanduser("~/.hermes/profiles/adze/state.db"), "bot", "openai critic · silent"),
+        ("prefect", "Prefect", "mac", str(HERMES_HOME / "profiles" / "prefect" / "state.db"), "bot", "align · silent"),
+        ("foreman", "Foreman", "mac", str(HERMES_HOME / "profiles" / "foreman" / "state.db"), "bot", "kanban · silent"),
+        ("canon", "Canon", "mac", str(HERMES_HOME / "profiles" / "canon" / "state.db"), "bot", "docs · silent"),
+        ("scribe", "Scribe", "mac", str(HERMES_HOME / "profiles" / "scribe" / "state.db"), "bot", "research · silent"),
+        ("adze", "ADZE", "mac", str(HERMES_HOME / "profiles" / "adze" / "state.db"), "bot", "openai critic · silent"),
+        ("forge", "Forge", "mac", str(HERMES_HOME / "profiles" / "forge" / "state.db"), "bot", "claude coder · silent"),
+        ("ecc", "ECC", "mac", str(HERMES_HOME / "profiles" / "ecc" / "state.db"), "bot", "tdd · review · security · silent"),
+        ("copilot", "Copilot", "mac", str(HERMES_HOME / "profiles" / "helix-copilot" / "state.db"), "bot", "copilot coder · silent"),
+        ("community", "Community", "mac", str(HERMES_HOME / "profiles" / "community" / "state.db"), "bot", "matrix community · isolated"),
     ]
     agents = []
     for aid, label, host, db, kind, role in specs:
@@ -1595,61 +1749,65 @@ def skill_body(rel: str) -> dict:
     return {"id": rel, "name": path.parent.name, "text": text, "mtime": int(st.st_mtime), "bytes": st.st_size}
 
 
+_TALK_CACHE: dict = {"t": 0.0, "limit": 0, "data": None}
+_TALK_LOCK = threading.Lock()
+
+
 def bot_talk(limit: int = 80) -> dict:
+    """Recent Helix ⇄ bot traffic. One query per bot (was one per session) and a 3 s cache — the page polls this every 4 s."""
+    with _TALK_LOCK:
+        if _TALK_CACHE["data"] is not None and _TALK_CACHE["limit"] >= limit and time.time() - _TALK_CACHE["t"] < 3:
+            d = _TALK_CACHE["data"]
+            return {"items": d["items"][-limit:], "bots": d["bots"]}
     items: list[dict] = []
     for bot, db in BOT_DBS:
         if not db.is_file():
             continue
+        peer = "user" if bot == "community" else "helix"
         try:
             con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=1.5)
             con.row_factory = sqlite3.Row
-            sessions = con.execute(
+            rows = con.execute(
                 """
-                SELECT id, title, source, last_activity_at
-                FROM sessions
-                WHERE IFNULL(archived,0)=0
-                ORDER BY IFNULL(last_activity_at,0) DESC LIMIT 24
-                """
+                SELECT m.role, m.content, m.reasoning_content, m.timestamp,
+                       s.id AS sid, s.title, s.source, s.last_activity_at
+                FROM messages m JOIN sessions s ON s.id = m.session_id
+                WHERE IFNULL(s.archived,0)=0 AND IFNULL(m.active,1)=1
+                  AND m.role IN ('user','assistant')
+                ORDER BY m.id DESC LIMIT ?
+                """,
+                (limit,),
             ).fetchall()
-            for s in sessions:
-                rows = con.execute(
-                    """
-                    SELECT role, content, reasoning_content, timestamp
-                    FROM messages
-                    WHERE session_id=? AND IFNULL(active,1)=1
-                      AND role IN ('user','assistant')
-                    ORDER BY id ASC
-                    """,
-                    (s["id"],),
-                ).fetchall()
-                if not rows:
-                    continue
-                for r in rows:
-                    role = r["role"]
-                    text = _cli_text((r["content"] or r["reasoning_content"] or ""), 500)
-                    if not text:
-                        if role == "assistant":
-                            text = "(no reply)"
-                        else:
-                            continue
-                    ts = r["timestamp"] or s["last_activity_at"] or 0
-                    items.append(
-                        {
-                            "from": "helix" if role == "user" else bot,
-                            "to": bot if role == "user" else "helix",
-                            "text": text,
-                            "title": _snip(s["title"] or "", 70),
-                            "source": s["source"] or "",
-                            "t": float(ts) if ts else 0,
-                            "sid": s["id"],
-                        }
-                    )
             con.close()
         except sqlite3.Error:
             continue
+        for r in reversed(rows):
+            role = r["role"]
+            text = _cli_text((r["content"] or r["reasoning_content"] or ""), 500)
+            if not text:
+                if role == "assistant":
+                    text = "(no reply)"
+                else:
+                    continue
+            ts = r["timestamp"] or r["last_activity_at"] or 0
+            sender = ("system" if SYSTEM_NOTE_RX.match(text) else peer) if role == "user" else bot
+            items.append(
+                {
+                    "from": sender,
+                    "to": bot if role == "user" else peer,
+                    "text": text,
+                    "title": _snip(r["title"] or "", 70),
+                    "source": r["source"] or "",
+                    "t": float(ts) if ts else 0,
+                    "sid": r["sid"],
+                }
+            )
     items.sort(key=lambda x: x["t"])
     bots = sorted({b for b, db in BOT_DBS if db.is_file()})
-    return {"items": items[-limit:], "bots": bots}
+    data = {"items": items[-limit:], "bots": bots}
+    with _TALK_LOCK:
+        _TALK_CACHE.update({"t": time.time(), "limit": limit, "data": data})
+    return data
 
 
 def herdr_now() -> dict:
@@ -1746,6 +1904,8 @@ def waiting_prompts() -> list[dict]:
             lu, la = r["last_user_ts"], r["last_as_ts"]
             if lu is None:
                 continue
+            if float(lu) < time.time() - 7 * 86400:      # a week-old unanswered prompt is history, not a to-do
+                continue
             if la is not None and float(la) >= float(lu):
                 continue
             rows.append(
@@ -1818,18 +1978,6 @@ def action_queue(gw_running: bool, kstats: str, cron_jobs: int, local_svcs: dict
                 "id": "",
             }
         )
-    deck = local_svcs.get("control_deck") or {}
-    if deck.get("status") not in (200, 401):
-        items.append(
-            {
-                "kind": "system",
-                "priority": "med",
-                "source": "deck",
-                "title": "Control Deck down",
-                "detail": "127.0.0.1:4240 not answering.",
-                "id": "",
-            }
-        )
     for line in (kstats or "").splitlines():
         m = re.match(r"\s*(triage|todo|ready|blocked|running|scheduled)\s+(\d+)", line, re.I)
         if m and int(m.group(2)) > 0:
@@ -1854,26 +2002,14 @@ def action_queue(gw_running: bool, kstats: str, cron_jobs: int, local_svcs: dict
                 "id": "",
             }
         )
-    items.append(
-        {
-            "kind": "security",
-            "priority": "low",
-            "source": "ops",
-            "title": "Helix ops login",
-            "detail": "Session cookie required. Username/password in ~/.hermes/reports/ops-dashboard/ops.env — do not paste in Telegram.",
-            "id": "",
-        }
-    )
-    items.append(
-        {
-            "kind": "security",
-            "priority": "med",
-            "source": "unifi",
-            "title": "Rotate UniFi API key",
-            "detail": "A key was pasted in chat earlier. Create a new local key in UniFi; ops reads unifi.env only.",
-            "id": "",
-        }
-    )
+    if auth_open():
+        items.append({"kind": "security", "priority": "high", "source": "ops",
+                      "title": "Ops login is OFF",
+                      "detail": "HELIX_OPS_AUTH=off in ops.env — only this Mac can open the dashboard. Set it to on when testing is done.", "id": ""})
+    for u in AUTH.default_password_users():
+        items.append({"kind": "security", "priority": "high", "source": "ops",
+                      "title": f"Default password on '{u}'",
+                      "detail": "Change it: ADMIN page → your account → change password.", "id": ""})
     items.append(
         {
             "kind": "idea",
@@ -1908,7 +2044,7 @@ def tailscale() -> dict:
 
 
 def mindscape() -> dict:
-    plugin = Path.home() / ".hermes" / "plugins" / "mindscape"
+    plugin = HERMES_HOME / "plugins" / "mindscape"
     yaml_path = plugin / "plugin.yaml"
     version = None
     if yaml_path.exists():
@@ -2337,7 +2473,7 @@ def cognitive_trace(agent: str = "helix", run_id: str = "", retain: int = 24) ->
                 })
                 stream.append({"tag": "TOOL", "text": d["name"]})
                 push_packet("hermes", dest, ts)
-                if dest in ("prefect", "scribe", "foreman", "canon", "adze"):
+                if dest in ("prefect", "scribe", "foreman", "canon", "adze", "forge", "ecc", "copilot"):
                     timeline.append({
                         "id": f"{r['id']}-del-{dest}",
                         "kind": "DELEGATE",
@@ -2468,11 +2604,56 @@ def cognitive_trace(agent: str = "helix", run_id: str = "", retain: int = 24) ->
     return data
 
 
+_CLI_CACHE: dict = {}
+_CLI_LOCK = threading.Lock()
+
+
+def hermes_cli_batch(specs: dict) -> dict:
+    """Run several `hermes …` commands at once. specs: name → (args, timeout_s, cache_ttl_s).
+    Stats are collected in the background, so timeouts can be generous; a command that still times out
+    keeps its last good answer instead of blanking the panel (that is what showed a false 'gateway down')."""
+    out: dict = {}
+    todo = {}
+    now = time.time()
+    with _CLI_LOCK:
+        for name, (args, tmo, ttl) in specs.items():
+            c = _CLI_CACHE.get(name)
+            if c and ttl and now - c["t"] < ttl:
+                out[name] = c["out"]
+            else:
+                todo[name] = (args, tmo)
+    if todo:
+        with ThreadPoolExecutor(max_workers=min(8, len(todo))) as pool:
+            futs = {pool.submit(run, [HERMES, *args], tmo): name for name, (args, tmo) in todo.items()}
+            for fut in as_completed(futs):
+                name = futs[fut]
+                code, txt = fut.result()
+                with _CLI_LOCK:
+                    if code == 124 and not txt and name in _CLI_CACHE:
+                        txt = _CLI_CACHE[name]["out"]          # timed out: keep the last good answer
+                    elif txt:
+                        _CLI_CACHE[name] = {"t": time.time(), "out": txt}
+                out[name] = txt
+    return out
+
+
 def collect() -> dict:
     t0 = time.time()
-    _, ver = run([HERMES, "--version"], 6)
-    _, model_cfg = run([HERMES, "config", "get", "model"], 6)
-    _, prov_cfg = run([HERMES, "config", "get", "model.provider"], 6)
+    cli = hermes_cli_batch({
+        "ver": (["--version"], 20, 600),
+        "model": (["config", "get", "model"], 20, 120),
+        "prov": (["config", "get", "model.provider"], 20, 120),
+        "plist": (["profile", "list"], 25, 30),
+        "gw": (["gateway", "status"], 25, 0),
+        "sstats": (["sessions", "stats"], 25, 30),
+        "slist": (["sessions", "list"], 25, 15),
+        "peers": (["peer", "list"], 20, 60),
+        "mem": (["memory", "status"], 20, 120),
+        "cron": (["cron", "list"], 20, 60),
+        "dash": (["dashboard", "--status"], 20, 60),
+        "kstats": (["kanban", "stats"], 20, 30),
+    })
+    ver, model_cfg, prov_cfg = cli["ver"], cli["model"], cli["prov"]
     version = None
     commits_behind = None
     m = re.search(r"Hermes Agent (v[\d.]+)", ver)
@@ -2486,15 +2667,8 @@ def collect() -> dict:
     if mm:
         model_name = mm.group(1)
     provider_name = (prov_cfg or "").strip() or None
-    _, plist = run([HERMES, "profile", "list"], 10)
-    _, gw = run([HERMES, "gateway", "status"], 6)
-    _, sstats = run([HERMES, "sessions", "stats"], 8)
-    _, slist = run([HERMES, "sessions", "list"], 8)
-    _, peers = run([HERMES, "peer", "list"], 6)
-    _, mem = run([HERMES, "memory", "status"], 8)
-    _, cron = run([HERMES, "cron", "list"], 6)
-    _, dash = run([HERMES, "dashboard", "--status"], 6)
-    _, kstats = run([HERMES, "kanban", "stats"], 6)
+    plist, gw, sstats, slist = cli["plist"], cli["gw"], cli["sstats"], cli["slist"]
+    peers, mem, cron, dash, kstats = cli["peers"], cli["mem"], cli["cron"], cli["dash"], cli["kstats"]
     mem_provider = None
     mm = re.search(r"Provider:\s+(\S+)", mem)
     if mm:
@@ -2503,11 +2677,14 @@ def collect() -> dict:
         "Gateway is running" in gw
         or "supervised by launchd" in gw
         or ("✓" in gw and "running" in gw.lower())
+        or gateway_state_running()
     )
     gw_pid = None
     pm = re.search(r"PID:?\s*(\d+)", gw)
     if pm:
         gw_pid = int(pm.group(1))
+    if gw_pid is None and gw_running:
+        gw_pid = gateway_state_pid()
     peer_rows = []
     for line in peers.splitlines():
         if not line.strip() or line.startswith("usage:"):
@@ -2526,7 +2703,6 @@ def collect() -> dict:
         "webui": http_code("http://127.0.0.1:8787/health"),
         "hermes_dashboard": http_code("http://127.0.0.1:9119/"),
         "honcho": http_code(f"http://{UNRAID}:8000/health"),
-        "control_deck": http_code("http://127.0.0.1:4240/"),
         "command_board": http_code(f"http://{UNRAID}:8788/"),
     }
     cron_jobs = 0 if "No scheduled jobs" in cron else len(
@@ -2536,11 +2712,12 @@ def collect() -> dict:
         "Gateway is running" in gw
         or "supervised by launchd" in gw
         or ("✓" in gw and "running" in gw.lower())
+        or gateway_state_running()
     )
     actions = action_queue(gw_running, kstats, cron_jobs, local_svcs)
     profiles = parse_profiles(plist)
     sess = parse_sessions_stats(sstats)
-    hosts = [mac_host(), *lan_hosts()]
+    hosts = [local_host(), *lan_hosts()]
     cache_fleet_cpu(hosts)
     ts = tailscale()
     return {
@@ -2570,7 +2747,501 @@ def collect() -> dict:
         "actions": actions,
         "security": security_now(gw_running, local_svcs, ts, hosts),
         "mindscape": mindscape(),
+        "auth_open": auth_open(),
     }
+
+
+# ───────────── HELIX chat bridge ─────────────
+# The dashboard terminal talks to Helix through one of (first configured wins, values from ops.env or env):
+#   HELIX_CHAT_URL  OpenAI-compatible chat completions URL (e.g. Hermes' API server …/v1/chat/completions)
+#                   + HELIX_CHAT_KEY (bearer, optional) + HELIX_CHAT_MODEL (default "hermes")
+#   HELIX_CHAT_CMD  one-shot CLI, the user text is passed as the last argument or replaces {text}
+#                   (e.g. "~/.hermes/hermes-agent/venv/bin/hermes chat -q {text}")
+# Keys never leave the server. Replies are streamed to the browser as Server-Sent Events.
+CHAT_LOCK = threading.Semaphore(2)
+
+
+def _chat_cfg() -> dict:
+    try:
+        env = _ops_env()
+    except OSError:
+        env = {}
+    g = lambda k, d="": (env.get(k) or os.environ.get(k) or d).strip()
+    url, cmd = g("HELIX_CHAT_URL"), g("HELIX_CHAT_CMD")
+    mode = "api" if url else ("cli" if cmd else None)
+    return {"mode": mode, "url": url, "key": g("HELIX_CHAT_KEY"), "model": g("HELIX_CHAT_MODEL", "hermes"), "cmd": cmd,
+            "timeout": float(g("HELIX_CHAT_TIMEOUT", "180") or 180), "session": g("HELIX_CHAT_SESSION", "helix-ops-dashboard")}
+
+
+def chat_status() -> dict:
+    c = _chat_cfg()
+    out = {"configured": bool(c["mode"]), "mode": c["mode"], "model": c["model"] if c["mode"] == "api" else None}
+    if c["mode"] == "api":
+        m = re.match(r"^(https?://[^/]+)", c["url"])
+        out["endpoint"] = m.group(1) if m else "configured"
+    return out
+
+
+def _clean_messages(raw) -> list[dict]:
+    msgs = []
+    for m in (raw if isinstance(raw, list) else [])[-24:]:
+        if not isinstance(m, dict):
+            continue
+        role = m.get("role") if m.get("role") in ("user", "assistant") else None
+        text = str(m.get("content") or "")[:4000]
+        if role and text.strip():
+            msgs.append({"role": role, "content": text})
+    return msgs
+
+
+def chat_stream(messages: list[dict], emit) -> None:
+    """Send the conversation to Helix; call emit(kind, data) with 'delta', 'error', 'done'."""
+    c = _chat_cfg()
+    if not c["mode"]:
+        emit("error", {"error": "not_configured", "detail": "Set HELIX_CHAT_URL or HELIX_CHAT_CMD in ops.env"})
+        return
+    if c["mode"] == "api":
+        body = json.dumps({"model": c["model"], "messages": messages, "stream": True, "user": c["session"]}).encode()
+        headers = {"Content-Type": "application/json", "Accept": "text/event-stream", "X-Hermes-Session-Id": c["session"]}
+        if c["key"]:
+            headers["Authorization"] = "Bearer " + c["key"]
+        req = Request(c["url"], data=body, headers=headers, method="POST")
+        try:
+            with urlopen(req, timeout=c["timeout"]) as resp:
+                ctype = resp.headers.get("Content-Type") or ""
+                if "text/event-stream" not in ctype:
+                    data = json.loads(resp.read().decode("utf-8", "replace") or "{}")
+                    text = (((data.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
+                    if text:
+                        emit("delta", {"text": text})
+                    emit("done", {})
+                    return
+                for raw in resp:
+                    line = raw.decode("utf-8", "replace").strip()
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        ch = (json.loads(payload).get("choices") or [{}])[0]
+                    except json.JSONDecodeError:
+                        continue
+                    piece = (ch.get("delta") or {}).get("content") or (ch.get("message") or {}).get("content") or ""
+                    if piece:
+                        emit("delta", {"text": piece})
+            emit("done", {})
+        except HTTPError as e:
+            emit("error", {"error": f"helix api http {e.code}", "detail": "check HELIX_CHAT_URL / HELIX_CHAT_KEY"})
+        except (URLError, TimeoutError, OSError) as e:
+            emit("error", {"error": "helix api unreachable", "detail": type(e).__name__})
+        return
+    # CLI one-shot: include a short transcript so Helix keeps context
+    hist = messages[:-1][-6:]
+    last = messages[-1]["content"] if messages else ""
+    prompt = last if not hist else "Recent dashboard chat:\n" + "\n".join(f"{m['role']}: {m['content'][:500]}" for m in hist) + "\n\nuser: " + last
+    try:
+        parts = shlex.split(os.path.expanduser(c["cmd"]))
+    except ValueError:
+        emit("error", {"error": "HELIX_CHAT_CMD has unbalanced quotes"})
+        return
+    argv = [p.replace("{text}", prompt) for p in parts] if any("{text}" in p for p in parts) else parts + [prompt]
+    try:
+        proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env={**os.environ, "TERM": "dumb", "NO_COLOR": "1"})
+    except (FileNotFoundError, PermissionError) as e:
+        emit("error", {"error": "helix cli not found", "detail": type(e).__name__})
+        return
+    t_end = time.time() + c["timeout"]
+    try:
+        for line in proc.stdout:
+            emit("delta", {"text": re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", line)})
+            if time.time() > t_end:
+                proc.kill()
+                emit("error", {"error": "timeout"})
+                return
+        proc.wait(timeout=5)
+        if proc.returncode not in (0, None):
+            emit("error", {"error": f"helix cli exit {proc.returncode}", "detail": _snip((proc.stderr.read() or ""), 200)})
+            return
+        emit("done", {})
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+
+
+# ───────────── BOTMESH event bus ─────────────
+# One stream of real, observable events from every Hermes agent database:
+#   user message  → origin (Telegram / You / another agent named in the session source) → agent
+#   tool call     → agent → target (another agent, web, tools, unraid, honcho …)
+#   tool result   → target → agent
+#   reply         → agent → origin
+# plus the Unraid Hermes worker (read over SSH, or locally when running on Unraid).
+# Served incrementally at /api/mesh?since=<seq> and pushed live at /api/stream (Server-Sent Events).
+MESH_AGENTS = ("helix", "prefect", "foreman", "canon", "scribe", "adze", "forge", "ecc", "copilot", "community", "worker")
+WORKER_DB = os.environ.get("HELIX_WORKER_DB") or "/mnt/cache/appdata/hermes-agent/state.db"
+WORKER_MODE = (os.environ.get("HELIX_WORKER") or "auto").lower()      # auto | off
+MESH_SQL = (
+    "SELECT m.id AS id, m.session_id AS sid, m.role AS role, substr(IFNULL(m.content,''),1,700) AS content, "
+    "substr(IFNULL(m.tool_calls,''),1,4000) AS tool_calls, m.tool_name AS tool_name, m.timestamp AS ts, "
+    "IFNULL(s.source,'') AS source, IFNULL(s.title,'') AS title "
+    "FROM messages m JOIN sessions s ON s.id = m.session_id "
+    "WHERE IFNULL(m.active,1)=1 AND m.id > {last} ORDER BY m.id {order} LIMIT {limit}"
+)
+
+
+def mesh_target(name: str, args: str = "") -> str:
+    n = (name or "").lower()
+    a = (args or "").lower()
+    for b in ("prefect", "foreman", "canon", "scribe", "adze", "forge", "copilot"):
+        if b in n:
+            return b
+    if re.search(r"(^|[^a-z])ecc([^a-z]|$)", n):
+        return "ecc"
+    if n in ("delegate_task", "send_to_agent", "ask_agent", "agent_message", "peer_message") or "delegate" in n or "peer" in n:
+        for b in ("prefect", "foreman", "canon", "scribe", "adze", "forge", "copilot", "ecc", "worker", "unraid"):
+            if b in a:
+                return "worker" if b == "unraid" else b
+        return "worker" if "peer" in n else "prefect"
+    if re.search(r"web|browser|search|fetch|extract|http", n):
+        return "web"
+    if re.search(r"docker|unraid|array|container", n):
+        return "unraid"
+    if re.search(r"honcho|memory|recall|remember", n):
+        return "honcho"
+    if "umbrel" in n:
+        return "umbrel"
+    if re.search(r"telegram|send_message|discord|imessage", n):
+        return "telegram"
+    return "tools"
+
+
+def _mesh_origin(agent: str, source: str) -> str:
+    s = (source or "").lower()
+    for other in MESH_AGENTS:
+        if other != agent and other in s:
+            return other
+    if "telegram" in s:
+        return "telegram"
+    if agent == "worker":
+        return "helix" if any(k in s for k in ("peer", "api", "hermes", "mesh")) else "user"
+    if agent != "helix":
+        return "helix"          # silent profiles are driven by Helix
+    return "user"
+
+
+SYSTEM_NOTE_RX = re.compile(r"^\s*\[(IMPORTANT|SYSTEM|System note|Background process|Note from the system)\b", re.I)
+
+
+def _mesh_events(agent: str, rows: list, memo: dict | None = None) -> list[dict]:
+    """memo remembers where each tool call went, so its result comes back from the same place."""
+    out: list[dict] = []
+    memo = memo if memo is not None else {}
+    for r in rows:
+        try:
+            ts = float(r.get("ts") or 0)
+        except (TypeError, ValueError):
+            ts = 0.0
+        role = r.get("role") or ""
+        origin = _mesh_origin(agent, r.get("source") or "")
+        base = {"t": ts, "agent": agent, "sid": r.get("sid"), "title": _snip(r.get("title") or "", 70)}
+        mid = f"{agent}:{r.get('id')}"
+        if role == "user":
+            text = _cli_text(r.get("content") or "", 220)
+            if text and SYSTEM_NOTE_RX.match(text):
+                out.append({**base, "id": mid, "from": "system", "to": agent, "kind": "notice", "text": text})
+            elif text:
+                src = "user" if agent == "community" and origin == "helix" else origin   # Community answers Matrix users, not Helix
+                out.append({**base, "id": mid, "from": src, "to": agent, "kind": "ask" if src in MESH_AGENTS else "request", "text": text})
+        elif role == "assistant":
+            calls = []
+            try:
+                arr = json.loads(r.get("tool_calls") or "[]")
+                arr = [arr] if isinstance(arr, dict) else (arr or [])
+                for tc in arr:
+                    fn = tc.get("function") if isinstance(tc, dict) and isinstance(tc.get("function"), dict) else {}
+                    calls.append((str(fn.get("name") or tc.get("name") or "tool"), str(fn.get("arguments") or "")))
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                calls = []
+            for i, (name, args) in enumerate(calls[:6]):
+                tgt = mesh_target(name, args)
+                if tgt == agent:
+                    tgt = "tools"
+                memo[(agent, r.get("sid"), name)] = tgt
+                out.append({**base, "id": f"{mid}:{i}", "from": agent, "to": tgt, "kind": "tool", "text": "▸ " + name})
+            text = _cli_text(r.get("content") or "", 220)
+            if text and not calls:
+                out.append({**base, "id": mid, "from": agent, "to": origin, "kind": "reply" if origin not in MESH_AGENTS else "talk", "text": text})
+        elif role == "tool":
+            name = r.get("tool_name") or "tool"
+            tgt = memo.get((agent, r.get("sid"), name)) or mesh_target(name)
+            if tgt == agent:
+                tgt = "tools"
+            out.append({**base, "id": mid, "from": tgt, "to": agent, "kind": "result", "text": f"{name} // {_cli_text(r.get('content') or '', 140)}"})
+    return out
+
+
+class MeshBus:
+    def __init__(self) -> None:
+        self.cv = threading.Condition()
+        self.events: list[dict] = []
+        self.seq = 0
+        self.last: dict[str, int] = {}
+        self.sources: dict[str, str] = {}
+        self.started = False
+        self.worker_t = 0.0
+        self.wanted = 0.0
+        self.memo: dict = {}
+
+    def ensure(self) -> None:
+        self.wanted = time.time()
+        with self.cv:
+            if self.started:
+                return
+            self.started = True
+        threading.Thread(target=self._loop, daemon=True).start()
+
+    def _push(self, evs: list[dict]) -> None:
+        if not evs:
+            return
+        evs.sort(key=lambda e: e.get("t") or 0)
+        with self.cv:
+            for e in evs:
+                self.seq += 1
+                e["seq"] = self.seq
+                self.events.append(e)
+            if len(self.events) > 900:
+                del self.events[: len(self.events) - 900]
+            self.cv.notify_all()
+
+    def _rows_local(self, path: Path, last: int | None) -> list[dict]:
+        con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=1.5)
+        con.row_factory = sqlite3.Row
+        try:
+            if last is None:
+                rows = con.execute(MESH_SQL.format(last=0, order="DESC", limit=160)).fetchall()[::-1]
+            else:
+                rows = con.execute(MESH_SQL.format(last=int(last), order="ASC", limit=400)).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            con.close()
+
+    def _rows_worker(self, last: int | None) -> list[dict]:
+        q = MESH_SQL.format(last=0 if last is None else int(last), order="DESC" if last is None else "ASC", limit=160 if last is None else 400)
+        if ON_UNRAID and os.path.isfile(WORKER_DB):
+            rows = self._rows_local(Path(WORKER_DB), last)
+            return rows
+        code, out = run(SSH_UNRAID + [f"timeout 8 sqlite3 -readonly -json {shlex.quote(WORKER_DB)} {shlex.quote(q)}"], 12)
+        if code != 0:
+            raise RuntimeError(("sqlite3 unavailable" if code == 127 else "worker db unreachable") + f" ({code})")
+        rows = json.loads(out or "[]") if out.strip().startswith("[") else []
+        return rows[::-1] if last is None else rows
+
+    def poll(self) -> None:
+        new: list[dict] = []
+        for agent, path in AGENT_DBS.items():
+            if not path.is_file():
+                self.sources[agent] = "no database"
+                continue
+            try:
+                rows = self._rows_local(path, self.last.get(agent))
+                if rows:
+                    self.last[agent] = max(int(r["id"]) for r in rows)
+                elif agent not in self.last:
+                    self.last[agent] = 0
+                new += _mesh_events(agent, rows, self.memo)
+                self.sources[agent] = "ok"
+            except sqlite3.Error as e:
+                self.sources[agent] = "error: " + type(e).__name__
+        if WORKER_MODE != "off" and time.time() - self.worker_t > 10:
+            self.worker_t = time.time()
+            try:
+                rows = self._rows_worker(self.last.get("worker"))
+                if rows:
+                    self.last["worker"] = max(int(r["id"]) for r in rows)
+                elif "worker" not in self.last:
+                    self.last["worker"] = 0
+                new += _mesh_events("worker", rows, self.memo)
+                self.sources["worker"] = "ok"
+            except (RuntimeError, ValueError, sqlite3.Error, json.JSONDecodeError) as e:
+                self.sources["worker"] = str(e)[:80]
+        if len(self.memo) > 4000:
+            self.memo.clear()
+        self._push(new)
+
+    def _loop(self) -> None:
+        while True:
+            try:
+                self.poll()
+            except Exception as e:                      # never let the bus thread die
+                self.sources["bus"] = "error: " + type(e).__name__
+            # poll briskly while someone is watching, gently otherwise
+            time.sleep(1.2 if time.time() - self.wanted < 90 else 8)
+
+    def since(self, seq: int, limit: int = 250) -> list[dict]:
+        with self.cv:
+            evs = [e for e in self.events if e["seq"] > seq]
+        return evs[-limit:]
+
+    def wait(self, seq: int, timeout: float) -> list[dict]:
+        with self.cv:
+            if not any(e["seq"] > seq for e in self.events[-50:]) and self.seq <= seq:
+                self.cv.wait(timeout)
+        return self.since(seq)
+
+
+MESH = MeshBus()
+
+
+# /api/stats is slow (SSH probes, Hermes CLI, UniFi). Collect it in the background and serve the
+# latest snapshot instantly; the first request after start-up waits for one collection.
+STATS_REFRESH_S = float(os.environ.get("HELIX_STATS_REFRESH_S") or 15)
+_STATS: dict = {"data": None, "t": 0.0, "busy": False}
+_STATS_LOCK = threading.Lock()
+
+
+def _refresh_stats() -> None:
+    try:
+        data = collect()
+        with _STATS_LOCK:
+            _STATS["data"], _STATS["t"] = data, time.time()
+    finally:
+        with _STATS_LOCK:
+            _STATS["busy"] = False
+
+
+def stats_cached() -> dict:
+    with _STATS_LOCK:
+        data, age = _STATS["data"], time.time() - _STATS["t"]
+        start = not _STATS["busy"] and (data is None or age >= STATS_REFRESH_S)
+        if start:
+            _STATS["busy"] = True
+    if data is None:
+        if start:
+            _refresh_stats()
+        else:
+            for _ in range(600):                       # another request is already collecting
+                time.sleep(0.1)
+                if _STATS["data"] is not None:
+                    break
+        with _STATS_LOCK:
+            data, age = _STATS["data"], time.time() - _STATS["t"]
+        if data is None:
+            raise RuntimeError("stats unavailable")
+    elif start:
+        threading.Thread(target=_refresh_stats, daemon=True).start()
+    return {**data, "cache_age_s": round(max(0.0, age), 1)}
+
+
+def _stats_loop() -> None:
+    while True:
+        t0 = time.time()
+        with _STATS_LOCK:
+            go = not _STATS["busy"]
+            if go:
+                _STATS["busy"] = True
+        if go:
+            _refresh_stats()
+        time.sleep(max(3.0, STATS_REFRESH_S - (time.time() - t0)))
+
+
+def shield_targets() -> list[dict]:
+    """LAN clients (UniFi + DNS) plus fixed infra hosts. helix_shield enforces SHIELD_SCOPE."""
+    rows = list((lan_clients() or {}).get("clients") or [])
+    have = {r.get("ip") for r in rows}
+    infra = [(UDM, "UDM"), (UNRAID, "Unraid bigboi"), (UMBREL, "Umbrel"), (ILO, "HPE iLO"),
+             (OMARCHY, "Omarchy laptop"), (THINKPAD, "ThinkPad"), ("192.168.1.172", "Mac Mini / Helix")]
+    extra = [x.strip() for x in os.environ.get("SHIELD_EXTRA_TARGETS", "").split(",") if x.strip()]
+    def _rdns(ip: str) -> str:
+        try:
+            return socket.gethostbyaddr(ip)[0].split(".")[0]
+        except OSError:
+            return ip
+    for ip, name in infra + [(x, _rdns(x)) for x in extra if x not in have]:
+        if ip not in have:
+            owner, how = guess_owner(ip, name)
+            rows.append({"ip": ip, "name": name, "hostname": name, "owner": owner, "owner_how": how, "source": "infra"})
+            have.add(ip)
+    return rows
+
+
+def shield_self(remote: bool = False) -> list[dict]:
+    """Findings about the deck itself. In Unraid mode the container reports its own UniFi state."""
+    out = []
+    if auth_open():
+        out.append({"key": "self:auth-open", "check": "ops-auth-off", "sev": "high", "ip": "", "host": "HELIX OPS", "port": 8790,
+                    "title": "HELIX OPS login is bypassed",
+                    "detail": "HELIX_OPS_AUTH=off — anyone on the LAN can drive Docker, prompts and SHIELD. Turn login back on."})
+    key, _ = _unifi_cfg()
+    if not key and not remote:
+        out.append({"key": "self:no-unifi", "check": "no-unifi-key", "sev": "low", "ip": "", "host": "HELIX OPS", "port": "",
+                    "title": "UniFi intel offline", "detail": "No unifi.env key — new-device + IPS checks use DNS only."})
+    return out
+
+
+def _shield_remote() -> tuple[str, str]:
+    env = _ops_env()
+    url = (os.environ.get("SHIELD_REMOTE") or env.get("SHIELD_REMOTE") or "").strip().rstrip("/")
+    tok = (os.environ.get("SHIELD_TOKEN") or env.get("SHIELD_TOKEN") or "").strip()
+    return url, tok
+
+
+def _shield_enrich(d: dict, remote: bool) -> dict:
+    """Deck-side knowledge the Unraid scanner doesn't have: owners (clients-aliases.json / known IPs),
+    the deck's own posture, and a rescore that treats owned devices' plain open ports as routine."""
+    rep = d.get("report")
+    if not rep:
+        return d
+    for row in list(rep.get("hosts", [])) + list(rep.get("new_devices", [])):
+        if str(row.get("owner") or "unknown") in ("unknown", "infra", ""):
+            owner, how = guess_owner(str(row.get("ip") or ""), str(row.get("name") or row.get("hostname") or ""))
+            row["owner"], row["owner_how"] = owner, how
+    for f in rep.get("findings", []):
+        h = next((x for x in rep.get("hosts", []) if x.get("ip") == f.get("ip")), None)
+        if h:
+            f["owner"] = h.get("owner")
+    known = {h["ip"] for h in rep.get("hosts", []) if h.get("owner") not in (None, "", "unknown")}
+    known -= {nd.get("ip") for nd in rep.get("new_devices", [])}
+    helix_shield.downgrade_known(rep, known)
+    if remote:  # local scans already include these
+        keys = {f.get("key") for f in rep.get("findings", [])}
+        for f in shield_self(remote=True):
+            if f["key"] not in keys:
+                f.update(new=False, muted=False)
+                rep.setdefault("findings", []).append(f)
+    helix_shield.rescore(rep)
+    hist = d.get("history") or []
+    if hist and abs(float(hist[-1].get("t") or 0) - float(rep.get("finished") or 0)) < 1:
+        hist[-1].update(score=rep["score"], **rep["counts"])
+    return d
+
+
+def shield_get() -> dict:
+    url, tok = _shield_remote()
+    if not url:
+        return _shield_enrich(helix_shield.snapshot(), remote=False)
+    try:
+        req = Request(f"{url}/api/shield", headers={"Authorization": f"Bearer {tok}", "Accept": "application/json"})
+        with urlopen(req, timeout=6) as r:
+            d = json.loads(r.read().decode() or "{}")
+    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError, OSError) as e:
+        d = helix_shield.snapshot()
+        d["remote_error"] = f"unraid shield unreachable: {type(e).__name__}"
+        return _shield_enrich(d, remote=False)
+    d["remote"] = url.split("://", 1)[-1]
+    return _shield_enrich(d, remote=True)
+
+
+def shield_post(body: dict) -> dict:
+    url, tok = _shield_remote()
+    if not url:
+        return helix_shield.act(body, shield_targets, _unifi_cfg, shield_self)
+    try:
+        req = Request(f"{url}/api/shield", data=json.dumps(body).encode(), method="POST",
+                      headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"})
+        with urlopen(req, timeout=6) as r:
+            return json.loads(r.read().decode() or "{}")
+    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError, OSError) as e:
+        return {"ok": False, "error": f"unraid shield unreachable: {type(e).__name__}"}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -2581,11 +3252,42 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        if not any(k.lower() == "cache-control" for k, _ in (extra or [])):
+            self.send_header("Cache-Control", "no-store")
+        self._sec_headers()
         for k, v in extra or []:
             self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
+
+    def _sec_headers(self) -> None:
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "same-origin")
+        self.send_header("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'")
+        self.send_header("Permissions-Policy", "camera=(), geolocation=(), microphone=(self)")
+        if self._https():
+            self.send_header("Strict-Transport-Security", "max-age=31536000")
+
+    def _ip(self) -> str:
+        ip = self.client_address[0] if self.client_address else ""
+        if ip in ("127.0.0.1", "::1"):   # behind Tailscale serve / a local proxy: trust its forwarded address
+            fwd = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+            if fwd and len(fwd) < 64:
+                return fwd
+        return ip
+
+    def _same_origin(self) -> bool:
+        """Block cross-site form/fetch POSTs (CSRF): Origin, else Referer, must match our Host."""
+        host = (self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or "").lower()
+        src = self.headers.get("Origin") or self.headers.get("Referer") or ""
+        if not src:
+            return True          # non-browser clients (curl, webhooks) send neither
+        try:
+            from urllib.parse import urlparse
+            return urlparse(src).netloc.lower() == host
+        except ValueError:
+            return False
 
     def _prefix(self) -> str:
         raw = self.path.split("?", 1)[0]
@@ -2609,18 +3311,14 @@ class Handler(BaseHTTPRequestHandler):
         host = (self.headers.get("Host") or "").lower()
         return xf == "https" or "ts.net" in host
 
-    def _login_page(self, err: str = "") -> bytes:
-        setup = setup_needed()
-        pfx = self._prefix()
-        html = (ROOT / "login.html").read_text(encoding="utf-8")
-        html = html.replace("__PREFIX__", pfx or "")
-        html = html.replace("__ERR__", err)
-        html = html.replace("__TITLE__", "SET PASSWORD" if setup else "LOGIN")
-        html = html.replace("__WELCOME__", "SET YOUR PASSWORD" if setup else "ようこそ · AUTHORIZED PERSONNEL")
-        html = html.replace("__HINT__", "Choose a login and password on this page. It stays on the Mini.")
-        html = html.replace("__SETUP_DISP__", "block" if setup else "none")
-        html = html.replace("__LOGIN_DISP__", "none" if setup else "block")
-        return html.encode("utf-8")
+    def _login_page(self, err: str = "", mode: str = "", user: str = "", token: str = "") -> bytes:
+        import html as _html
+        mode = mode or ("setup" if AUTH.setup_needed() else "login")
+        page = (ROOT / "login.html").read_text(encoding="utf-8")
+        for k, v in (("__PREFIX__", self._prefix() or ""), ("__ERR__", _html.escape(err)), ("__MODE__", mode),
+                     ("__USER__", _html.escape(user, quote=True)), ("__TOKEN__", _html.escape(token, quote=True)), ("__MINPW__", str(AUTH.MIN_PW))):
+            page = page.replace(k, v)
+        return page.encode("utf-8")
 
     def _cookie(self, token: str | None) -> str:
         extra = "; Secure" if self._https() else ""
@@ -2631,23 +3329,46 @@ class Handler(BaseHTTPRequestHandler):
     def _need_auth(self, path: str, method: str) -> bool:
         if auth_open():
             return False
-        if path in ("/login", "/logout", "/health"):
+        if path in ("/login", "/logout", "/health", "/sw.js", "/manifest.webmanifest", "/helix-arcade-mark.svg", "/app/avatar.js"):
+            return False
+        if path.startswith(("/app/icons/", "/app/fonts/")):   # PWA install assets: no data, must load without a cookie
             return False
         if method == "POST" and path == "/api/protect/hook":
             return False
         return True
 
+    def _local_client(self) -> bool:
+        """True only for a browser on this machine (not Tailscale serve / a proxy forwarding a remote client)."""
+        ip = self.client_address[0] if self.client_address else ""
+        return ip in ("127.0.0.1", "::1") and not self.headers.get("X-Forwarded-For")
+
     def _gate(self, path: str, method: str) -> bool:
+        if auth_open() and not self._local_client() and path != "/health":
+            self._send(403, b'{"error":"login is off: this dashboard only answers on this Mac until HELIX_OPS_AUTH is on"}', "application/json; charset=utf-8")
+            return False
+        if method == "POST" and not self._same_origin():
+            self._send(403, b'{"error":"cross-site request blocked"}', "application/json; charset=utf-8")
+            return False
         if not self._need_auth(path, method):
+            self._who = session_rec(self) if auth_open() else None
             return True
-        if session_user(self):
-            return True
+        rec = session_rec(self)
         pfx = self._prefix()
-        if path.startswith("/api/"):
-            self._send(401, b'{"error":"login"}', "application/json; charset=utf-8")
-        else:
-            self._send(302, b"", "text/plain", [("Location", f"{pfx}/login" if pfx else "/login")])
-        return False
+        if not rec:
+            if path.startswith("/api/"):
+                self._send(401, b'{"error":"login"}', "application/json; charset=utf-8")
+            else:
+                self._send(302, b"", "text/plain", [("Location", f"{pfx}/login" if pfx else "/login")])
+            return False
+        self._who = rec
+        role = rec.get("role")
+        if path.startswith("/api/admin") and role != "admin":
+            self._send(403, b'{"error":"admins only"}', "application/json; charset=utf-8")
+            return False
+        if method == "POST" and role == "viewer" and path not in ("/api/me/password",):
+            self._send(403, b'{"error":"read-only account"}', "application/json; charset=utf-8")
+            return False
+        return True
 
     def do_GET(self):
         raw = self.path
@@ -2661,21 +3382,35 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, self._login_page(), "text/html; charset=utf-8")
             return
         if path == "/logout":
-            rawc = self.headers.get("Cookie") or ""
-            jar = SimpleCookie()
-            try:
-                jar.load(rawc)
-            except Exception:
-                pass
-            tok = jar.get("helix_ops")
-            if tok:
-                drop_session(tok.value)
+            rec = AUTH.session(_cookie_token(self))
+            if rec:
+                AUTH.audit("logout", rec["user"], self._ip())
+            AUTH.drop_session(_cookie_token(self))
             self._send(302, b"", "text/plain", [("Location", f"{pfx}/login" if pfx else "/login"), ("Set-Cookie", self._cookie(None))])
             return
         if not self._gate(path, "GET"):
             return
         if path in ("/", "/index.html"):
             html = (ROOT / "index.html").read_bytes()
+            self._send(200, html, "text/html; charset=utf-8")
+            return
+        if path == "/sw.js":
+            self._send(200, (ROOT / "sw.js").read_bytes(), "application/javascript; charset=utf-8", [("Service-Worker-Allowed", "/")])
+            return
+        if path in ("/manifest.webmanifest", "/app/manifest.webmanifest"):
+            self._send(200, (ROOT / "app" / "manifest.webmanifest").read_bytes(), "application/manifest+json; charset=utf-8")
+            return
+        m_asset = re.match(r"^/app/(fonts|icons)/([A-Za-z0-9_.-]+\.(woff2?|png|txt))$", path)
+        if m_asset:
+            f = ROOT / "app" / m_asset.group(1) / m_asset.group(2)
+            if f.is_file():
+                ctype = {"woff": "font/woff", "woff2": "font/woff2", "png": "image/png", "txt": "text/plain; charset=utf-8"}[m_asset.group(3)]
+                self._send(200, f.read_bytes(), ctype, [("Cache-Control", "public, max-age=604800")])
+            else:
+                self._send(404, b"", "text/plain")
+            return
+        if path in ("/legacy", "/legacy.html", "/classic"):
+            html = (ROOT / "legacy.html").read_bytes()
             self._send(200, html, "text/html; charset=utf-8")
             return
         if path == "/mindscape.js":
@@ -2700,14 +3435,106 @@ class Handler(BaseHTTPRequestHandler):
             "/helix-remote.js": ("helix-remote.js", "application/javascript; charset=utf-8"),
             "/helix-matrix.css": ("helix-matrix.css", "text/css; charset=utf-8"),
             "/helix-matrix.js": ("helix-matrix.js", "application/javascript; charset=utf-8"),
+            "/helix-deck.css": ("helix-deck.css", "text/css; charset=utf-8"),
+            "/helix-deck.js": ("helix-deck.js", "application/javascript; charset=utf-8"),
+            "/helix-arcade.css": ("helix-arcade.css", "text/css; charset=utf-8"),
+            "/helix-arcade.js": ("helix-arcade.js", "application/javascript; charset=utf-8"),
+            "/helix-arcade-mark.svg": ("helix-arcade-mark.svg", "image/svg+xml"),
+            "/app/arcade.css": ("app/arcade.css", "text/css; charset=utf-8"),
+            "/app/core.js": ("app/core.js", "application/javascript; charset=utf-8"),
+            "/app/mesh.js": ("app/mesh.js", "application/javascript; charset=utf-8"),
+            "/app/avatar.js": ("app/avatar.js", "application/javascript; charset=utf-8"),
+            "/app/pages.js": ("app/pages.js", "application/javascript; charset=utf-8"),
+            "/app/lights.js": ("app/lights.js", "application/javascript; charset=utf-8"),
+            "/app/admin.js": ("app/admin.js", "application/javascript; charset=utf-8"),
+            "/app/shield.js": ("app/shield.js", "application/javascript; charset=utf-8"),
         }
         if path in static:
             name, ctype = static[path]
-            self._send(200, (ROOT / name).read_bytes(), ctype)
+            fp = ROOT / name
+            st = fp.stat()
+            etag = f'"{int(st.st_mtime_ns):x}-{st.st_size:x}"'
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "no-cache")
+                self._sec_headers()
+                self.end_headers()
+                return
+            self._send(200, fp.read_bytes(), ctype, [("ETag", etag), ("Cache-Control", "no-cache")])
+            return
+        if path == "/api/chat":
+            self._send(200, json.dumps(chat_status()).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/me":
+            w = getattr(self, "_who", None) or {}
+            u = next((x for x in AUTH.public_users() if x["username"] == w.get("user")), {})
+            self._send(200, json.dumps({"user": w.get("user"), "role": w.get("role"), "auth_open": auth_open(), "sid": w.get("sid"),
+                                        "pw_changed": u.get("pw_changed"), "last_login": u.get("last_login"), "roles": AUTH.ROLE_INFO}).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/admin":
+            w = getattr(self, "_who", None) or {}
+            body = {"users": AUTH.public_users(), "sessions": AUTH.sessions_list(), "lockouts": AUTH.lockouts(), "audit": AUTH.audit_tail(150),
+                    "roles": AUTH.ROLE_INFO, "me": w.get("user"), "my_sid": w.get("sid"), "auth_open": auth_open(), "https": self._https(),
+                    "policy": {"min_password": AUTH.MIN_PW, "idle_hours": AUTH.IDLE_TTL // 3600, "max_days": AUTH.ABS_TTL // 86400,
+                               "lock_after": AUTH.MAX_FAILS_IP, "lock_minutes": AUTH.LOCK_SECONDS // 60,
+                               "hash": "scrypt" if hasattr(hashlib, "scrypt") else "pbkdf2-sha256"}}
+            self._send(200, json.dumps(body).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/shield":
+            self._send(200, json.dumps(shield_get(), ensure_ascii=False, default=str).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/lights":
+            from helix_lights import snapshot as lights_snapshot
+            self._send(200, json.dumps(lights_snapshot(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/mesh":
+            MESH.ensure()
+            try:
+                since = int((qs.get("since") or ["-1"])[0])
+            except ValueError:
+                since = -1
+            if since < 0:
+                if not MESH.events:
+                    MESH.poll()
+                evs = MESH.since(0, 250)
+            else:
+                evs = MESH.since(since)
+            body = json.dumps({"seq": MESH.seq, "events": evs, "sources": MESH.sources, "agents": list(MESH_AGENTS)}, ensure_ascii=False).encode()
+            self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path == "/api/stream":
+            MESH.ensure()
+            try:
+                since = int((qs.get("since") or [str(MESH.seq)])[0])
+            except ValueError:
+                since = MESH.seq
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache, no-transform")
+            self.send_header("X-Accel-Buffering", "no")
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+            end = time.time() + 600            # clients reconnect every 10 min
+            try:
+                self.wfile.write(b"retry: 3000\n\n")
+                self.wfile.flush()
+                while time.time() < end:
+                    MESH.wanted = time.time()
+                    evs = MESH.wait(since, 15)
+                    if evs:
+                        since = evs[-1]["seq"]
+                        data = json.dumps({"seq": since, "events": evs}, ensure_ascii=False)
+                        self.wfile.write(f"id: {since}\nevent: mesh\ndata: {data}\n\n".encode())
+                    else:
+                        self.wfile.write(b": ping\n\n")
+                    self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass
             return
         if path.startswith("/api/stats"):
             try:
-                data = collect()
+                data = stats_cached()
                 body = json.dumps(data, ensure_ascii=False).encode()
                 self._send(200, body, "application/json; charset=utf-8")
             except Exception as e:
@@ -2859,44 +3686,135 @@ class Handler(BaseHTTPRequestHandler):
         path = self._canon()
         pfx = self._prefix()
         if path == "/login":
+            if not self._same_origin():
+                self._send(403, b"cross-site login blocked", "text/plain")
+                return
             n = int(self.headers.get("Content-Length") or 0)
             raw = self.rfile.read(max(0, min(n, 4000))).decode("utf-8", "replace")
             form = parse_qs(raw)
-            user = (form.get("user") or [""])[0]
-            password = (form.get("password") or [""])[0]
-            password2 = (form.get("password2") or [""])[0]
-            if setup_needed():
-                if len(password) < 8:
-                    self._send(400, self._login_page("PASSWORD TOO SHORT (8+)"), "text/html; charset=utf-8")
-                    return
+            f = lambda k: (form.get(k) or [""])[0]  # noqa: E731
+            user, password, password2, mode = f("user").strip().lower(), f("password"), f("password2"), f("mode")
+            ip, ua = self._ip(), self.headers.get("User-Agent") or ""
+            home = f"{pfx}/" if pfx else "/"
+            def ok(tok: str) -> None:
+                self._send(303, b"", "text/plain", [("Location", home), ("Set-Cookie", self._cookie(tok))])
+            if mode == "change":
                 if password != password2:
-                    self._send(400, self._login_page("PASSWORDS DO NOT MATCH"), "text/html; charset=utf-8")
+                    self._send(400, self._login_page("PASSWORDS DO NOT MATCH", "change", user, f("token")), "text/html; charset=utf-8")
                     return
-                write_ops_password(user, password)
-                tok = new_session(user.strip() or "helix")
-                self._send(
-                    302,
-                    b"",
-                    "text/plain",
-                    [("Location", f"{pfx}/" if pfx else "/"), ("Set-Cookie", self._cookie(tok))],
-                )
+                r = AUTH.complete_change(f("token"), password, ip, ua)
+                if r["ok"]:
+                    ok(r["token"])
+                else:
+                    self._send(400, self._login_page(r["error"], "change", user, f("token")), "text/html; charset=utf-8")
                 return
-            if check_login(user, password):
-                tok = new_session(user)
-                self._send(
-                    302,
-                    b"",
-                    "text/plain",
-                    [("Location", f"{pfx}/" if pfx else "/"), ("Set-Cookie", self._cookie(tok))],
-                )
+            if AUTH.setup_needed():
+                if password != password2:
+                    self._send(400, self._login_page("PASSWORDS DO NOT MATCH", "setup", user), "text/html; charset=utf-8")
+                    return
+                r = AUTH.setup_first_admin(user, password, ip, ua)
+                if r["ok"]:
+                    ok(r["token"])
+                else:
+                    self._send(400, self._login_page(r["error"], "setup", user), "text/html; charset=utf-8")
                 return
-            self._send(401, self._login_page("ACCESS DENIED"), "text/html; charset=utf-8")
+            r = AUTH.login(user, password, ip, ua)
+            if r.get("must_change"):
+                self._send(200, self._login_page("", "change", user, r["change_token"]), "text/html; charset=utf-8")
+                return
+            if r.get("ok"):
+                ok(r["token"])
+                return
+            if r.get("error") == "locked":
+                self._send(429, self._login_page(f"TOO MANY TRIES — LOCKED FOR {r['wait'] // 60 + 1} MIN", "login", user), "text/html; charset=utf-8")
+                return
+            time.sleep(0.4)
+            self._send(401, self._login_page("ACCESS DENIED", "login", user), "text/html; charset=utf-8")
             return
         if not self._gate(path, "POST"):
             return
         if path == "/api/mindscape/seed":
             body = json.dumps(seed_ms_graph(force=True), ensure_ascii=False).encode()
             self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path in ("/api/me/password", "/api/admin"):
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                data = json.loads(self.rfile.read(max(0, min(n, 4000))).decode() or "{}")
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                data = {}
+            data = data if isinstance(data, dict) else {}
+            w = getattr(self, "_who", None) or {}
+            if path == "/api/me/password":
+                if w.get("open"):
+                    out = {"ok": False, "error": "auth is off (HELIX_OPS_AUTH=off) — there is no account to change"}
+                else:
+                    out = AUTH.change_own_password(w["user"], str(data.get("current") or ""), str(data.get("new") or ""), self._ip(), w.get("sid", ""))
+            elif data.get("action") == "revoke_session":
+                out = {"ok": AUTH.revoke_sid(str(data.get("sid") or ""))}
+                AUTH.audit("session_revoked", w.get("user", ""), self._ip(), sid=str(data.get("sid") or "")[:12])
+            elif data.get("action") == "unlock":
+                AUTH.unlock(str(data.get("key") or ""))
+                AUTH.audit("unlocked", w.get("user", ""), self._ip(), key=str(data.get("key") or "")[:80])
+                out = {"ok": True}
+            else:
+                out = AUTH.admin_act(w.get("user", ""), self._ip(), data)
+            self._send(200 if out.get("ok") else 400, json.dumps(out).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/shield":   # _gate already enforced same-origin + blocked viewer accounts
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                data = json.loads(self.rfile.read(max(0, min(n, 2000))).decode() or "{}")
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                data = {}
+            out = shield_post(data if isinstance(data, dict) else {})
+            if out.get("ok"):
+                w = getattr(self, "_who", None) or {}
+                AUTH.audit("shield_" + str(data.get("action") or "?")[:20], w.get("user", ""), self._ip())
+            self._send(200, json.dumps(out).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/lights":
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                data = json.loads(self.rfile.read(max(0, min(n, 4000))).decode() or "{}")
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                data = {}
+            from helix_lights import act as lights_act
+            body = json.dumps(lights_act(data if isinstance(data, dict) else {}), ensure_ascii=False).encode()
+            self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path == "/api/chat":
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                data = json.loads(self.rfile.read(max(0, min(n, 120000))).decode() or "{}")
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                data = {}
+            msgs = _clean_messages(data.get("messages"))
+            if not msgs or msgs[-1]["role"] != "user":
+                self._send(400, b'{"error":"no message"}', "application/json")
+                return
+            if not CHAT_LOCK.acquire(timeout=1):
+                self._send(429, b'{"error":"busy"}', "application/json")
+                return
+            try:
+                with PROMPT_LOG.open("a") as f:
+                    f.write(json.dumps({"t": time.strftime("%Y-%m-%dT%H:%M:%S"), "text": _snip(msgs[-1]["content"], 400), "via": "chat"}, ensure_ascii=False) + "\n")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache, no-transform")
+                self.send_header("X-Accel-Buffering", "no")
+                self.end_headers()
+
+                def emit(kind: str, payload: dict) -> None:
+                    self.wfile.write(f"event: {kind}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n".encode())
+                    self.wfile.flush()
+                try:
+                    emit("start", chat_status())
+                    chat_stream(msgs, emit)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+            finally:
+                CHAT_LOCK.release()
             return
         if path == "/api/prompt":
             n = int(self.headers.get("Content-Length") or 0)
@@ -2972,6 +3890,9 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     ensure_ops_auth()
+    threading.Thread(target=_stats_loop, daemon=True).start()
+    if not _shield_remote()[0]:  # Unraid container owns scheduling when SHIELD_REMOTE is set
+        helix_shield.start_scheduler(shield_targets, _unifi_cfg, shield_self)
     httpd = ThreadingHTTPServer((HOST, PORT), Handler)
     httpd.serve_forever()
 

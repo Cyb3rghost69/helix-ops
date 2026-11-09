@@ -1,5 +1,12 @@
 # HELIX/OPS design system
 
+## Arcade app (current)
+
+The dashboard is now a pixel/retro arcade app (see docs/DASHBOARD.md). Palette: bg #0b0910, panel #15121c, line #2a2533, text #ece8f4, dim #a7a1b6, pink #ff4fa3 (brand, frame, active), green #39e58c (healthy, charts), orange #f59e0b (busy/warn), red #ff4d6d (fault), plus one accent per agent (Helix pink, Prefect blue, Foreman orange, Canon green, Scribe cyan, ADZE red, Unraid yellow, Honcho lime, Telegram sky, Web violet). Type: Silkscreen (pixel headings/labels), VT323 (big numbers/clock), IBM Plex Mono (body/logs). Pixel mascots are original 10×10 sprites. Motion: packets only for real events; idle motion reflects real status; all motion respects reduced-motion and the Settings toggle.
+
+The CRT rules below describe the classic dashboard at /legacy.
+
+
 Future agents must not restyle this into a generic dashboard.
 
 ## Identity
@@ -36,6 +43,10 @@ Particle state machine in `helix-ops-wordmark.js`: ACQUIRE → MAP → CORE_FORM
 ## Mobile
 
 ≤767px is Field Terminal (own IA), not a scaled desktop. First viewport: status, Hermes, CPU/MEM, net, Botmesh, Remote, alerts.
+
+## ARCADE (default)
+
+Default theme (`helix.theme` unset or `arcade`; honour `crt` and `?theme=crt`). Palette: bg `#0d0b12`, panel `#14111b`, line `#2a2533`, text `#e9e4f2`, dim `#a19bb0`, pink `#ff4fa3`, green `#39e58c`, blue `#3b82f6`, orange `#f59e0b`, red `#ff4d6d`, cyan `#22d3ee`. Headings Arial Black 900; body ui-monospace. Panels radius 10px. 10px pink viewport frame (5px mobile). CRT remains the alternate (THEME toggle). Real telemetry only.
 
 ## Avoid
 
