@@ -151,6 +151,7 @@
     menu: "M3 5h18v2H3zM3 11h18v2H3zM3 17h18v2H3z",
     shield: "M11 2h2v1h3v1h3v8h-1v3h-2v2h-2v2h-2v2h-2v-2H9v-2H7v-2H5v-3H4V4h3V3h4zM8 8v4h1v2h2v2h2v-2h2v-2h1V8z",
     bulb: "M9 2h6v2h2v2h2v6h-2v2h-2v3H9v-3H7v-2H5V6h2V4h2zM9 19h6v2H9z",
+    radar: "M9 3h6v2H9zM9 19h6v2H9zM5 5h4v2H5zM15 5h4v2h-4zM5 17h4v2H5zM15 17h4v2h-4zM3 7h2v10H3zM19 7h2v10h-2zM11 11h2v2h-2zM13 9h2v2h-2zM15 7h2v2h-2zM7 13h2v2H7z",
   };
   const icon = (k) => `<svg viewBox="0 0 24 24" shape-rendering="crispEdges" aria-hidden="true"><path d="${IC[k] || IC.more}" fill="currentColor" stroke="${k === "mesh" ? "currentColor" : "none"}" stroke-width="${k === "mesh" ? 1.6 : 0}"/></svg>`;
 
@@ -335,6 +336,7 @@
     { id: "trace", label: "TRACE", icon: "trace", hash: "#/trace" },
     { id: "systems", label: "SYSTEMS", icon: "systems", hash: "#/systems" },
     { id: "lights", label: "LIGHTS", icon: "bulb", hash: "#/lights" },
+    { id: "shield", label: "SHIELD", icon: "radar", hash: "#/shield" },
     { id: "memory", label: "MEMORY", icon: "memory", hash: "#/memory" },
     { id: "settings", label: "SETTINGS", icon: "settings", hash: "#/settings" },
     { id: "admin", label: "ADMIN", icon: "shield", hash: "#/admin" },
