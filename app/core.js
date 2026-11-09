@@ -26,11 +26,16 @@
     if (n < 1024) return n + " B"; if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
     if (n < 1073741824) return (n / 1048576).toFixed(1) + " MB"; return (n / 1073741824).toFixed(2) + " GB";
   }
-  function jst(opts) {
-    try { return new Date().toLocaleTimeString("en-GB", Object.assign({ timeZone: "Asia/Tokyo", hour12: false, hour: "2-digit", minute: "2-digit" }, opts || {})); } catch (e) { return "--:--"; }
+  // local time for the operator (Sydney); TZ label follows daylight saving (AEDT / AEST)
+  const TZ = "Australia/Sydney";
+  function tzName() {
+    try { return (new Intl.DateTimeFormat("en-AU", { timeZone: TZ, timeZoneName: "short" }).formatToParts(new Date()).find((p) => p.type === "timeZoneName") || {}).value || "AET"; } catch (e) { return "AET"; }
+  }
+  function jst(opts) {   // kept the old name so callers don't change; returns Sydney time
+    try { return new Date().toLocaleTimeString("en-GB", Object.assign({ timeZone: TZ, hour12: false, hour: "2-digit", minute: "2-digit" }, opts || {})); } catch (e) { return "--:--"; }
   }
   function clockOf(t) {
-    if (typeof t === "number" && t > 1e9) { try { return new Date(t * 1000).toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo", hour12: false }); } catch (e) {} }
+    if (typeof t === "number" && t > 1e9) { try { return new Date(t * 1000).toLocaleTimeString("en-GB", { timeZone: TZ, hour12: false }); } catch (e) {} }
     return String(t || "");
   }
 
@@ -65,6 +70,10 @@
     canon:    { acc: "#39e58c", shape: "square", name: "CANON", role: "docs · writes it down" },
     scribe:   { acc: "#22d3ee", shape: "round2", name: "SCRIBE", role: "research · reads first" },
     adze:     { acc: "#ff4d6d", shape: "tri", name: "ADZE", role: "critic · openai · no tools" },
+    forge:    { acc: "#d97757", shape: "square", name: "FORGE", role: "code · claude · heavy builds" },
+    ecc:      { acc: "#a855f7", shape: "tri", name: "ECC", role: "tdd · review · security" },
+    copilot:  { acc: "#f0abfc", shape: "round", name: "COPILOT", role: "code · copilot · auto model" },
+    community:{ acc: "#94a3b8", shape: "round2", name: "COMMUNITY", role: "matrix · isolated · no admin" },
     worker:   { acc: "#14b8a6", shape: "ghost", name: "WORKER", role: "unraid hermes · peer agent" },
     unraid:   { acc: "#facc15", shape: "box", name: "UNRAID", role: "peer · docker host" },
     umbrel:   { acc: "#fb923c", shape: "box", name: "UMBREL", role: "peer node" },
@@ -73,8 +82,9 @@
     user:     { acc: "#ffffff", shape: "user", name: "YOU", role: "operator · desktop" },
     web:      { acc: "#a78bfa", shape: "globe", name: "WEB", role: "search · browse" },
     tools:    { acc: "#c9c3d6", shape: "wrench", name: "TOOLS", role: "terminal · code" },
+    system:   { acc: "#64748b", shape: "box", name: "SYSTEM", role: "hermes notices · background jobs" },
   };
-  const ORDER = ["helix", "prefect", "foreman", "canon", "scribe", "adze", "worker", "honcho", "unraid", "umbrel", "telegram", "user", "web", "tools"];
+  const ORDER = ["helix", "prefect", "foreman", "canon", "scribe", "adze", "forge", "ecc", "copilot", "community", "worker", "honcho", "unraid", "umbrel", "telegram", "user", "web", "tools"];
   const meta = (id) => META[id] || { acc: "#a7a1b6", shape: "round", name: String(id || "?").toUpperCase(), role: "" };
 
   const SHAPES = {
@@ -312,8 +322,17 @@
       // silent profiles run one-shot (no gateway): real recent traffic on the mesh also means alive
       const act = lastAct[id];
       if (act != null && act < 900) online = true;
-      const status = !online ? "dark" : (a.status === "busy" || (act != null && act < 120) ? "busy" : "idle");
-      out.push({ id, name: m.name, label: n.label || a.label || m.name, acc: m.acc, role: m.role, kind: n.kind || a.kind || "", host: n.host || a.host || "", online, status, thinking: a.thinking || "", doing: a.doing || "", title: a.title || "", source: a.source || "", age_s: a.age_s != null ? a.age_s : act });
+      let status = !online ? "dark" : (a.status === "busy" || (act != null && act < 120) ? "busy" : "idle");
+      const kind = n.kind || a.kind || "", age = a.age_s != null ? a.age_s : act;
+      if (kind === "bot") {
+        // silent bots have no long-running process, so "online" means "has done something lately":
+        // busy < 2 min · idle < 24 h · asleep after that · never = no session yet
+        if (age == null) { status = "never"; online = false; }
+        else if (a.status === "busy" || age < 120) { status = "busy"; online = true; }
+        else if (age < 86400) { status = "idle"; online = true; }
+        else { status = "asleep"; online = false; }
+      }
+      out.push({ id, name: m.name, label: n.label || a.label || m.name, acc: m.acc, role: m.role, kind, host: n.host || a.host || "", online, status, thinking: a.thinking || "", doing: a.doing || "", title: a.title || "", source: a.source || "", age_s: age });
     });
     const ws = (store.mesh.sources || {}).worker, wEv = store.mesh.events.filter((e) => e.agent === "worker" || e.from === "worker" || e.to === "worker");
     if ((ws && ws !== "no database") || wEv.length) {
@@ -376,7 +395,7 @@
   <header class="topbar">
     <a class="brand" href="#/" aria-label="HELIX/OPS home"><canvas id="brandlogo" width="64" height="64"></canvas><span><span class="wm">HELIX<span>/</span>OPS</span><span class="sub">HERMES COMMAND FLOOR · TOKYO-06</span></span></a>
     <div class="chips" id="chips"></div>
-    <div class="clock" id="clock" aria-label="Japan time">--:--<small>JST</small></div>
+    <div class="clock" id="clock" aria-label="Sydney time">--:--<small>${tzName()}</small></div>
   </header>
   <nav class="sidenav" aria-label="Main">
     ${ROUTES.map((r) => `<button class="navbtn" data-page="${r.id}" data-hash="${r.hash}">${icon(r.icon)}<span>${r.label}</span><span class="badge" id="nb-${r.id}" hidden></span></button>`).join("")}
@@ -416,7 +435,7 @@
     $("#" + id).classList.add("open"); $("#scrim").classList.add("open");
   }
   function closeSheet() { $$(".sheet").forEach((s) => s.classList.remove("open")); const sc = $("#scrim"); if (sc) sc.classList.remove("open"); }
-  function tickClock() { const c = $("#clock"); if (c) c.innerHTML = `${esc(jst())}<small>JST</small>`; }
+  function tickClock() { const c = $("#clock"); if (c) c.innerHTML = `${esc(jst())}<small>${esc(tzName())}</small>`; }
   function updateShell() {
     const st = D("stats"), adze = D("adze"), h = (st || {}).hermes || {};
     const chips = [];
@@ -508,5 +527,5 @@
     route();
   }
 
-  G.Helix = { api, esc, $, $$, clamp, num, trunc, ago, fmtBytes, jst, clockOf, NT, SET, saveSet, bleep, META, meta, ORDER, sprite, spriteURL, drawSprite, drawLogo, icon, store, D, load, needsList, agentList, talkItems, go, openSheet, closeSheet, toast, fetchJSON, start };
+  G.Helix = { api, esc, $, $$, clamp, num, trunc, ago, fmtBytes, jst, tzName, TZ, clockOf, NT, SET, saveSet, bleep, META, meta, ORDER, sprite, spriteURL, drawSprite, drawLogo, icon, store, D, load, needsList, agentList, talkItems, go, openSheet, closeSheet, toast, fetchJSON, start };
 })(window);

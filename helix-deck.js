@@ -441,7 +441,7 @@
       const hosts = (c.hosts || []).filter((h) => h.online);
       const peakT = S.peak != null ? H.reduce((a, p) => (p.used === S.peak ? p : a), H[0]) : null;
       let peakAt = "—";
-      try { if (peakT) peakAt = new Date(peakT.t).toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false }); } catch (e) {}
+      try { if (peakT) peakAt = new Date(peakT.t).toLocaleTimeString("en-GB", { timeZone: "Australia/Sydney", hour: "2-digit", minute: "2-digit", hour12: false }); } catch (e) {}
       const hostBars = hosts.map((h, k) => {
         const pct = num(h.used_pct) != null ? h.used_pct : (num(h.load1) != null && c.total_cpus ? 100 * h.load1 / c.total_cpus : null);
         const col = hostColors()[k % hostColors().length];

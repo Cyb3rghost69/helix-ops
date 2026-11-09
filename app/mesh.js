@@ -13,7 +13,8 @@
   /* ── turn store data into mesh events ── */
   function toolTarget(name) {
     const n = String(name || "").toLowerCase();
-    for (const b of ["prefect", "foreman", "canon", "scribe", "adze"]) if (n.includes(b)) return b;
+    for (const b of ["prefect", "foreman", "canon", "scribe", "adze", "forge", "copilot"]) if (n.includes(b)) return b;
+    if (/(^|[^a-z])ecc([^a-z]|$)/.test(n)) return "ecc";
     if (n === "delegate_task") return "prefect";
     if (/web|browser|search|fetch|extract/.test(n)) return "web";
     if (/docker|unraid|array|container/.test(n)) return "unraid";
@@ -67,7 +68,7 @@
       seen: new Set(), mode: "boot", lastEvent: 0, sel: null, hover: null, t0: performance.now(), running: true,
       replayed: false, compact: !!opts.compact, stars: [], events: [], view: opts.view || "arena",
     };
-    const WALKERS = new Set(["helix", "prefect", "foreman", "canon", "scribe", "adze", "worker"]);
+    const WALKERS = new Set(["helix", "prefect", "foreman", "canon", "scribe", "adze", "forge", "ecc", "copilot", "community", "worker"]);
     const listeners = { select: null, mode: null, event: null };
 
     function size() {
@@ -87,11 +88,11 @@
 
     /* ring layout: Helix centre; channels left, workers below, services right, web/tools top */
     // evenly spaced ring, clockwise from the top: channels → workers → services → web/tools
-    const RING = ["telegram", "prefect", "foreman", "canon", "scribe", "adze", "worker", "honcho", "unraid", "umbrel", "tools", "web", "user"];
+    const RING = ["telegram", "community", "prefect", "foreman", "canon", "scribe", "adze", "forge", "ecc", "copilot", "worker", "honcho", "unraid", "umbrel", "tools", "web", "system", "user"];
     /* FLOOR: the office from the reference — desks for agents, stations for channels/services */
-    const FLOOR_L = { helix: [0.79, 0.42], prefect: [0.25, 0.42], foreman: [0.43, 0.42], canon: [0.61, 0.42], scribe: [0.25, 0.7], adze: [0.43, 0.7], worker: [0.79, 0.72],
-      telegram: [0.07, 0.44], user: [0.07, 0.8], web: [0.2, 0.12], tools: [0.61, 0.74], honcho: [0.34, 0.92], unraid: [0.94, 0.6], umbrel: [0.94, 0.86] };
-    const FLOOR_P = { helix: [0.66, 0.22], telegram: [0.14, 0.22], prefect: [0.3, 0.4], foreman: [0.68, 0.4], canon: [0.3, 0.56], scribe: [0.68, 0.56], adze: [0.3, 0.72], worker: [0.68, 0.72],
+    const FLOOR_L = { helix: [0.84, 0.4], prefect: [0.22, 0.38], foreman: [0.37, 0.38], canon: [0.52, 0.38], forge: [0.67, 0.38], scribe: [0.22, 0.66], adze: [0.37, 0.66], ecc: [0.52, 0.66], copilot: [0.67, 0.66], worker: [0.84, 0.7],
+      telegram: [0.07, 0.36], community: [0.07, 0.58], user: [0.07, 0.8], web: [0.2, 0.12], tools: [0.52, 0.88], honcho: [0.34, 0.92], unraid: [0.94, 0.6], umbrel: [0.94, 0.86] };
+    const FLOOR_P = { helix: [0.66, 0.2], telegram: [0.14, 0.2], prefect: [0.3, 0.34], foreman: [0.68, 0.34], canon: [0.3, 0.45], scribe: [0.68, 0.45], adze: [0.3, 0.56], forge: [0.68, 0.56], ecc: [0.3, 0.67], copilot: [0.68, 0.67], community: [0.12, 0.78], worker: [0.68, 0.78],
       web: [0.14, 0.07], user: [0.1, 0.9], honcho: [0.36, 0.9], tools: [0.62, 0.9], unraid: [0.9, 0.9], umbrel: [0.92, 0.6] };
     function floorLayout() {
       const P = S.portrait ? FLOOR_P : FLOOR_L;

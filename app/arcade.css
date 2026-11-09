@@ -205,6 +205,9 @@ body.anim-off .page { animation: none; }
 .lamp.busy { background: var(--orange); animation: blink 1s steps(1) infinite; }
 .lamp.idle { background: var(--green); }
 .lamp.dark { background: transparent; box-shadow: inset 0 0 0 2px var(--red); }
+.lamp.asleep { background: #4b4560; }
+.lamp.never { background: transparent; box-shadow: inset 0 0 0 2px #4b4560; }
+.acard.asleep, .acard.never { opacity: .62; }
 @keyframes blink { 50% { opacity: .25; } }
 body.anim-off .lamp.busy { animation: none; }
 

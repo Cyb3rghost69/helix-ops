@@ -221,6 +221,12 @@ def setup_needed() -> bool:
         return not any(u.get("role") == "admin" and not u.get("disabled") for u in _load()["users"])
 
 
+
+def default_password_users() -> list[str]:
+    """Accounts still on a factory-default password (flag cleared whenever that password is changed)."""
+    with _LOCK:
+        return [u["username"] for u in _load()["users"] if u.get("default_pw") and not u.get("disabled")]
+
 # ───────── lockouts ─────────
 def _prune(key: str, now: float) -> list[float]:
     arr = [t for t in _FAILS.get(key, []) if now - t < FAIL_WINDOW]
@@ -316,6 +322,7 @@ def complete_change(change_token: str, new_pw: str, ip: str, ua: str = "") -> di
         if verify_password(new_pw, u["hash"]):
             return {"ok": False, "error": "CHOOSE A NEW PASSWORD"}
         u["hash"] = hash_password(new_pw)
+        u.pop("default_pw", None)
         u["must_change"] = False
         u["pw_changed"] = _now()
         _save(data)
@@ -410,6 +417,7 @@ def change_own_password(username: str, current: str, new: str, ip: str, keep_sid
         if prob:
             return {"ok": False, "error": prob.lower()}
         u["hash"] = hash_password(new)
+        u.pop("default_pw", None)
         u["pw_changed"] = _now()
         _save(data)
         # sign out every other session of this user
@@ -497,6 +505,7 @@ def admin_act(actor: str, ip: str, data: dict) -> dict:
         elif action == "reset":
             pw = gen_password()
             u["hash"] = hash_password(pw)
+            u.pop("default_pw", None)
             u["must_change"] = True
             _save(store)
             revoke_user(name)
@@ -536,6 +545,7 @@ def reset_admin(username: str = "admin", password: str = "admin") -> None:
             u = {"username": username, "created": _now()}
             data["users"].append(u)
         u.update({"role": "admin", "hash": hash_password(password), "must_change": True, "disabled": False, "note": "reset from the command line"})
+        u.pop("default_pw", None)
         _save(data)
     audit("admin_reset", username, "local", note="reset from the command line; must change at first sign-in")
 

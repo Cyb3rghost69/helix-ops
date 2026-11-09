@@ -64,6 +64,10 @@ BOT_DBS = [
     ("canon", HERMES_HOME / "profiles" / "canon" / "state.db"),
     ("scribe", HERMES_HOME / "profiles" / "scribe" / "state.db"),
     ("adze", HERMES_HOME / "profiles" / "adze" / "state.db"),
+    ("forge", HERMES_HOME / "profiles" / "forge" / "state.db"),
+    ("ecc", HERMES_HOME / "profiles" / "ecc" / "state.db"),
+    ("copilot", HERMES_HOME / "profiles" / "helix-copilot" / "state.db"),
+    ("community", HERMES_HOME / "profiles" / "community" / "state.db"),
 ]
 AGENT_DBS = {"helix": Path(STATE_DB), **{name: path for name, path in BOT_DBS}}
 _TRACE_CACHE: dict = {"t": 0.0, "key": "", "data": None}
@@ -115,6 +119,36 @@ def run(cmd: list[str], timeout: float = 8) -> tuple[int, str]:
         return 124, ""
     except FileNotFoundError:
         return 127, ""
+
+
+def _gateway_state() -> dict:
+    """Hermes writes ~/.hermes/gateway_state.json; read it directly so a slow `hermes gateway status` can't show a false DOWN."""
+    try:
+        d = json.loads((HERMES_HOME / "gateway_state.json").read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def gateway_state_pid() -> int | None:
+    pid = _gateway_state().get("pid")
+    return pid if isinstance(pid, int) and pid > 0 else None
+
+
+def gateway_state_running() -> bool:
+    d = _gateway_state()
+    pid = gateway_state_pid()
+    if str(d.get("gateway_state") or "").lower() != "running" or pid is None:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
 
 
 def _parse_ops_env(text: str) -> dict[str, str]:
@@ -433,21 +467,19 @@ def fleet_btop() -> dict:
 
 
 def security_now(gw_running: bool, local_svcs: dict, ts: dict, hosts: list) -> dict:
+    _defaults = AUTH.default_password_users()
     findings = [
         {
-            "level": "low",
-            "title": "Ops login is on",
-            "detail": "Cookie session on :8790. Password lives in ops.env on the Mini — not Telegram.",
+            "level": "high" if auth_open() or _defaults else "ok",
+            "title": "Ops login",
+            "detail": ("OFF — dashboard limited to this Mac" if auth_open()
+                       else f"on · default password still set for {', '.join(_defaults)}" if _defaults
+                       else "on · cookie sessions, hashed passwords"),
         },
         {
             "level": "med",
             "title": "Rotate UniFi key",
             "detail": "Key lived in chat once. File unifi.env mode 600 only.",
-        },
-        {
-            "level": "med",
-            "title": "BlueBubbles Cloudflare URL dead",
-            "detail": "iMessage adapter retrying a dead tunnel. Local API is 127.0.0.1:1234.",
         },
         {
             "level": "ok" if gw_running else "high",
@@ -503,15 +535,22 @@ OWNER_RX = [
 ]
 
 
+_ALIASES: dict = {"mtime": None, "data": {}}
+
+
 def _load_aliases() -> dict:
     p = ROOT / "clients-aliases.json"
-    if not p.exists():
-        return {}
     try:
-        data = json.loads(p.read_text())
-        return data if isinstance(data, dict) else {}
-    except (OSError, json.JSONDecodeError):
+        mt = p.stat().st_mtime
+    except OSError:
         return {}
+    if _ALIASES["mtime"] != mt:
+        try:
+            data = json.loads(p.read_text())
+            _ALIASES.update({"mtime": mt, "data": data if isinstance(data, dict) else {}})
+        except (OSError, json.JSONDecodeError):
+            return {}
+    return _ALIASES["data"]
 
 
 def _unifi_cfg() -> tuple[str | None, str]:
@@ -556,7 +595,20 @@ def guess_owner(ip: str, hostname: str, name: str = "") -> tuple[str, str]:
     return "unknown", "no hostname"
 
 
+_PTR_CACHE: dict = {"t": 0.0, "prefix": "", "rows": None}
+PTR_TTL_S = 600
+
+
 def ptr_clients(prefix: str = "192.168.1.") -> list[dict]:
+    """Reverse-DNS sweep of the /24. Names rarely change, so reuse the sweep for 10 minutes."""
+    if _PTR_CACHE["rows"] is not None and _PTR_CACHE["prefix"] == prefix and time.time() - _PTR_CACHE["t"] < PTR_TTL_S:
+        return [dict(r) for r in _PTR_CACHE["rows"]]
+    rows = _ptr_sweep(prefix)
+    _PTR_CACHE.update({"t": time.time(), "prefix": prefix, "rows": [dict(r) for r in rows]})
+    return rows
+
+
+def _ptr_sweep(prefix: str) -> list[dict]:
     def one(i: int):
         ip = f"{prefix}{i}"
         code, out = run(["dig", "+time=1", "+tries=1", "+short", "-x", ip, "@192.168.1.1"], 2)
@@ -713,13 +765,20 @@ def _protect_headers() -> tuple[dict, str] | tuple[None, str]:
     return {"X-API-KEY": key, "Accept": "application/json"}, base
 
 
+_PROTECT_READY = False
+
+
 def _protect_init_db() -> None:
+    global _PROTECT_READY
+    if _PROTECT_READY:
+        return
     con = sqlite3.connect(PROTECT_DB)
     con.execute(
         "CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY, t REAL, cam TEXT, kind TEXT, note TEXT)"
     )
     con.commit()
     con.close()
+    _PROTECT_READY = True
 
 
 def protect_record(cam: str, kind: str, note: str = "") -> None:
@@ -1289,6 +1348,10 @@ def bot_mesh(profiles: list[dict], peers: list[dict], gw_running: bool, local_sv
         {"id": "canon", "label": "Canon", "kind": "bot", "host": "mac", "online": on("canon")},
         {"id": "scribe", "label": "Scribe", "kind": "bot", "host": "mac", "online": on("scribe")},
         {"id": "adze", "label": "ADZE", "kind": "bot", "host": "mac", "online": on("adze")},
+        {"id": "forge", "label": "Forge", "kind": "bot", "host": "mac", "online": on("forge")},
+        {"id": "ecc", "label": "ECC", "kind": "bot", "host": "mac", "online": on("ecc")},
+        {"id": "copilot", "label": "Copilot", "kind": "bot", "host": "mac", "online": on("helix-copilot")},
+        {"id": "community", "label": "Community", "kind": "bot", "host": "mac", "online": on("community")},
         {"id": "unraid", "label": "Unraid peer", "kind": "peer", "host": "unraid", "online": "unraid" in peer_names},
         {"id": "umbrel", "label": "Umbrel peer", "kind": "peer", "host": "umbrel", "online": "umbrel" in peer_names},
         {"id": "telegram", "label": "Telegram", "kind": "channel", "host": "mac", "online": gw_running},
@@ -1304,6 +1367,10 @@ def bot_mesh(profiles: list[dict], peers: list[dict], gw_running: bool, local_sv
         {"from": "helix", "to": "canon", "label": "docs", "live": on("canon")},
         {"from": "helix", "to": "scribe", "label": "research", "live": on("scribe")},
         {"from": "helix", "to": "adze", "label": "critique", "live": on("adze")},
+        {"from": "helix", "to": "forge", "label": "code", "live": on("forge")},
+        {"from": "helix", "to": "ecc", "label": "tdd", "live": on("ecc")},
+        {"from": "helix", "to": "copilot", "label": "copilot", "live": on("helix-copilot")},
+        {"from": "user", "to": "community", "label": "matrix", "live": on("community")},
         {"from": "helix", "to": "unraid", "label": "peer", "live": "unraid" in peer_names},
         {"from": "helix", "to": "umbrel", "label": "peer", "live": "umbrel" in peer_names},
         {"from": "helix", "to": "honcho", "label": "memory", "live": honcho_ok},
@@ -1428,6 +1495,12 @@ def _bus_for_tool(name: str) -> str:
         return "foreman"
     if "canon" in n:
         return "canon"
+    if "forge" in n:
+        return "forge"
+    if "copilot" in n:
+        return "copilot"
+    if re.search(r"(^|[^a-z])ecc([^a-z]|$)", n):
+        return "ecc"
     if n in ("web_search", "web_extract", "browser_exec", "hermes_web_search") or n.startswith("browser_"):
         return "network"
     if n in ("terminal", "execute_code", "computer_use"):
@@ -1524,6 +1597,10 @@ def agents_now() -> dict:
         ("canon", "Canon", "mac", str(HERMES_HOME / "profiles" / "canon" / "state.db"), "bot", "docs · silent"),
         ("scribe", "Scribe", "mac", str(HERMES_HOME / "profiles" / "scribe" / "state.db"), "bot", "research · silent"),
         ("adze", "ADZE", "mac", str(HERMES_HOME / "profiles" / "adze" / "state.db"), "bot", "openai critic · silent"),
+        ("forge", "Forge", "mac", str(HERMES_HOME / "profiles" / "forge" / "state.db"), "bot", "claude coder · silent"),
+        ("ecc", "ECC", "mac", str(HERMES_HOME / "profiles" / "ecc" / "state.db"), "bot", "tdd · review · security · silent"),
+        ("copilot", "Copilot", "mac", str(HERMES_HOME / "profiles" / "helix-copilot" / "state.db"), "bot", "copilot coder · silent"),
+        ("community", "Community", "mac", str(HERMES_HOME / "profiles" / "community" / "state.db"), "bot", "matrix community · isolated"),
     ]
     agents = []
     for aid, label, host, db, kind, role in specs:
@@ -1670,61 +1747,65 @@ def skill_body(rel: str) -> dict:
     return {"id": rel, "name": path.parent.name, "text": text, "mtime": int(st.st_mtime), "bytes": st.st_size}
 
 
+_TALK_CACHE: dict = {"t": 0.0, "limit": 0, "data": None}
+_TALK_LOCK = threading.Lock()
+
+
 def bot_talk(limit: int = 80) -> dict:
+    """Recent Helix ⇄ bot traffic. One query per bot (was one per session) and a 3 s cache — the page polls this every 4 s."""
+    with _TALK_LOCK:
+        if _TALK_CACHE["data"] is not None and _TALK_CACHE["limit"] >= limit and time.time() - _TALK_CACHE["t"] < 3:
+            d = _TALK_CACHE["data"]
+            return {"items": d["items"][-limit:], "bots": d["bots"]}
     items: list[dict] = []
     for bot, db in BOT_DBS:
         if not db.is_file():
             continue
+        peer = "user" if bot == "community" else "helix"
         try:
             con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=1.5)
             con.row_factory = sqlite3.Row
-            sessions = con.execute(
+            rows = con.execute(
                 """
-                SELECT id, title, source, last_activity_at
-                FROM sessions
-                WHERE IFNULL(archived,0)=0
-                ORDER BY IFNULL(last_activity_at,0) DESC LIMIT 24
-                """
+                SELECT m.role, m.content, m.reasoning_content, m.timestamp,
+                       s.id AS sid, s.title, s.source, s.last_activity_at
+                FROM messages m JOIN sessions s ON s.id = m.session_id
+                WHERE IFNULL(s.archived,0)=0 AND IFNULL(m.active,1)=1
+                  AND m.role IN ('user','assistant')
+                ORDER BY m.id DESC LIMIT ?
+                """,
+                (limit,),
             ).fetchall()
-            for s in sessions:
-                rows = con.execute(
-                    """
-                    SELECT role, content, reasoning_content, timestamp
-                    FROM messages
-                    WHERE session_id=? AND IFNULL(active,1)=1
-                      AND role IN ('user','assistant')
-                    ORDER BY id ASC
-                    """,
-                    (s["id"],),
-                ).fetchall()
-                if not rows:
-                    continue
-                for r in rows:
-                    role = r["role"]
-                    text = _cli_text((r["content"] or r["reasoning_content"] or ""), 500)
-                    if not text:
-                        if role == "assistant":
-                            text = "(no reply)"
-                        else:
-                            continue
-                    ts = r["timestamp"] or s["last_activity_at"] or 0
-                    items.append(
-                        {
-                            "from": "helix" if role == "user" else bot,
-                            "to": bot if role == "user" else "helix",
-                            "text": text,
-                            "title": _snip(s["title"] or "", 70),
-                            "source": s["source"] or "",
-                            "t": float(ts) if ts else 0,
-                            "sid": s["id"],
-                        }
-                    )
             con.close()
         except sqlite3.Error:
             continue
+        for r in reversed(rows):
+            role = r["role"]
+            text = _cli_text((r["content"] or r["reasoning_content"] or ""), 500)
+            if not text:
+                if role == "assistant":
+                    text = "(no reply)"
+                else:
+                    continue
+            ts = r["timestamp"] or r["last_activity_at"] or 0
+            sender = ("system" if SYSTEM_NOTE_RX.match(text) else peer) if role == "user" else bot
+            items.append(
+                {
+                    "from": sender,
+                    "to": bot if role == "user" else peer,
+                    "text": text,
+                    "title": _snip(r["title"] or "", 70),
+                    "source": r["source"] or "",
+                    "t": float(ts) if ts else 0,
+                    "sid": r["sid"],
+                }
+            )
     items.sort(key=lambda x: x["t"])
     bots = sorted({b for b, db in BOT_DBS if db.is_file()})
-    return {"items": items[-limit:], "bots": bots}
+    data = {"items": items[-limit:], "bots": bots}
+    with _TALK_LOCK:
+        _TALK_CACHE.update({"t": time.time(), "limit": limit, "data": data})
+    return data
 
 
 def herdr_now() -> dict:
@@ -1821,6 +1902,8 @@ def waiting_prompts() -> list[dict]:
             lu, la = r["last_user_ts"], r["last_as_ts"]
             if lu is None:
                 continue
+            if float(lu) < time.time() - 7 * 86400:      # a week-old unanswered prompt is history, not a to-do
+                continue
             if la is not None and float(la) >= float(lu):
                 continue
             rows.append(
@@ -1893,18 +1976,6 @@ def action_queue(gw_running: bool, kstats: str, cron_jobs: int, local_svcs: dict
                 "id": "",
             }
         )
-    deck = local_svcs.get("control_deck") or {}
-    if deck.get("status") not in (200, 401):
-        items.append(
-            {
-                "kind": "system",
-                "priority": "med",
-                "source": "deck",
-                "title": "Control Deck down",
-                "detail": "127.0.0.1:4240 not answering.",
-                "id": "",
-            }
-        )
     for line in (kstats or "").splitlines():
         m = re.match(r"\s*(triage|todo|ready|blocked|running|scheduled)\s+(\d+)", line, re.I)
         if m and int(m.group(2)) > 0:
@@ -1929,26 +2000,14 @@ def action_queue(gw_running: bool, kstats: str, cron_jobs: int, local_svcs: dict
                 "id": "",
             }
         )
-    items.append(
-        {
-            "kind": "security",
-            "priority": "low",
-            "source": "ops",
-            "title": "Helix ops login",
-            "detail": "Session cookie required. Username/password in ~/.hermes/reports/ops-dashboard/ops.env — do not paste in Telegram.",
-            "id": "",
-        }
-    )
-    items.append(
-        {
-            "kind": "security",
-            "priority": "med",
-            "source": "unifi",
-            "title": "Rotate UniFi API key",
-            "detail": "A key was pasted in chat earlier. Create a new local key in UniFi; ops reads unifi.env only.",
-            "id": "",
-        }
-    )
+    if auth_open():
+        items.append({"kind": "security", "priority": "high", "source": "ops",
+                      "title": "Ops login is OFF",
+                      "detail": "HELIX_OPS_AUTH=off in ops.env — only this Mac can open the dashboard. Set it to on when testing is done.", "id": ""})
+    for u in AUTH.default_password_users():
+        items.append({"kind": "security", "priority": "high", "source": "ops",
+                      "title": f"Default password on '{u}'",
+                      "detail": "Change it: ADMIN page → your account → change password.", "id": ""})
     items.append(
         {
             "kind": "idea",
@@ -2412,7 +2471,7 @@ def cognitive_trace(agent: str = "helix", run_id: str = "", retain: int = 24) ->
                 })
                 stream.append({"tag": "TOOL", "text": d["name"]})
                 push_packet("hermes", dest, ts)
-                if dest in ("prefect", "scribe", "foreman", "canon", "adze"):
+                if dest in ("prefect", "scribe", "foreman", "canon", "adze", "forge", "ecc", "copilot"):
                     timeline.append({
                         "id": f"{r['id']}-del-{dest}",
                         "kind": "DELEGATE",
@@ -2543,11 +2602,56 @@ def cognitive_trace(agent: str = "helix", run_id: str = "", retain: int = 24) ->
     return data
 
 
+_CLI_CACHE: dict = {}
+_CLI_LOCK = threading.Lock()
+
+
+def hermes_cli_batch(specs: dict) -> dict:
+    """Run several `hermes …` commands at once. specs: name → (args, timeout_s, cache_ttl_s).
+    Stats are collected in the background, so timeouts can be generous; a command that still times out
+    keeps its last good answer instead of blanking the panel (that is what showed a false 'gateway down')."""
+    out: dict = {}
+    todo = {}
+    now = time.time()
+    with _CLI_LOCK:
+        for name, (args, tmo, ttl) in specs.items():
+            c = _CLI_CACHE.get(name)
+            if c and ttl and now - c["t"] < ttl:
+                out[name] = c["out"]
+            else:
+                todo[name] = (args, tmo)
+    if todo:
+        with ThreadPoolExecutor(max_workers=min(8, len(todo))) as pool:
+            futs = {pool.submit(run, [HERMES, *args], tmo): name for name, (args, tmo) in todo.items()}
+            for fut in as_completed(futs):
+                name = futs[fut]
+                code, txt = fut.result()
+                with _CLI_LOCK:
+                    if code == 124 and not txt and name in _CLI_CACHE:
+                        txt = _CLI_CACHE[name]["out"]          # timed out: keep the last good answer
+                    elif txt:
+                        _CLI_CACHE[name] = {"t": time.time(), "out": txt}
+                out[name] = txt
+    return out
+
+
 def collect() -> dict:
     t0 = time.time()
-    _, ver = run([HERMES, "--version"], 6)
-    _, model_cfg = run([HERMES, "config", "get", "model"], 6)
-    _, prov_cfg = run([HERMES, "config", "get", "model.provider"], 6)
+    cli = hermes_cli_batch({
+        "ver": (["--version"], 20, 600),
+        "model": (["config", "get", "model"], 20, 120),
+        "prov": (["config", "get", "model.provider"], 20, 120),
+        "plist": (["profile", "list"], 25, 30),
+        "gw": (["gateway", "status"], 25, 0),
+        "sstats": (["sessions", "stats"], 25, 30),
+        "slist": (["sessions", "list"], 25, 15),
+        "peers": (["peer", "list"], 20, 60),
+        "mem": (["memory", "status"], 20, 120),
+        "cron": (["cron", "list"], 20, 60),
+        "dash": (["dashboard", "--status"], 20, 60),
+        "kstats": (["kanban", "stats"], 20, 30),
+    })
+    ver, model_cfg, prov_cfg = cli["ver"], cli["model"], cli["prov"]
     version = None
     commits_behind = None
     m = re.search(r"Hermes Agent (v[\d.]+)", ver)
@@ -2561,15 +2665,8 @@ def collect() -> dict:
     if mm:
         model_name = mm.group(1)
     provider_name = (prov_cfg or "").strip() or None
-    _, plist = run([HERMES, "profile", "list"], 10)
-    _, gw = run([HERMES, "gateway", "status"], 6)
-    _, sstats = run([HERMES, "sessions", "stats"], 8)
-    _, slist = run([HERMES, "sessions", "list"], 8)
-    _, peers = run([HERMES, "peer", "list"], 6)
-    _, mem = run([HERMES, "memory", "status"], 8)
-    _, cron = run([HERMES, "cron", "list"], 6)
-    _, dash = run([HERMES, "dashboard", "--status"], 6)
-    _, kstats = run([HERMES, "kanban", "stats"], 6)
+    plist, gw, sstats, slist = cli["plist"], cli["gw"], cli["sstats"], cli["slist"]
+    peers, mem, cron, dash, kstats = cli["peers"], cli["mem"], cli["cron"], cli["dash"], cli["kstats"]
     mem_provider = None
     mm = re.search(r"Provider:\s+(\S+)", mem)
     if mm:
@@ -2578,11 +2675,14 @@ def collect() -> dict:
         "Gateway is running" in gw
         or "supervised by launchd" in gw
         or ("✓" in gw and "running" in gw.lower())
+        or gateway_state_running()
     )
     gw_pid = None
     pm = re.search(r"PID:?\s*(\d+)", gw)
     if pm:
         gw_pid = int(pm.group(1))
+    if gw_pid is None and gw_running:
+        gw_pid = gateway_state_pid()
     peer_rows = []
     for line in peers.splitlines():
         if not line.strip() or line.startswith("usage:"):
@@ -2601,7 +2701,6 @@ def collect() -> dict:
         "webui": http_code("http://127.0.0.1:8787/health"),
         "hermes_dashboard": http_code("http://127.0.0.1:9119/"),
         "honcho": http_code(f"http://{UNRAID}:8000/health"),
-        "control_deck": http_code("http://127.0.0.1:4240/"),
         "command_board": http_code(f"http://{UNRAID}:8788/"),
     }
     cron_jobs = 0 if "No scheduled jobs" in cron else len(
@@ -2611,6 +2710,7 @@ def collect() -> dict:
         "Gateway is running" in gw
         or "supervised by launchd" in gw
         or ("✓" in gw and "running" in gw.lower())
+        or gateway_state_running()
     )
     actions = action_queue(gw_running, kstats, cron_jobs, local_svcs)
     profiles = parse_profiles(plist)
@@ -2775,7 +2875,7 @@ def chat_stream(messages: list[dict], emit) -> None:
 #   reply         → agent → origin
 # plus the Unraid Hermes worker (read over SSH, or locally when running on Unraid).
 # Served incrementally at /api/mesh?since=<seq> and pushed live at /api/stream (Server-Sent Events).
-MESH_AGENTS = ("helix", "prefect", "foreman", "canon", "scribe", "adze", "worker")
+MESH_AGENTS = ("helix", "prefect", "foreman", "canon", "scribe", "adze", "forge", "ecc", "copilot", "community", "worker")
 WORKER_DB = os.environ.get("HELIX_WORKER_DB") or "/mnt/cache/appdata/hermes-agent/state.db"
 WORKER_MODE = (os.environ.get("HELIX_WORKER") or "auto").lower()      # auto | off
 MESH_SQL = (
@@ -2790,11 +2890,13 @@ MESH_SQL = (
 def mesh_target(name: str, args: str = "") -> str:
     n = (name or "").lower()
     a = (args or "").lower()
-    for b in ("prefect", "foreman", "canon", "scribe", "adze"):
+    for b in ("prefect", "foreman", "canon", "scribe", "adze", "forge", "copilot"):
         if b in n:
             return b
+    if re.search(r"(^|[^a-z])ecc([^a-z]|$)", n):
+        return "ecc"
     if n in ("delegate_task", "send_to_agent", "ask_agent", "agent_message", "peer_message") or "delegate" in n or "peer" in n:
-        for b in ("prefect", "foreman", "canon", "scribe", "adze", "worker", "unraid"):
+        for b in ("prefect", "foreman", "canon", "scribe", "adze", "forge", "copilot", "ecc", "worker", "unraid"):
             if b in a:
                 return "worker" if b == "unraid" else b
         return "worker" if "peer" in n else "prefect"
@@ -2825,6 +2927,9 @@ def _mesh_origin(agent: str, source: str) -> str:
     return "user"
 
 
+SYSTEM_NOTE_RX = re.compile(r"^\s*\[(IMPORTANT|SYSTEM|System note|Background process|Note from the system)\b", re.I)
+
+
 def _mesh_events(agent: str, rows: list, memo: dict | None = None) -> list[dict]:
     """memo remembers where each tool call went, so its result comes back from the same place."""
     out: list[dict] = []
@@ -2840,8 +2945,11 @@ def _mesh_events(agent: str, rows: list, memo: dict | None = None) -> list[dict]
         mid = f"{agent}:{r.get('id')}"
         if role == "user":
             text = _cli_text(r.get("content") or "", 220)
-            if text:
-                out.append({**base, "id": mid, "from": origin, "to": agent, "kind": "ask" if origin in MESH_AGENTS else "request", "text": text})
+            if text and SYSTEM_NOTE_RX.match(text):
+                out.append({**base, "id": mid, "from": "system", "to": agent, "kind": "notice", "text": text})
+            elif text:
+                src = "user" if agent == "community" and origin == "helix" else origin   # Community answers Matrix users, not Helix
+                out.append({**base, "id": mid, "from": src, "to": agent, "kind": "ask" if src in MESH_AGENTS else "request", "text": text})
         elif role == "assistant":
             calls = []
             try:
@@ -2995,7 +3103,8 @@ def _refresh_stats() -> None:
         with _STATS_LOCK:
             _STATS["data"], _STATS["t"] = data, time.time()
     finally:
-        _STATS["busy"] = False
+        with _STATS_LOCK:
+            _STATS["busy"] = False
 
 
 def stats_cached() -> dict:
@@ -3024,8 +3133,11 @@ def stats_cached() -> dict:
 def _stats_loop() -> None:
     while True:
         t0 = time.time()
-        if not _STATS["busy"]:
-            _STATS["busy"] = True
+        with _STATS_LOCK:
+            go = not _STATS["busy"]
+            if go:
+                _STATS["busy"] = True
+        if go:
             _refresh_stats()
         time.sleep(max(3.0, STATS_REFRESH_S - (time.time() - t0)))
 
@@ -3123,7 +3235,15 @@ class Handler(BaseHTTPRequestHandler):
             return False
         return True
 
+    def _local_client(self) -> bool:
+        """True only for a browser on this machine (not Tailscale serve / a proxy forwarding a remote client)."""
+        ip = self.client_address[0] if self.client_address else ""
+        return ip in ("127.0.0.1", "::1") and not self.headers.get("X-Forwarded-For")
+
     def _gate(self, path: str, method: str) -> bool:
+        if auth_open() and not self._local_client() and path != "/health":
+            self._send(403, b'{"error":"login is off: this dashboard only answers on this Mac until HELIX_OPS_AUTH is on"}', "application/json; charset=utf-8")
+            return False
         if method == "POST" and not self._same_origin():
             self._send(403, b'{"error":"cross-site request blocked"}', "application/json; charset=utf-8")
             return False
@@ -3228,7 +3348,17 @@ class Handler(BaseHTTPRequestHandler):
         }
         if path in static:
             name, ctype = static[path]
-            self._send(200, (ROOT / name).read_bytes(), ctype)
+            fp = ROOT / name
+            st = fp.stat()
+            etag = f'"{int(st.st_mtime_ns):x}-{st.st_size:x}"'
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "no-cache")
+                self._sec_headers()
+                self.end_headers()
+                return
+            self._send(200, fp.read_bytes(), ctype, [("ETag", etag), ("Cache-Control", "no-cache")])
             return
         if path == "/api/chat":
             self._send(200, json.dumps(chat_status()).encode(), "application/json; charset=utf-8")

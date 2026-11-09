@@ -12,6 +12,9 @@
     foreman: [0.50, 0.64],
     canon: [0.82, 0.64],
     adze: [0.82, 0.36],
+    forge: [0.18, 0.36],
+    ecc: [0.30, 0.78],
+    copilot: [0.70, 0.78],
     result: [0.50, 0.78],
     response: [0.50, 0.93],
   };
@@ -80,7 +83,7 @@
       ["command", "hermes"], ["hermes", "plan"],
       ["plan", "prefect"], ["plan", "network"], ["plan", "tool"],
       ["prefect", "result"], ["network", "result"], ["tool", "result"],
-      ["hermes", "scribe"], ["hermes", "foreman"], ["hermes", "canon"], ["hermes", "adze"],
+      ["hermes", "scribe"], ["hermes", "foreman"], ["hermes", "canon"], ["hermes", "adze"], ["hermes", "forge"], ["hermes", "ecc"], ["hermes", "copilot"],
       ["result", "hermes"], ["hermes", "response"],
     ];
     ctx.strokeStyle = "rgba(106,223,100,0.22)";

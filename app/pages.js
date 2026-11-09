@@ -19,7 +19,8 @@
     const d = vals.map((v, i) => `${i ? "L" : "M"}${(i * st).toFixed(1)} ${(h - 2 - (v / mx) * (h - 4)).toFixed(1)}`).join(" ");
     return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:${h}px;display:block" role="img" aria-label="${esc(label || "trend")}"><path d="${d} L${w} ${h} L0 ${h} Z" fill="${col}" fill-opacity=".15"/><path d="${d}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
   }
-  const lamp = (st) => `<span class="lamp ${st}" aria-label="${st}"></span>`;
+  const STATE_TXT = { busy: "busy", idle: "idle", asleep: "asleep >1 day", never: "never run", dark: "offline" };
+  const lamp = (st) => `<span class="lamp ${st}" aria-label="${STATE_TXT[st] || st}"></span>`;
   const sevTag = (s) => `<span class="tag ${s}">${esc(String(s).toUpperCase())}</span>`;
   function agentCard(a, talkCount) {
     const say = a.status === "busy" ? (a.doing || a.thinking) : (a.thinking || a.doing || (a.online ? "standing by" : "offline"));
@@ -27,7 +28,7 @@
       <span class="st">${lamp(a.status)}</span>
       <span class="top">${sprite(a.id, a.online, 36)}<span style="min-width:0"><span class="nm">${esc(a.name)}</span><div class="rl ell">${esc(a.role)}</div></span></span>
       <span class="say">${esc(say)}</span>
-      <span class="meta"><span>${esc(a.status.toUpperCase())}${a.age_s != null ? " · " + ago(a.age_s) + " ago" : ""}</span><span>${talkCount ? talkCount + " msgs" : ""}</span></span>
+      <span class="meta"><span>${esc((STATE_TXT[a.status] || a.status).toUpperCase())}${a.age_s != null ? " · " + ago(a.age_s) + " ago" : ""}</span><span>${talkCount ? talkCount + " msgs" : ""}</span></span>
     </button>`;
   }
   function talkCounts() { const c = {}; G.HelixMesh.collectEvents().forEach((m) => { c[m.from] = (c[m.from] || 0) + 1; c[m.to] = (c[m.to] || 0) + 1; }); return c; }
@@ -110,7 +111,7 @@
         T("FLEET CPU", `<div class="row">${ring(c && c.used_pct, "#39e58c", "Fleet CPU")}<div class="num">${c ? (c.hosts || []).filter((h) => h.online).length : "—"}<small>hosts</small></div></div>`, c ? `${c.total_cpus} cpu · peak ${store.peak != null ? Math.round(store.peak) + "%" : "—"}` : "", "", "#/systems/hosts"),
         T("MEMORY", `<div class="row">${ring(mp, "#22d3ee", "Memory")}<div class="num" style="font-size:24px">${c ? Math.round(c.mem_used_gb) : "—"}<small>/ ${c ? Math.round(c.mem_total_gb) : "—"} GB</small></div></div>`, c ? `hermes procs ${c.hermes_procs ?? "—"}` : "", "", "#/systems/hosts"),
         T("NETWORK", `<div class="num">${lr ? (lr.rx + lr.tx).toFixed(1) : "—"}<small>Mb/s</small></div>${spark(rates.map((r) => r.rx + r.tx), 200, 34, "#3b82f6", "Network")}`, lr ? `↓ ${lr.rx.toFixed(1)} · ↑ ${lr.tx.toFixed(1)}` : "measuring between scans", "", "#/systems/network"),
-        T("AGENTS", `<div class="num">${bots.filter((a) => a.online).length}<small>/ ${bots.length} online</small></div><div class="segs">${bots.map((a) => `<i style="background:${a.online ? a.acc : "#3a3346"}"></i>`).join("")}</div>`, `${bots.filter((a) => a.status === "busy").length} busy right now`, "", "#/agents"),
+        T("AGENTS", `<div class="num">${bots.filter((a) => a.online).length}<small>/ ${bots.length} active today</small></div><div class="segs">${bots.map((a) => `<i title="${esc(a.name)} · ${esc(STATE_TXT[a.status] || a.status)}" style="background:${a.online ? a.acc : "#3a3346"}"></i>`).join("")}</div>`, [`${bots.filter((a) => a.status === "busy").length} busy`, `${bots.filter((a) => a.status === "asleep").length} asleep`, `${bots.filter((a) => a.status === "never").length} never run`].join(" · "), "", "#/agents"),
         T("DOCKER", `<div class="num">${dk && dk.ok ? up : "—"}<small>/ ${dk && dk.ok ? cs.length : "—"} up</small></div><div class="bar"><i style="width:${cs.length ? 100 * up / cs.length : 0}%"></i></div>`, dk && dk.ok ? `${cs.length - up} stopped` : (dk ? esc(dk.error || "unavailable") : "scanning"), "", "#/systems/docker"),
         T("NEEDS YOU", `<div class="num">${st ? needs.length : "—"}<small>open</small></div><div class="segs">${["high", "med", "warn", "low"].map((s) => needs.filter((x) => x.sev === s).map(() => `<i style="background:${s === "high" ? "#ff4d6d" : s === "low" ? "#3a3346" : "#f59e0b"}"></i>`).join("")).join("") || '<i></i>'}</div>`, `hardening ${sec.score ?? "—"}/100`, "alert", "#/systems/security"),
       ].join("");
@@ -174,7 +175,7 @@
     function inspect() { const p = $("#m-insp", el); if (p) p.innerHTML = `<div class="hd"><h2><span class="dot"></span>INSPECT</h2><small>${sel ? `<button class="btn sm" id="m-clear">CLEAR</button>` : "tap an agent"}</small></div>${sel ? inspHTML() : `<div class="empty">${sprite("helix", true, 40)}<br>SELECT AN AGENT ON THE ARENA</div>`}`; const c = $("#m-clear", el); if (c) c.onclick = () => { sel = null; mesh.select(null); inspect(); renderLog(); }; }
     function renderLog() {
       let ev = mesh.events();
-      const AG = ["helix", "prefect", "foreman", "canon", "scribe", "adze", "worker"];
+      const AG = ["helix", "prefect", "foreman", "canon", "scribe", "adze", "forge", "ecc", "copilot", "community", "worker"];
       if (filter === "talk") ev = ev.filter((e) => AG.includes(e.from) && AG.includes(e.to));
       else if (filter === "trace") ev = ev.filter((e) => e.kind === "tool" || e.kind === "result");
       else if (filter === "chat") ev = ev.filter((e) => e.kind === "request" || e.kind === "reply");
@@ -186,7 +187,7 @@
     function stats() {
       const s = mesh.stats(), al = agentList().filter((a) => !["user", "telegram", "web", "tools"].includes(a.id));
       const b = s.busiest;
-      $("#m-stats", el).innerHTML = `<div><div class="k">MESSAGES · 1H</div><div class="num">${s.hour}</div></div><div><div class="k">ACTIVE LINKS</div><div class="num">${s.links}</div></div><div><div class="k">BUSIEST PAIR</div><div style="font:11px var(--px);margin-top:8px">${b ? `<span style="color:${meta(b.a).acc}">${esc(meta(b.a).name)}</span> ⇄ <span style="color:${meta(b.b).acc}">${esc(meta(b.b).name)}</span> · ${b.count}` : "—"}</div></div><div><div class="k">AGENTS ONLINE</div><div class="num">${al.filter((a) => a.online).length}<small>/ ${al.length}</small></div></div>`;
+      $("#m-stats", el).innerHTML = `<div><div class="k">MESSAGES · 1H</div><div class="num">${s.hour}</div></div><div><div class="k">ACTIVE LINKS</div><div class="num">${s.links}</div></div><div><div class="k">BUSIEST PAIR</div><div style="font:11px var(--px);margin-top:8px">${b ? `<span style="color:${meta(b.a).acc}">${esc(meta(b.a).name)}</span> ⇄ <span style="color:${meta(b.b).acc}">${esc(meta(b.b).name)}</span> · ${b.count}` : "—"}</div></div><div><div class="k">ACTIVE TODAY</div><div class="num">${al.filter((a) => a.online).length}<small>/ ${al.length}</small></div></div>`;
       const links = mesh.links().slice(0, 10);
       const mx = links.length ? links[0].count : 1;
       $("#m-links", el).innerHTML = `<div class="hd"><h2><span class="dot"></span>BUSIEST LINKS</h2><small>messages per pair</small></div><div class="links">${links.length ? links.map((l) => `<div class="link"><div class="pair">${X.sprite(l.a, true, 18)}<span style="color:${meta(l.a).acc}">${esc(meta(l.a).name)}</span>⇄${X.sprite(l.b, true, 18)}<span style="color:${meta(l.b).acc}">${esc(meta(l.b).name)}</span></div><div class="bar"><i style="width:${100 * l.count / mx}%;background:${meta(l.a).acc}"></i></div><div class="n">${l.count}</div></div>`).join("") : `<div class="empty">NO TRAFFIC YET</div>`}</div>`;
@@ -197,7 +198,7 @@
       if (!keys || keys.has("talk") || keys.has("trace") || keys.has("mesh")) { mesh.ingest(G.HelixMesh.collectEvents()); renderLog(); }
       stats(); if (sel) inspect();
       const tc = talkCounts();
-      $("#m-roster", el).innerHTML = `<div class="hd"><h2><span class="dot"></span>AGENTS ON THE MESH</h2><small>${al.filter((a) => a.online).length} online</small></div><div class="list">${al.filter((a) => !["web", "tools"].includes(a.id)).map((a) => `<button class="li" style="background:none;border:0;border-bottom:1px solid #1d1926;text-align:left;cursor:pointer;color:inherit;width:100%" data-sel="${esc(a.id)}">${sprite(a.id, a.online, 28)}<div class="grow"><div class="t1" style="color:${a.acc};font:11px var(--px)">${esc(a.name)}</div><div class="t2 ell">${esc(a.doing || a.thinking || a.role)}</div></div>${lamp(a.status)}<span class="muted" style="font:16px var(--vt);width:32px;text-align:right">${tc[a.id] || ""}</span></button>`).join("")}</div>`;
+      $("#m-roster", el).innerHTML = `<div class="hd"><h2><span class="dot"></span>AGENTS ON THE MESH</h2><small>${al.filter((a) => a.online).length} active today</small></div><div class="list">${al.filter((a) => !["web", "tools"].includes(a.id)).map((a) => `<button class="li" style="background:none;border:0;border-bottom:1px solid #1d1926;text-align:left;cursor:pointer;color:inherit;width:100%" data-sel="${esc(a.id)}">${sprite(a.id, a.online, 28)}<div class="grow"><div class="t1" style="color:${a.acc};font:11px var(--px)">${esc(a.name)}</div><div class="t2 ell">${esc(a.doing || a.thinking || a.role)}</div></div>${lamp(a.status)}<span class="muted" style="font:16px var(--vt);width:32px;text-align:right">${tc[a.id] || ""}</span></button>`).join("")}</div>`;
       $$("[data-sel]", el).forEach((b) => b.onclick = () => { sel = b.dataset.sel; mesh.select(sel); inspect(); renderLog(); if (matchMedia("(max-width: 900px)").matches) X.openSheet("insp", inspHTML()); });
     }
     const un = sub(upd); upd();

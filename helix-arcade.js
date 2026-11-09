@@ -10,7 +10,7 @@
   const trunc = (s, n) => { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
 
   /* ───────────── agents ───────────── */
-  const ORDER = ["helix", "prefect", "foreman", "canon", "scribe", "adze", "unraid", "honcho", "telegram", "umbrel"];
+  const ORDER = ["helix", "prefect", "foreman", "canon", "scribe", "adze", "forge", "ecc", "copilot", "community", "unraid", "honcho", "telegram", "umbrel"];
   const META = {
     helix:    { acc: "#ff4fa3", shape: "ghost", role: "lead · grok · runs the floor" },
     prefect:  { acc: "#3b82f6", shape: "round", role: "align · keeps the plan honest" },
@@ -18,6 +18,10 @@
     canon:    { acc: "#39e58c", shape: "square", role: "docs · writes it down" },
     scribe:   { acc: "#22d3ee", shape: "round", role: "research · reads first" },
     adze:     { acc: "#ef4444", shape: "tri",   role: "critic · openai · no tools" },
+    forge:    { acc: "#d97757", shape: "square", role: "code · claude · heavy builds" },
+    ecc:      { acc: "#a855f7", shape: "tri",   role: "tdd · review · security" },
+    copilot:  { acc: "#f0abfc", shape: "round", role: "code · copilot · auto model" },
+    community:{ acc: "#94a3b8", shape: "round", role: "matrix · isolated · no admin" },
     unraid:   { acc: "#facc15", shape: "square", role: "peer · docker host" },
     honcho:   { acc: "#a3e635", shape: "hex",   role: "memory · peers & facts" },
     telegram: { acc: "#38bdf8", shape: "round", role: "channel · only Helix speaks" },
@@ -110,7 +114,7 @@
 
   /* ───────────── office floor ───────────── */
   function jst() {
-    try { return new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false }); } catch (e) { return "--:--"; }
+    try { return new Date().toLocaleTimeString("en-GB", { timeZone: "Australia/Sydney", hour: "2-digit", minute: "2-digit", hour12: false }); } catch (e) { return "--:--"; }
   }
   function plant(x, y) {
     return `<rect x="${x + 6}" y="${y + 22}" width="16" height="14" fill="#2a2533"/><rect x="${x + 4}" y="${y + 20}" width="20" height="4" fill="#3a3346"/>
@@ -210,7 +214,7 @@
     // right: clock + needs board
     let right = `<rect x="742" y="34" width="86" height="52" fill="#0a0910" stroke="#3a3346" stroke-width="2"/>
       <text x="785" y="62" fill="#39e58c" font-size="20" text-anchor="middle" font-weight="700">${esc(jst())}</text>
-      <text x="785" y="78" fill="#a19bb0" font-size="7" text-anchor="middle" letter-spacing="1">JST · TOKYO</text>
+      <text x="785" y="78" fill="#a19bb0" font-size="7" text-anchor="middle" letter-spacing="1">SYD · LOCAL</text>
       <rect x="752" y="92" width="66" height="14" fill="#1a1622" stroke="#2a2533"/><text x="785" y="102" fill="#ffffff" font-size="7" text-anchor="middle" letter-spacing="1">LOCAL TIME</text>`;
     right += `<rect x="842" y="24" width="104" height="${Math.max(60, 30 + Math.min(needs.length, 6) * 12)}" fill="#0f0d15" stroke="#3a3346" stroke-width="2"/>
       <text x="850" y="38" fill="#ffffff" font-size="8" letter-spacing="1">NEEDS YOU · ${needs.length}</text>`;
@@ -388,11 +392,11 @@
     if (chips) chips.innerHTML = chip(up, "UPLINK") + chip(!!h.gateway_running, "GATEWAY") + chip(!!ad.online, "ADZE") + `<span class="ar-chip"><i style="background:${st.auth_open ? "#f59e0b" : "#39e58c"}"></i>AUTH ${esc(auth)}</span>`;
     const clk = $("ar-clock");
     if (clk) {
-      try { clk.textContent = new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hour12: false }) + " JST"; } catch (e) { clk.textContent = "--:--"; }
+      try { clk.textContent = new Date().toLocaleTimeString("en-GB", { timeZone: "Australia/Sydney", hour: "2-digit", minute: "2-digit", hour12: false }) + " SYD"; } catch (e) { clk.textContent = "--:--"; }
     }
     const dt = $("ar-date");
     if (dt) {
-      try { dt.textContent = new Date().toLocaleDateString("en-GB", { timeZone: "Asia/Tokyo", weekday: "short", day: "2-digit", month: "short" }).toUpperCase(); } catch (e) {}
+      try { dt.textContent = new Date().toLocaleDateString("en-GB", { timeZone: "Australia/Sydney", weekday: "short", day: "2-digit", month: "short" }).toUpperCase(); } catch (e) {}
     }
   }
 
@@ -435,7 +439,7 @@
       hdr.id = "ar-hdr";
       hdr.innerHTML = `<div class="ar-hdr-l"><img src="${p}/helix-arcade-mark.svg?v=${global.HELIX_ASSET_V || ""}" width="48" height="48" alt="HELIX/OPS"><div><div class="ar-word">HELIX<span>/</span>OPS</div><div class="ar-sub">HERMES COMMAND FLOOR · TOKYO-06 · 統合管制</div></div></div>
         <div class="ar-chips" id="ar-chips"></div>
-        <div class="ar-hdr-r"><div class="ar-find" id="ar-find"></div><div class="ar-date" id="ar-date"></div><div class="ar-clock" id="ar-clock" aria-label="Japan time">--:-- JST</div></div>`;
+        <div class="ar-hdr-r"><div class="ar-find" id="ar-find"></div><div class="ar-date" id="ar-date"></div><div class="ar-clock" id="ar-clock" aria-label="Sydney time">--:--</div></div>`;
       const logo = document.querySelector("header.logo");
       if (logo && logo.parentNode) logo.parentNode.insertBefore(hdr, logo);
       const q = $("q");
