@@ -28,6 +28,7 @@ from urllib.error import URLError, HTTPError
 import ssl
 
 import helix_shield
+import helix_torrents
 
 HOST = "0.0.0.0"
 PORT = 8790
@@ -1343,6 +1344,7 @@ def bot_mesh(profiles: list[dict], peers: list[dict], gw_running: bool, local_sv
     src = sessions.get("by_source") or {}
     honcho_ok = (local_svcs.get("honcho") or {}).get("status") == 200
     peer_names = {p.get("name") for p in peers}
+    copilot_job = bool((_last_from_db(str(HERMES_HOME / "profiles" / "helix-copilot" / "state.db")) or {}).get("online"))
     nodes = [
         {"id": "helix", "label": "HELIX", "kind": "orchestra", "host": "mac", "online": True},
         {"id": "prefect", "label": "Prefect", "kind": "bot", "host": "mac", "online": on("prefect")},
@@ -1352,7 +1354,7 @@ def bot_mesh(profiles: list[dict], peers: list[dict], gw_running: bool, local_sv
         {"id": "adze", "label": "ADZE", "kind": "bot", "host": "mac", "online": on("adze")},
         {"id": "forge", "label": "Forge", "kind": "bot", "host": "mac", "online": on("forge")},
         {"id": "ecc", "label": "ECC", "kind": "bot", "host": "mac", "online": on("ecc")},
-        {"id": "copilot", "label": "Copilot", "kind": "bot", "host": "mac", "online": on("helix-copilot")},
+        {"id": "copilot", "label": "Copilot", "kind": "bot", "host": "mac", "online": copilot_job},
         {"id": "community", "label": "Community", "kind": "bot", "host": "mac", "online": on("community")},
         {"id": "unraid", "label": "Unraid peer", "kind": "peer", "host": "unraid", "online": "unraid" in peer_names},
         {"id": "umbrel", "label": "Umbrel peer", "kind": "peer", "host": "umbrel", "online": "umbrel" in peer_names},
@@ -1371,7 +1373,7 @@ def bot_mesh(profiles: list[dict], peers: list[dict], gw_running: bool, local_sv
         {"from": "helix", "to": "adze", "label": "critique", "live": on("adze")},
         {"from": "helix", "to": "forge", "label": "code", "live": on("forge")},
         {"from": "helix", "to": "ecc", "label": "tdd", "live": on("ecc")},
-        {"from": "helix", "to": "copilot", "label": "copilot", "live": on("helix-copilot")},
+        {"from": "helix", "to": "copilot", "label": "code", "live": copilot_job},
         {"from": "user", "to": "community", "label": "matrix", "live": on("community")},
         {"from": "helix", "to": "unraid", "label": "peer", "live": "unraid" in peer_names},
         {"from": "helix", "to": "umbrel", "label": "peer", "live": "umbrel" in peer_names},
@@ -1857,11 +1859,11 @@ def herdr_now() -> dict:
                 continue
             rows.append(
                 {
-                    "id": a.get("id") or a.get("name") or "",
-                    "name": a.get("name") or a.get("title") or a.get("id") or key,
-                    "status": a.get("status") or a.get("state") or "",
-                    "kind": a.get("kind") or a.get("type") or a.get("agent") or "",
-                    "cwd": a.get("cwd") or a.get("path") or "",
+                    "id": a.get("id") or a.get("tab_id") or a.get("pane_id") or a.get("workspace_id") or a.get("name") or "",
+                    "name": a.get("name") or a.get("title") or a.get("label") or a.get("id") or key,
+                    "status": a.get("status") or a.get("state") or a.get("agent_status") or "",
+                    "kind": a.get("kind") or a.get("type") or a.get("agent") or key,
+                    "cwd": a.get("cwd") or a.get("path") or a.get("foreground_cwd") or "",
                 }
             )
         return rows
@@ -2991,6 +2993,7 @@ class MeshBus:
         self.worker_t = 0.0
         self.wanted = 0.0
         self.memo: dict = {}
+        self.adze_seen: set = set()
 
     def ensure(self) -> None:
         self.wanted = time.time()
@@ -3066,6 +3069,40 @@ class MeshBus:
                 self.sources["worker"] = str(e)[:80]
         if len(self.memo) > 4000:
             self.memo.clear()
+        try:
+            from adze_orchestrator import recent_events as _adze_log
+
+            for e in _adze_log(40):
+                if not isinstance(e, dict):
+                    continue
+                kid = str(e.get("t") or "") + "|" + str(e.get("kind") or "")
+                if kid in self.adze_seen:
+                    continue
+                self.adze_seen.add(kid)
+                if len(self.adze_seen) > 400:
+                    self.adze_seen = set(list(self.adze_seen)[-200:])
+                summary = str(e.get("state") or e.get("kind") or "review")[:140]
+                ts = 0.0
+                rawt = str(e.get("t") or "")
+                try:
+                    ts = time.mktime(time.strptime(rawt[:19], "%Y-%m-%dT%H:%M:%S"))
+                except (ValueError, OverflowError):
+                    ts = time.time()
+                new.append(
+                    {
+                        "t": ts,
+                        "id": "adze:" + kid,
+                        "from": "helix",
+                        "to": "adze",
+                        "kind": "critique",
+                        "text": summary,
+                        "agent": "adze",
+                        "title": "ADZE",
+                    }
+                )
+            self.sources["adze_log"] = "ok"
+        except Exception as e:
+            self.sources["adze_log"] = type(e).__name__
         self._push(new)
 
     def _loop(self) -> None:
@@ -3448,6 +3485,7 @@ class Handler(BaseHTTPRequestHandler):
             "/app/lights.js": ("app/lights.js", "application/javascript; charset=utf-8"),
             "/app/admin.js": ("app/admin.js", "application/javascript; charset=utf-8"),
             "/app/shield.js": ("app/shield.js", "application/javascript; charset=utf-8"),
+            "/app/torrents.js": ("app/torrents.js", "application/javascript; charset=utf-8"),
         }
         if path in static:
             name, ctype = static[path]
@@ -3571,6 +3609,24 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json; charset=utf-8",
             )
             return
+        if path == "/api/adze/history":
+            try:
+                from adze_orchestrator import history as adze_history
+                payload = adze_history(50)
+                # Only one-line summaries — strip everything else
+                if isinstance(payload, dict) and "items" in payload and payload["items"]:
+                    for item in payload["items"]:
+                        # Guarantee only t, kind, summary in response items
+                        keep = {"t", "kind", "summary"}
+                        for k in list(item.keys()):
+                            if k not in keep:
+                                del item[k]
+                else:
+                    payload = {"ok": True, "items": []}
+            except Exception:
+                payload = {"ok": False, "items": []}
+            self._send(200, json.dumps(payload, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
         if path == "/api/adze":
             try:
                 from adze_orchestrator import load_env, status as adze_status
@@ -3676,6 +3732,13 @@ class Handler(BaseHTTPRequestHandler):
             cid = path.rsplit("/", 1)[-1].split("?", 1)[0]
             code, body, ctype = protect_snapshot(cid)
             self._send(code, body, ctype)
+            return
+        if path == "/api/torrents":
+            self._send(200, json.dumps(helix_torrents.snapshot(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+            return
+        if path == "/api/torrents/search":
+            q = (qs.get("q") or [""])[0]
+            self._send(200, json.dumps(helix_torrents.search(q), ensure_ascii=False).encode(), "application/json; charset=utf-8")
             return
         if path == "/health":
             self._send(200, b'{"ok":true}', "application/json")
@@ -3862,6 +3925,15 @@ class Handler(BaseHTTPRequestHandler):
                 data = {}
             body = json.dumps(matrix_act(data if isinstance(data, dict) else {}), ensure_ascii=False).encode()
             self._send(200, body, "application/json; charset=utf-8")
+            return
+        if path == "/api/torrents":
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                data = json.loads(self.rfile.read(max(0, min(n, 8000))).decode() or "{}")
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                data = {}
+            out = helix_torrents.act(data if isinstance(data, dict) else {})
+            self._send(200, json.dumps(out, ensure_ascii=False).encode(), "application/json; charset=utf-8")
             return
         if path == "/api/protect/hook":
             n = int(self.headers.get("Content-Length") or 0)

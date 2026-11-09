@@ -143,6 +143,17 @@
       });
       ["web", "tools"].forEach((v) => { const n = node(v); n.on = true; n.status = "idle"; n.virtual = true; });
       (edges || []).forEach((e) => { if (e.from && e.to) { node(e.from); node(e.to); const l = link(e.from, e.to); l.live = !!e.live; l.label = l.label || e.label; } });
+      const ad = (H().store.data || {}).adze;
+      if (ad && (ad.last || (ad.events || [])[0])) {
+        const last = ad.last || ad.events[ad.events.length - 1];
+        const raw = String((last && last.t) || "");
+        const recent = /REVIEWING|CONSENSUS/.test(String((last && last.state) || ""));
+        if (recent) { const n = node("adze"); n.flash = 1; n.on = true; n.status = "busy"; }
+      }
+      const cp = (list || []).find((x) => x.id === "copilot");
+      if (cp && (cp.status === "busy" || cp.online)) {
+        const n = node("copilot"); n.flash = 1; n.on = true; n.status = "busy";
+      }
     }
     function ingest(events) {
       const fresh = events.filter((e) => !S.seen.has(e.key));

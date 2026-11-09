@@ -113,6 +113,19 @@ def status() -> dict:
     }
 
 
+def history(limit: int = 50) -> dict:
+    items = []
+    n = max(1, min(int(limit or 50), 80))
+    for e in recent_events(n):
+        if not isinstance(e, dict):
+            continue
+        kind = str(e.get("kind") or "event")
+        state = str(e.get("state") or "")
+        line = SECRETISH.sub("[redacted]", (kind + " · " + state).strip(" ·"))
+        items.append({"t": e.get("t"), "kind": kind, "summary": sanitize(line, 140)})
+    return {"ok": True, "items": items}
+
+
 def _hash(text: str) -> str:
     return hashlib.sha256((text or "").encode("utf-8")).hexdigest()[:16]
 

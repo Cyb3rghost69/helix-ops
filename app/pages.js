@@ -227,7 +227,11 @@
       const al = agentList().filter((a) => !["web", "tools"].includes(a.id)), tc = talkCounts();
       if (al.length) $("#a-grid", el).innerHTML = al.map((a) => agentCard(a, tc[a.id])).join("");
       const hd = D("herdr");
-      if (hd) $("#a-herdr", el).innerHTML = `<div class="hd"><h2><span class="dot"></span>HERDR · AGENT RUNNER</h2><small>${hd.installed ? (hd.running ? "running" : "installed · stopped") : "not installed"}</small></div><div class="list">${(hd.agents || []).length ? hd.agents.map((a) => `<div class="li"><div class="grow"><div class="t1">${esc(a.name || a.id || a.kind)}</div><div class="t2">${esc(a.kind || "")} ${esc(a.status || a.state || "")}</div></div></div>`).join("") : `<div class="empty">NO HERDR AGENTS</div>`}</div>`;
+      if (hd) {
+        const rows = (hd.agents || []).length ? hd.agents : ((hd.tabs || []).length ? hd.tabs : (hd.panes || []));
+        const st = hd.installed ? (hd.running ? "running" : "installed · stopped") : "not installed";
+        $("#a-herdr", el).innerHTML = `<div class="hd"><h2><span class="dot"></span>HERDR · AGENT RUNNER</h2><small>${st}${hd.counts && hd.counts.tabs != null ? " · " + hd.counts.tabs + " tabs" : ""}</small></div><div class="list">${rows.length ? rows.map((a) => `<div class="li"><div class="grow"><div class="t1">${esc(a.name || a.label || a.id || a.kind)}</div><div class="t2">${esc(a.kind || "")} ${esc(a.status || a.agent_status || a.state || "")} ${esc(a.cwd || "")}</div></div></div>`).join("") : `<div class="empty">NO HERDR AGENTS · attach in Terminal: herdr</div>`}</div>`;
+      }
     }
     const un = sub(upd); upd(); return { destroy: un };
   }
@@ -379,7 +383,7 @@
 
   /* ═════════ MEMORY ═════════ */
   function memory(el, arg) {
-    const tabs = [["banks", "BANKS"], ["files", "FILES"], ["skills", "SKILLS"]];
+    const tabs = [["banks", "BANKS"], ["files", "FILES"], ["skills", "SKILLS"], ["adze", "ADZE"]];
     const tab = tabs.some(([k]) => k === (arg || "").split("/")[0]) ? arg.split("/")[0] : "banks";
     let file = "SOUL", q = "", skill = null;
     el.innerHTML = `<div class="pagehd"><div><div class="crumbs"><a href="#/">FLOOR</a> › MEMORY › ${tab.toUpperCase()}</div><h1>MEM<span>ORY</span></h1><p>What Hermes remembers — banks, soul/user/memory files and installed skills. Secrets are redacted server-side.</p></div></div>
@@ -407,6 +411,11 @@
         const s = D("skills"); if (!s) return;
         const list = (s.skills || []).filter((x) => !q || (x.name + " " + x.description + " " + x.category).toLowerCase().includes(q));
         $("#mm-sk", el).innerHTML = list.map((x) => `<button class="li" data-skill="${esc(x.id)}" style="background:${skill === x.id ? "#1a1522" : "none"};border:0;border-bottom:1px solid #1d1926;text-align:left;cursor:pointer;color:inherit;width:100%"><div class="grow"><div class="t1">${esc(x.name)} <span class="tag">${esc(x.category || "core")}</span></div><div class="t2 ell">${esc(x.description || "")}</div></div></button>`).join("") || `<div class="empty">NO SKILLS</div>`;
+      }
+      if (tab === "adze") {
+        const h = D("adze_hist") || D("adze");
+        const items = (h && (h.items || h.events)) || [];
+        body.innerHTML = `<section class="pn"><div class="hd"><h2><span class="dot"></span>ADZE · REVIEW LOG</h2><small>one-line summaries · no chain-of-thought</small></div><div class="list">${items.length ? items.slice().reverse().map((e) => `<div class="li"><span class="mute">${esc(e.t || "")}</span><div class="grow"><div class="t1">${esc(e.kind || "event")}</div><div class="t2">${esc(e.summary || e.state || "")}</div></div></div>`).join("") : `<div class="empty">NO ADZE REVIEWS YET</div>`}</div></section>`;
       }
     }
     const un = sub(upd); upd(); return { destroy: un };
