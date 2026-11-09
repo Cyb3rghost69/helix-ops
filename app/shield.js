@@ -88,7 +88,7 @@
 
     function drawHist() {
       const cv = $("#sh-hist", el), hist = snap.history || [];
-      const w = cv.clientWidth || 300, h = cv.clientHeight || 90, dpr = G.devicePixelRatio || 1;
+      const w = cv.clientWidth || 300, h = cv.clientHeight || 90, dpr = (G.devicePixelRatio || 1) * (X.zoom ? X.zoom() : 1);
       cv.width = w * dpr; cv.height = h * dpr;
       const g = cv.getContext("2d"); g.scale(dpr, dpr); g.imageSmoothingEnabled = false;
       g.fillStyle = "#241f2e"; for (let y = 0; y <= 4; y++) g.fillRect(0, Math.round((h - 1) * y / 4), w, 1);

@@ -185,9 +185,10 @@
     function start(x, y) {
       drag.active = true; drag.moved = true;
       const r = drag.src.getBoundingClientRect();
+      drag.z = X.zoom ? X.zoom() : 1;
       drag.ox = x - r.left; drag.oy = y - r.top;
       drag.ghost = drag.src.cloneNode(true); drag.ghost.classList.add("lt-ghost");
-      drag.ghost.style.width = r.width + "px"; document.body.appendChild(drag.ghost);
+      drag.ghost.style.width = drag.src.offsetWidth + "px"; document.body.appendChild(drag.ghost);
       drag.src.classList.add("lt-src"); el.classList.add("lt-dragging");
       if (navigator.vibrate) navigator.vibrate(12);
       X.bleep(520, 0.03); move(x, y);
@@ -199,7 +200,7 @@
       return { bulb: bulb && bulb !== drag.src && bulb.closest(".lt-room") && bulb.closest(".lt-room").dataset.group !== drag.from ? bulb : null, room };
     }
     function move(x, y) {
-      drag.ghost.style.transform = `translate(${x - drag.ox}px, ${y - drag.oy}px) rotate(-4deg)`;
+      drag.ghost.style.transform = `translate(${(x - drag.ox) / drag.z}px, ${(y - drag.oy) / drag.z}px) rotate(-4deg)`;
       const { bulb, room } = target(x, y);
       $$(".lt-over", el).forEach((n) => n.classList.remove("lt-over"));
       $$(".lt-swap", el).forEach((n) => n.classList.remove("lt-swap"));

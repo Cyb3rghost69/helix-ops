@@ -1,7 +1,7 @@
 /* HELIX/OPS service worker — makes the app installable and lets the shell open offline.
    App files: network first (so updates arrive immediately), cache as fallback.
    Never caches /api, /login, /logout or the live stream. */
-const VERSION = "hos1211";
+const VERSION = "hos1212";
 const CACHE = "helix-shell-" + VERSION;
 const SHELL = ["./", "app/arcade.css", "app/core.js", "app/mesh.js", "app/avatar.js", "app/pages.js", "app/lights.js", "app/admin.js", "app/shield.js", "app/manifest.webmanifest",
   "app/icons/icon-192.png", "app/icons/icon-512.png", "app/icons/apple-touch-icon.png", "helix-arcade-mark.svg",

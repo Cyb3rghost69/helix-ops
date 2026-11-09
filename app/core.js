@@ -529,5 +529,7 @@
     route();
   }
 
-  G.Helix = { api, esc, $, $$, clamp, num, trunc, ago, fmtBytes, jst, tzName, TZ, clockOf, NT, SET, saveSet, bleep, META, meta, ORDER, sprite, spriteURL, drawSprite, drawLogo, icon, store, D, load, needsList, agentList, talkItems, go, openSheet, closeSheet, toast, fetchJSON, start };
+  /* big-screen scaling: arcade.css sets html{zoom} on very wide displays; pointer maths divides by this */
+  const zoom = () => parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+  G.Helix = { zoom, api, esc, $, $$, clamp, num, trunc, ago, fmtBytes, jst, tzName, TZ, clockOf, NT, SET, saveSet, bleep, META, meta, ORDER, sprite, spriteURL, drawSprite, drawLogo, icon, store, D, load, needsList, agentList, talkItems, go, openSheet, closeSheet, toast, fetchJSON, start };
 })(window);

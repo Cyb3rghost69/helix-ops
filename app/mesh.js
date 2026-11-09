@@ -72,12 +72,11 @@
     const listeners = { select: null, mode: null, event: null };
 
     function size() {
-      const r = canvas.getBoundingClientRect();
-      const w = Math.max(280, r.width || canvas.parentNode.clientWidth || 600);
+      const w = Math.max(280, canvas.clientWidth || canvas.parentNode.clientWidth || 600);   // layout px (immune to html zoom)
       const portrait = w < 620;
       const floor = S.view === "floor";
       const h = opts.height || (S.compact ? Math.round(w * (portrait ? 0.95 : 0.5)) : Math.round(w * (portrait ? (floor ? 1.42 : 1.18) : (floor ? 0.6 : 0.56))));
-      S.dpr = Math.min(2, G.devicePixelRatio || 1);
+      S.dpr = Math.min(3, (G.devicePixelRatio || 1) * ((G.Helix && G.Helix.zoom) ? G.Helix.zoom() : 1));
       S.W = w; S.H = h; S.portrait = portrait;
       canvas.style.height = h + "px";
       canvas.width = Math.round(w * S.dpr); canvas.height = Math.round(h * S.dpr);
@@ -452,7 +451,8 @@
 
     /* interaction */
     function hit(ev) {
-      const r = canvas.getBoundingClientRect(), x = ev.clientX - r.left, y = ev.clientY - r.top;
+      const z = (G.Helix && G.Helix.zoom) ? G.Helix.zoom() : 1;
+      const r = canvas.getBoundingClientRect(), x = (ev.clientX - r.left) / z, y = (ev.clientY - r.top) / z;
       let best = null, bd = 1e9;
       S.nodes.forEach((n) => { const d = Math.hypot(n.x - x, n.y - y); if (d < bd) { bd = d; best = n; } });
       return bd < 5 * scale() * 1.6 + 14 ? best : null;

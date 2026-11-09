@@ -573,3 +573,32 @@ body.anim-off .loader .blocks i, body.anim-off .skel { animation: none; }
   .sh-scoreline .num { font-size: 54px; }
   .sh-find { max-height: none; }
 }
+
+/* ═════════ resolution fit ═════════ */
+/* Big displays: scale the whole UI so a 2K/4K screen gets the same density as ~1900px, not tiny text.
+   (Media queries use real viewport px, unaffected by zoom.) Pointer maths divides by Helix.zoom(). */
+@media (min-width: 2200px) { html { zoom: 1.15; } }
+@media (min-width: 2500px) { html { zoom: 1.33; } }
+@media (min-width: 3000px) { html { zoom: 1.6; } }
+@media (min-width: 3400px) { html { zoom: 1.8; } }
+@media (min-width: 4800px) { html { zoom: 2.4; } }
+/* Phones/tablets held sideways: give the content its height back */
+@media (max-width: 1000px) and (max-height: 520px) and (orientation: landscape) {
+  :root { --top: 46px; --nav-h: 42px; --frame: 4px; }
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .sidenav, .chips, .brand .sub { display: none; }
+  .brand canvas { width: 30px; height: 30px; }
+  .brand .wm { font-size: 15px; }
+  .clock { font-size: 18px; padding: 2px 6px 0; }
+  .bottomnav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; position: fixed; left: var(--frame); right: var(--frame); bottom: var(--frame); z-index: 45;
+    padding: 3px max(6px, env(safe-area-inset-right)) calc(3px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left)); background: rgba(13,11,18,.96); border-top: 1px solid var(--line); }
+  .bottomnav button { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 6px; min-height: 36px; border-radius: 6px; border: 0; background: transparent; color: var(--dim); font: 8px/1 var(--px); cursor: pointer; }
+  .bottomnav button svg { width: 16px; height: 16px; }
+  .bottomnav button.on { background: var(--pink); color: #fff; }
+  .moresheet { display: block; }
+  .main { padding: 8px max(12px, env(safe-area-inset-right)) calc(var(--nav-h) + 16px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left)); }
+  .pagehd h1 { font-size: 20px; }
+  .pagehd p { display: none; }
+}
+/* Tall screens: SHIELD findings use the height instead of a fixed 560px box */
+@media (min-height: 1000px) and (min-width: 1101px) { .sh-find { max-height: max(560px, calc(100vh - 560px)); } }
