@@ -524,3 +524,52 @@ body.anim-off .loader .blocks i, body.anim-off .skel { animation: none; }
   .ad-ev { grid-template-columns: 80px minmax(0, 1fr); } .ad-ev > span:nth-child(n+3) { grid-column: 2; }
   .ad-kv { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/* ═════════ SHIELD (RAGNAR SHIELD LAN audit) ═════════ */
+.sh-page .grid { margin-top: 14px; }
+.sh-acts { gap: 8px; }
+.sh-acts .btn.on { border-color: var(--pink); color: var(--pink); }
+.sh-scoreline { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.sh-scoreline .num { font-size: 64px; line-height: .9; }
+.sh-scoreline .num small { font-size: 18px; }
+.sh-grade { font: 700 26px/1 var(--px); border: 2px solid currentColor; padding: 4px 8px 2px; margin-left: auto; }
+.sh-shield svg { display: block; filter: drop-shadow(0 0 6px rgba(255,79,163,.15)); }
+.sh-sev { flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.sh-kv { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 7px 10px; align-items: baseline; font-size: 12px; }
+.sh-kv .v { overflow-wrap: anywhere; }
+.sh-hist { width: 100%; height: 90px; display: block; margin-bottom: 8px; }
+.sh-mods { display: flex; flex-wrap: wrap; gap: 5px; }
+.sh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.sh-host { display: flex; gap: 10px; align-items: flex-start; text-align: left; background: var(--bg2); border: 1px solid var(--line2); border-radius: 8px; padding: 10px; color: var(--ink); cursor: pointer; min-width: 0; font: inherit; }
+.sh-host:hover { border-color: var(--pink); background: #1d1726; }
+.sh-host.w-high { border-color: #6a2233; background: #1a0d14; }
+.sh-host.w-med { border-color: #5a4310; }
+.sh-hi svg { display: block; }
+.sh-ht { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 2px; }
+.sh-ht b { font: 700 11px/1.2 var(--px); letter-spacing: .04em; color: #fff; }
+.sh-ht small { font: 11px var(--mono); color: var(--dim); }
+.sh-ports { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.sh-ports i { font: 15px/1 var(--vt); font-style: normal; background: #241f2e; color: var(--green); padding: 1px 4px; border-radius: 2px; }
+.sh-host.w-high .sh-ports i { color: #ff8ea3; }
+.sh-ports em { font: 10px var(--mono); color: var(--mute); font-style: normal; }
+.sh-find { max-height: 560px; overflow-y: auto; }
+.sh-f { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-bottom: 1px solid #1d1926; }
+.sh-f .tag { min-width: 44px; justify-content: center; margin-top: 2px; }
+.sh-f .grow { flex: 1; min-width: 0; }
+.sh-f .t1 { color: #fff; font-size: 13px; }
+.sh-f .t2 { color: var(--dim); font-size: 11px; margin-top: 2px; overflow-wrap: anywhere; }
+.sh-f.muted { opacity: .45; }
+#sh-unifi .k { margin: 12px 0 4px; }
+#sh-unifi .k:first-child { margin-top: 0; }
+#sh-unifi .li { padding: 8px 0; }
+.sh-none { font-size: 12px; padding: 6px 0; }
+.sh-note { font-size: 12px; color: var(--yellow); border: 1px dashed #5a4a10; padding: 8px 10px; border-radius: 6px; margin-bottom: 8px; }
+.sh-sheet h3 { margin: 0; font: 700 16px var(--px); color: #fff; }
+.sh-sheet .li { padding: 8px 0; }
+.sh-foot { font-size: 11px; margin: 14px 2px 0; }
+.sh-foot a { color: var(--pink); }
+@media (max-width: 900px) {
+  .sh-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sh-scoreline .num { font-size: 54px; }
+  .sh-find { max-height: none; }
+}

@@ -1,5 +1,11 @@
 # Decisions
 
+## 2026-11-09 — RAGNAR SHIELD is audit-only, scanner on Unraid
+**DECISION:** Port Ragnar's netServ / transCrypt / webI *checks* as read-only probes; never floods, SQLi, XSS, fuzzing or credential guessing. Scanner runs as the `helix-shield` container on Unraid; the deck proxies `/api/shield`.
+**REASON:** An always-on dashboard must not be able to knock over household IoT. Unraid is always on and wired; the Mini stays a fallback.
+**ALTERNATIVES:** Wrap Ragnar itself (Python 2.7, scapy, patched OpenSSL — unmaintained); scan from the Mini only.
+**CONSEQUENCES:** Lower coverage than a real pentest; one more container + shared token in ops.env / shield.env.
+
 ## 2026-10-02 — HELIX/OPS branding
 **DECISION:** Canonical identity is HELIX/OPS (slash as system bus), not OMARCHY and not HELIX INDUSTRIES on the mark.  
 **REASON:** Operator identity for the Tokyo-06 deck.  

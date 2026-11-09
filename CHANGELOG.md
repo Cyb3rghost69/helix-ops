@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- SHIELD page (`#/shield`): RAGNAR SHIELD LAN exposure audit — checks ported from Ragnar (imperador/ragnar) as read-only probes: risky open ports, passwordless Redis/Docker/MQTT/Elasticsearch, TLS version/PFS/legacy/cert expiry, logins over cleartext HTTP, clickjacking/HSTS, plus UniFi new devices, firmware pending and IPS events. Score + history, MUTE (accept risk), ACK (baseline a device), 6-hourly scans. Scanner runs in an Unraid container (`unraid/helix-shield`, :8791, token) that the deck proxies to; falls back to the Mini. Viewers read-only; actions go to the security log. See docs/SHIELD.md.
+
 - Accounts: multi-user login with admin/operator/viewer roles, salted scrypt password hashes (old plaintext `HELIX_OPS_PASSWORD` migrated automatically, other ops.env settings kept), lockouts, CSRF origin check, security headers, audit log. ADMIN page for users, sessions, security log and password changes. Arcade-styled login with Helix. See docs/SECURITY.md.
 - Fix: setting the password no longer rewrites ops.env (it used to wipe chat keys).
 
